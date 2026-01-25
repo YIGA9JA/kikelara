@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="admin-dashboard.css">
+</head>
+<body onload="checkAuth()">
+
+<header class="dash-header">
+  <h2>Admin Dashboard</h2>
+  <button onclick="adminLogout()">Logout</button>
+</header>
+
+<div class="dash-grid">
+  <div class="dash-card" onclick="window.location.href='admin-orders.html'">
+    📦 <br> Orders
+  </div>
+
+  <div class="dash-card" onclick="window.location.href='admin-delivery.html'">
+    🚚 <br> Delivery Pricing
+  </div>
+</div>
+
+<script src="admin-dashboard.js"></script>
+</body>
+</html>

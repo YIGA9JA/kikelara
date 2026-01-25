@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Products | KÍKE LÁRÁ</title>
+  <link rel="stylesheet" href="products.css">
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="main-header">
+  <div class="brand">
+    <img src="/images/logo.jpg" alt="Kíke Lárá Logo">
+    <span>KÍKE LÁRÁ</span>
+  </div>
+
+  <button id="menu-toggle" class="menu-btn">☰</button>
+
+  <nav id="navbarLinks">
+    <a href="index.html">Home</a>
+    <a href="products.html" class="active">Products</a>
+    <a href="wishlist.html">Wishlist (<span id="wishlistCount">0</span>)</a>
+    <a href="cart.html">Cart (<span id="cartCount">0</span>)</a>
+  </nav>
+</header>
+
+<!-- ================= FILTERS ================= -->
+<section class="filters-section">
+  <div class="filter-group">
+    <label for="categorySelect">Category:</label>
+    <select id="categorySelect">
+      <option value="all">All</option>
+      <option value="skincare">Skincare</option>
+      <option value="makeup">Makeup</option>
+      <option value="body">Body</option>
+    </select>
+  </div>
+
+  <div class="filter-group">
+    <label for="sortSelect">Sort By:</label>
+    <select id="sortSelect">
+      <option value="default">Default</option>
+      <option value="priceLow">Price: Low → High</option>
+      <option value="priceHigh">Price: High → Low</option>
+      <option value="name">Name</option>
+    </select>
+  </div>
+</section>
+
+<!-- ================= PRODUCTS GRID ================= -->
+<section class="products-page">
+  <div class="products-grid" id="productsGrid"></div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="main-footer">
+  <div class="footer-top">
+    <div class="footer-brand">
+      <img src="images/logo.jpg" alt="Kíke Lárá Logo">
+      <h3>KÍKE LÁRÁ</h3>
+      <p>Luxury skincare inspired by nature. Crafted to nourish, glow and restore confidence.</p>
+    </div>
+
+    <div class="footer-links">
+      <h4>Shop</h4>
+      <a href="products.html">All Products</a>
+      <a href="#">Best Sellers</a>
+      <a href="#">New Arrivals</a>
+    </div>
+
+    <div class="footer-links">
+      <h4>Company</h4>
+      <a href="#">About Us</a>
+      <a href="#">Contact</a>
+      <a href="#">Privacy Policy</a>
+    </div>
+
+    <div class="footer-social">
+      <h4>Follow Us</h4>
+      <div class="social-icons">
+        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046126.png" alt="Instagram"></a>
+        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="TikTok"></a>
+        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook"></a>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    © 2026 KÍKE LÁRÁ Skincare. All Rights Reserved.
+  </div>
+</footer>
+
+<script src="products.js"></script>
+<script>
+  // MOBILE MENU TOGGLE
+  const menuToggle = document.getElementById("menu-toggle");
+  const navbarLinks = document.getElementById("navbarLinks");
+
+  menuToggle.addEventListener("click", () => {
+    navbarLinks.classList.toggle("show");
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Delivery Admin | KÍKE LÁRÁ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="admin-delivery.css">
+</head>
+<body>
+
+<header class="main-header">
+  <div class="brand">
+    <img src="images/logo.jpg" alt="Kíke Lárá">
+    <span>KÍKE LÁRÁ Admin</span>
+  </div>
+</header>
+
+<section class="admin-page">
+  <h1>Delivery Pricing Manager</h1>
+
+  <div class="admin-container">
+
+    <!-- ADD STATE -->
+    <div class="admin-box">
+      <h3>Add State</h3>
+      <input type="text" id="newStateName" placeholder="State Name">
+      <button id="addStateBtn" class="gold-btn">Add State</button>
+    </div>
+
+    <!-- STATES LIST -->
+    <div class="admin-box">
+      <h3>States & Cities</h3>
+      <div id="stateList"></div>
+    </div>
+
+  </div>
+</section>
+
+<script src="admin-delivery.js"></script>
+</body>
+</html>

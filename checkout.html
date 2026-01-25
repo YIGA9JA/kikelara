@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Checkout | KÍKE LÁRÁ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="checkout.css">
+</head>
+<body>
+
+<header class="main-header">
+  <div class="brand">
+    <img src="images/logo.jpg" alt="Kíke Lárá">
+    <span>KÍKE LÁRÁ</span>
+  </div>
+</header>
+
+<section class="checkout-page">
+
+  <h1>Checkout</h1>
+
+  <div class="checkout-grid">
+
+    <!-- CUSTOMER DETAILS -->
+    <div class="checkout-box checkout-form">
+      <h2>Customer Information</h2>
+
+      <label for="name">Full Name</label>
+      <input id="name" placeholder="Full Name" required>
+
+      <label for="email">Email</label>
+      <input id="email" placeholder="Email Address" required>
+
+      <label for="phone">Phone</label>
+      <input id="phone" placeholder="Phone Number (234...)" required>
+
+      <label>Shipping Type</label>
+      <div class="shipping-options">
+        <label><input type="radio" name="shippingType" value="pickup" checked> Pickup</label>
+        <label><input type="radio" name="shippingType" value="delivery"> Delivery</label>
+      </div>
+
+      <!-- Delivery Fields -->
+      <div id="deliveryFields" style="display:none;">
+        <label for="deliveryState">State</label>
+        <select id="deliveryState">
+          <option value="">Select State</option>
+        </select>
+
+        <label for="deliveryCity">City</label>
+        <select id="deliveryCity" disabled>
+          <option value="">Select City</option>
+        </select>
+
+        <label for="address">Address</label>
+        <textarea id="address" placeholder="Delivery Address"></textarea>
+      </div>
+
+      <!-- Pickup Info -->
+      <div id="pickupInfo">
+        <p><strong>Lagos Pickup:</strong> Lekki Horizon II, 9am-6pm, Call 09013896342</p>
+        <p><strong>Abuja Pickup:</strong> Garki store, 9am-6pm, Call 09013896342</p>
+      </div>
+
+    </div>
+
+    <!-- ORDER SUMMARY -->
+    <div class="checkout-box checkout-summary">
+      <h2>Order Summary</h2>
+
+      <div id="summaryItems"></div>
+
+      <div class="summary-row">
+        <span>Delivery Fee</span>
+        <span>₦<span id="deliveryFee">0</span></span>
+      </div>
+
+      <div class="summary-row summary-total">
+        <span>Total</span>
+        <span>₦<span id="totalAmount">0</span></span>
+      </div>
+
+      <button id="payNowBtn" class="pay-btn">
+        Pay ₦<span id="payBtnAmount">0</span>
+      </button>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="checkout.js"></script>
+</body>
+</html>

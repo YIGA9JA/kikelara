@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact Us | KÍKE LÁRÁ</title>
+  <link rel="stylesheet" href="contact.css">
+</head>
+<body>
+
+<header class="main-header">
+  <div class="brand">
+    <img src="images/logo.jpg" alt="Kíke Lárá Logo">
+    <span>KÍKE LÁRÁ</span>
+  </div>
+
+  <button id="menu-toggle" class="menu-btn">☰</button>
+
+  <nav id="mobileNav">
+    <a href="index.html">Home</a>
+    <a href="products.html">Products</a>
+    <a href="contact.html" class="active">Contact Us</a>
+  </nav>
+</header>
+
+<section class="contact-hero">
+  <h1>Contact Us</h1>
+  <p>We’d love to hear from you. Send us a message and we’ll get back to you shortly.</p>
+</section>
+
+<section class="contact-form-section">
+  <form id="contactForm">
+    <input type="text" name="name" placeholder="Your Name" required>
+    <input type="email" name="email" placeholder="Your Email" required>
+    <textarea name="message" placeholder="Your Message" rows="6" required></textarea>
+    <button type="submit">Send Message</button>
+    <p id="formStatus"></p>
+  </form>
+</section>
+
+<footer class="main-footer">
+  © 2026 KÍKE LÁRÁ Skincare. All Rights Reserved.
+</footer>
+
+<script>
+const toggleBtn = document.getElementById("menu-toggle");
+const nav = document.getElementById("mobileNav");
+
+toggleBtn.addEventListener("click", () => {
+  nav.classList.toggle("show");
+});
+
+const form = document.getElementById("contactForm");
+const status = document.getElementById("formStatus");
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const formData = Object.fromEntries(new FormData(form));
+  status.textContent = "Sending...";
+
+  const res = await fetch("/api/contact", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(formData)
+  });
+
+  const data = await res.json();
+  if(data.success){
+    status.textContent = "Message sent successfully!";
+    form.reset();
+  } else {
+    status.textContent = "Error sending message. Try again.";
+  }
+});
+</script>
+
+</body>
+</html>

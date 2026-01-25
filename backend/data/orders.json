@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1769083054346,
+    "reference": "KL_1769083045488",
+    "name": "Segun Yiga",
+    "email": "dollarmastar@gmail.com",
+    "phone": "09087654356",
+    "shippingType": "delivery",
+    "state": "Lagos",
+    "city": "ikorodu",
+    "address": "trtrtr",
+    "cart": [
+      {
+        "name": "Body Oil",
+        "qty": 4,
+        "price": 8500,
+        "total": 34000
+      },
+      {
+        "name": "Body Butter",
+        "qty": 3,
+        "price": 10000,
+        "total": 30000
+      }
+    ],
+    "deliveryFee": 5000,
+    "total": 69000,
+    "status": "Delivered"
+  }
+]

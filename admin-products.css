@@ -1,0 +1,130 @@
+:root {
+  --primary: #4a3021;
+  --accent: #d7af58;
+  --bg: #f3d9c4;
+  --light: #fff;
+  --danger: #b63f3f;
+}
+
+body {
+  margin: 0;
+  font-family: Poppins, sans-serif;
+  background: var(--bg);
+}
+
+/* Top Bar */
+.topbar {
+  background: var(--primary);
+  color: var(--light);
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Container */
+.container {
+  padding: 15px;
+}
+
+/* Add Button */
+.add-btn {
+  background: var(--accent);
+  border: none;
+  padding: 12px 18px;
+  border-radius: 6px;
+  color: #000;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Product List */
+.product-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.product-item {
+  background: var(--light);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.product-item img {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.product-info {
+  flex: 1;
+}
+
+.product-actions button {
+  margin-left: 6px;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.edit-btn {
+  background: var(--accent);
+}
+
+.delete-btn {
+  background: var(--danger);
+  color: white;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 400px;
+  background: var(--light);
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.modal-content input,
+.modal-content textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 5px;
+  border: 1px solid #aaa;
+  font-size: 15px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.save {
+  background: var(--accent);
+  flex: 1;
+}
+
+.cancel {
+  background: #ccc;
+  flex: 1;
+}

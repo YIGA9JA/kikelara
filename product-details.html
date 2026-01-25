@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Product Details | KÍKE LÁRÁ</title>
+  <meta name="description" content="Luxury skincare by KÍKE LÁRÁ">
+  <link rel="stylesheet" href="product-details.css">
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="main-header">
+  <div class="brand">
+    <img src="images/logo.jpg" alt="Kíke Lárá Logo">
+    <span>KÍKE LÁRÁ</span>
+  </div>
+
+  <button class="menu-btn" id="menu-toggle">☰</button>
+
+  <nav id="navbarLinks">
+    <a href="index.html">Home</a>
+    <a href="products.html">Products</a>
+    <a href="wishlist.html">Wishlist (<span id="wishlistCount">0</span>)</a>
+    <a href="cart.html">Cart (<span id="cartCount">0</span>)</a>
+  </nav>
+</header>
+
+<!-- ================= PRODUCT DETAILS ================= -->
+<section class="product-details">
+  <div class="product-image">
+    <img id="productImage" src="" alt="">
+  </div>
+
+  <div class="product-info">
+    <h1 id="productName"></h1>
+    <p class="price" id="productPrice"></p>
+    <p class="description" id="productDescription"></p>
+    <ul class="features" id="productFeatures"></ul>
+
+    <div class="actions icon-row">
+      <button class="wishlist-btn" id="wishlistBtn">♥</button>
+      <button class="cart-btn" id="cartBtn">🛒</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="main-footer">
+  <p>© 2026 KÍKE LÁRÁ Skincare</p>
+</footer>
+
+<script src="product-details.js"></script>
+</body>
+</html>
