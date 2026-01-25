@@ -38,7 +38,6 @@ function renderWishlist() {
   <button class="add-cart" onclick="moveToCart(${product.id}, this)" title="Add to Cart">🛒</button>
   <button class="remove" onclick="removeFromWishlist(${product.id})" title="Remove">❌</button>
 </div>
-
     `;
 
     grid.appendChild(card);
