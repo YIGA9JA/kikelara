@@ -1,3 +1,6 @@
+// admin-orders.js
+checkAuth(); // ✅ block access if not logged in
+
 const ordersContainer = document.getElementById("ordersContainer");
 
 // Fetch all orders from backend

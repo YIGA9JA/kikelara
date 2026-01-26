@@ -1,3 +1,4 @@
+// admin-login.js
 const ADMIN_CODE = "4567"; // change to your code
 
 function adminLogin() {

@@ -1,11 +1,19 @@
 /* ================= LOAD / SEED PRODUCTS ================= */
+
+/** Change these only if you want to rename storage keys globally */
+const PRODUCTS_KEY = "allProducts";
+const DEFAULTS_SIG_KEY = "allProducts_defaults_sig";
+const WISHLIST_KEY = "wishlist";
+const CART_KEY = "cart";
+
+/** Your default products */
 const defaultProducts = [
   {
     id: 1,
     name: "Body Butter",
     category: "Body",
     price: 10000,
-    discount: 15,
+    discount: 0,
     image: "images/bodyButter.JPG",
     description: "Shea Butter, Almond Oil, Mango Butter, Cocoa Butter, Glycerin."
   },
@@ -47,11 +55,11 @@ const defaultProducts = [
   },
   {
     id: 6,
-    name: "Fruity Body Butter",
+    name: "Body Butter (Fruity)",
     category: "Body",
     price: 10000,
     discount: 0,
-    image: "images/BabyBodyButter.png",
+    image: "images/bodyButter(Fruity).png",
     description: "Whisper of fruity freshness. Gentle care, naturally."
   },
   {
@@ -65,16 +73,68 @@ const defaultProducts = [
   }
 ];
 
-// Load from localStorage if exists, else seed
-let products = JSON.parse(localStorage.getItem("allProducts"));
-if (!products || products.length === 0) {
-  products = defaultProducts;
-  localStorage.setItem("allProducts", JSON.stringify(products));
+/**
+ * Create a "signature" of defaultProducts.
+ * If ANY product changes (id/name/category/price/discount/image/description),
+ * the signature changes and we reset localStorage products.
+ */
+function makeDefaultsSignature(items) {
+  // Sort by id to keep signature stable even if you reorder the array
+  const normalized = [...items]
+    .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      price: p.price,
+      discount: p.discount,
+      image: p.image,
+      description: p.description
+    }));
+  return JSON.stringify(normalized);
 }
 
+/**
+ * Ensures localStorage products match current defaults.
+ * - If no products saved -> seed defaults
+ * - If defaults changed -> overwrite saved products with defaults
+ * - If saved products corrupt -> reset to defaults
+ */
+function syncProductsWithDefaults() {
+  const currentSig = makeDefaultsSignature(defaultProducts);
+  const savedSig = localStorage.getItem(DEFAULTS_SIG_KEY);
+
+  let savedProducts;
+  try {
+    savedProducts = JSON.parse(localStorage.getItem(PRODUCTS_KEY));
+  } catch (e) {
+    savedProducts = null;
+  }
+
+  const savedValid = Array.isArray(savedProducts) && savedProducts.length > 0;
+
+  // If no saved data OR signature mismatch => reset to defaults
+  if (!savedValid || savedSig !== currentSig) {
+    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts));
+    localStorage.setItem(DEFAULTS_SIG_KEY, currentSig);
+
+    // Optional: also clear cart/wishlist if you want a full reset
+    // localStorage.removeItem(CART_KEY);
+    // localStorage.removeItem(WISHLIST_KEY);
+
+    return defaultProducts;
+  }
+
+  // If everything is fine, use saved products
+  return savedProducts;
+}
+
+// Always sync on load
+let products = syncProductsWithDefaults();
+
 /* ================= STATE ================= */
-let wishlist = JSON.parse(localStorage.getItem("wishlist")) || []; // IDs only
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
+let wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; // IDs only
+let cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
 let currentList = products; // used for sorting filtered results
 
 /* ================= ELEMENTS ================= */
@@ -86,21 +146,20 @@ const sortSelect = document.getElementById("sortSelect");
 
 /* ================= POPULATE CATEGORIES (DIRECT FROM PRODUCTS) ================= */
 function populateCategories() {
-  // Reset to only "All"
   categorySelect.innerHTML = `<option value="all">All</option>`;
 
-  const categories = [...new Set(products.map(p => p.category))]; // ["Body","Oil","Serum"]
+  const categories = [...new Set(products.map(p => p.category))];
   categories.forEach(cat => {
     const opt = document.createElement("option");
-    opt.value = cat;        // MUST match exactly
-    opt.textContent = cat;  // display
+    opt.value = cat;
+    opt.textContent = cat;
     categorySelect.appendChild(opt);
   });
 }
 
 /* ================= RENDER PRODUCTS ================= */
 function renderProducts(list = products) {
-  currentList = list; // keep track of what user is viewing
+  currentList = list;
   grid.innerHTML = "";
 
   list.forEach(p => {
@@ -117,7 +176,7 @@ function renderProducts(list = products) {
       </div>
 
       <h4>${p.name}</h4>
-      <p class="price">₦${p.price.toLocaleString()}</p>
+      <p class="price">₦${Number(p.price).toLocaleString()}</p>
 
       <div class="product-actions-row">
         <button class="wishlist-btn" aria-label="Add to wishlist">
@@ -159,24 +218,23 @@ categorySelect.addEventListener("change", () => {
     : products.filter(p => p.category === val);
 
   renderProducts(filtered);
-
-  // Reset sort to default whenever category changes (optional but clean)
   sortSelect.value = "default";
 });
 
 sortSelect.addEventListener("change", () => {
-  if (sortSelect.value === "default") {
-    // re-render current category selection without sorting
-    const val = categorySelect.value;
-    const filtered = val === "all"
-      ? products
-      : products.filter(p => p.category === val);
+  const val = categorySelect.value;
 
+  // get list for the current category first
+  const filtered = val === "all"
+    ? products
+    : products.filter(p => p.category === val);
+
+  if (sortSelect.value === "default") {
     renderProducts(filtered);
     return;
   }
 
-  let sorted = [...currentList];
+  let sorted = [...filtered];
 
   if (sortSelect.value === "priceLow") sorted.sort((a, b) => a.price - b.price);
   if (sortSelect.value === "priceHigh") sorted.sort((a, b) => b.price - a.price);
@@ -191,20 +249,19 @@ function toggleWishlist(id) {
     ? wishlist.filter(w => w !== id)
     : [...wishlist, id];
 
-  localStorage.setItem("wishlist", JSON.stringify(wishlist));
-
-  // Re-render current list so hearts update without losing filter
+  localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
   renderProducts(currentList);
 }
 
 /* ================= CART ================= */
 function addToCart(id, btn) {
   const product = products.find(p => p.id === id);
-  const item = cart.find(c => c.id === id);
+  if (!product) return;
 
+  const item = cart.find(c => c.id === id);
   item ? item.qty++ : cart.push({ ...product, qty: 1 });
 
-  localStorage.setItem("cart", JSON.stringify(cart));
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
   updateCounts();
 
   // Mobile-friendly feedback
@@ -220,7 +277,7 @@ function addToCart(id, btn) {
 /* ================= COUNTS ================= */
 function updateCounts() {
   wishlistCount.textContent = wishlist.length;
-  cartCount.textContent = cart.reduce((t, i) => t + i.qty, 0);
+  cartCount.textContent = cart.reduce((t, i) => t + (i.qty || 0), 0);
 }
 
 /* ================= INIT ================= */

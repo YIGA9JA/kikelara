@@ -1,3 +1,6 @@
+// admin-delivery.js
+checkAuth(); // ✅ block access if not logged in
+
 // Admin delivery management using localStorage
 
 let states = JSON.parse(localStorage.getItem("states")) || [];
