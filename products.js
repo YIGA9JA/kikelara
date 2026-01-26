@@ -1,125 +1,229 @@
-const products = JSON.parse(localStorage.getItem("allProducts")) || [];
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
-let wishlist = JSON.parse(localStorage.getItem("wishlist")) || [];
+/* ================= LOAD / SEED PRODUCTS ================= */
+const defaultProducts = [
+  {
+    id: 1,
+    name: "Body Butter",
+    category: "Body",
+    price: 10000,
+    discount: 15,
+    image: "images/bodyButter.JPG",
+    description: "Shea Butter, Almond Oil, Mango Butter, Cocoa Butter, Glycerin."
+  },
+  {
+    id: 2,
+    name: "Bright Aura Oil",
+    category: "Oil",
+    price: 10000,
+    discount: 0,
+    image: "images/bodyOil.JPG",
+    description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E."
+  },
+  {
+    id: 3,
+    name: "Hair Butter",
+    category: "Serum",
+    price: 5500,
+    discount: 0,
+    image: "images/hairButter.png",
+    description: "Strengthens and moisturizes hair deeply."
+  },
+  {
+    id: 4,
+    name: "Hair Oil",
+    category: "Serum",
+    price: 7500,
+    discount: 0,
+    image: "images/hairOil1.JPG",
+    description: "Locks in moisture. Jojoba Oil, Castor Oil, Argan Oil, Vitamin E."
+  },
+  {
+    id: 5,
+    name: "Baby Body Butter",
+    category: "Body",
+    price: 10000,
+    discount: 0,
+    image: "images/BabyBodyButter.png",
+    description: "Gentle care, naturally."
+  },
+  {
+    id: 6,
+    name: "Fruity Body Butter",
+    category: "Body",
+    price: 10000,
+    discount: 0,
+    image: "images/BabyBodyButter.png",
+    description: "Whisper of fruity freshness. Gentle care, naturally."
+  },
+  {
+    id: 7,
+    name: "Glow Elixir Oil",
+    category: "Oil",
+    price: 8500,
+    discount: 0,
+    image: "images/bodyOil.JPG",
+    description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E."
+  }
+];
 
-const productsGrid = document.getElementById("productsGrid");
+// Load from localStorage if exists, else seed
+let products = JSON.parse(localStorage.getItem("allProducts"));
+if (!products || products.length === 0) {
+  products = defaultProducts;
+  localStorage.setItem("allProducts", JSON.stringify(products));
+}
+
+/* ================= STATE ================= */
+let wishlist = JSON.parse(localStorage.getItem("wishlist")) || []; // IDs only
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
+let currentList = products; // used for sorting filtered results
+
+/* ================= ELEMENTS ================= */
+const grid = document.getElementById("productsGrid");
 const wishlistCount = document.getElementById("wishlistCount");
 const cartCount = document.getElementById("cartCount");
 const categorySelect = document.getElementById("categorySelect");
 const sortSelect = document.getElementById("sortSelect");
 
-function renderProducts() {
-  productsGrid.innerHTML = "";
-  let filtered = [...products];
+/* ================= POPULATE CATEGORIES (DIRECT FROM PRODUCTS) ================= */
+function populateCategories() {
+  // Reset to only "All"
+  categorySelect.innerHTML = `<option value="all">All</option>`;
 
-  // Filter
-  const cat = categorySelect.value;
-  if (cat !== "all") filtered = filtered.filter(p => p.category === cat);
+  const categories = [...new Set(products.map(p => p.category))]; // ["Body","Oil","Serum"]
+  categories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat;        // MUST match exactly
+    opt.textContent = cat;  // display
+    categorySelect.appendChild(opt);
+  });
+}
 
-  // Sort
-  const sortVal = sortSelect.value;
-  if (sortVal === "priceLow") filtered.sort((a,b)=>a.price-b.price);
-  else if (sortVal === "priceHigh") filtered.sort((a,b)=>b.price-a.price);
-  else if (sortVal === "name") filtered.sort((a,b)=>a.name.localeCompare(b.name));
+/* ================= RENDER PRODUCTS ================= */
+function renderProducts(list = products) {
+  currentList = list; // keep track of what user is viewing
+  grid.innerHTML = "";
 
-  filtered.forEach(product => {
+  list.forEach(p => {
     const card = document.createElement("div");
     card.className = "product-card";
 
+    const isWishlisted = wishlist.includes(p.id);
+
     card.innerHTML = `
-   <div class="product-image-wrapper">
-  <img 
-    src="${product.image}" 
-    alt="${product.name}" 
-    loading="lazy"
-    class="clickable-image"
-    onclick="goToProduct(${product.id})"
-  >
+      ${p.discount ? `<span class="discount">-${p.discount}%</span>` : ""}
 
-      <!-- ICON ROW -->
-      <div class="product-actions-row">
-
-        <!-- WISHLIST -->
-        <button class="wishlist-btn"
-          onclick="toggleWishlist(${product.id}, this)">♥</button>
-
-        <!-- QUANTITY -->
-        <div class="quantity inline-qty">
-          <button onclick="changeQty(this, -1)">-</button>
-          <input type="number" value="1" min="1">
-          <button onclick="changeQty(this, 1)">+</button>
-        </div>
-
-        <!-- CART -->
-        <button class="cart-btn"
-          onclick="addToCart(${product.id}, this)">🛒</button>
-
+      <div class="product-image-wrapper">
+        <img src="${p.image}" alt="${p.name}" class="clickable-image">
       </div>
 
-      <h4>${product.name}</h4>
-      <p class="price">₦${product.price.toLocaleString()}</p>
+      <h4>${p.name}</h4>
+      <p class="price">₦${p.price.toLocaleString()}</p>
+
+      <div class="product-actions-row">
+        <button class="wishlist-btn" aria-label="Add to wishlist">
+          ${isWishlisted ? "♥" : "♡"}
+        </button>
+        <button class="cart-btn" aria-label="Add to cart">🛒</button>
+      </div>
     `;
 
-    productsGrid.appendChild(card);
+    // Navigate only on image tap
+    card.querySelector("img").onclick = () => {
+      window.location.href = `product-details.html?id=${p.id}`;
+    };
+
+    // Wishlist
+    card.querySelector(".wishlist-btn").onclick = e => {
+      e.stopPropagation();
+      toggleWishlist(p.id);
+    };
+
+    // Cart
+    card.querySelector(".cart-btn").onclick = e => {
+      e.stopPropagation();
+      addToCart(p.id, e.target);
+    };
+
+    grid.appendChild(card);
   });
 
   updateCounts();
 }
 
-function changeQty(btn, delta){
-  const input = btn.parentElement.querySelector("input");
-  let val = parseInt(input.value) + delta;
-  if (val < 1) val = 1;
-  input.value = val;
-}
+/* ================= FILTERS ================= */
+categorySelect.addEventListener("change", () => {
+  const val = categorySelect.value;
 
-function addToCart(id, btn){
-  const card = btn.closest(".product-card");
-  const qty = parseInt(card.querySelector("input").value) || 1;
+  const filtered = val === "all"
+    ? products
+    : products.filter(p => p.category === val);
 
-  const existing = cart.find(p => p.id === id);
-  if (existing) existing.qty += qty;
-  else {
-    const product = products.find(p => p.id === id);
-    cart.push({ ...product, qty });
+  renderProducts(filtered);
+
+  // Reset sort to default whenever category changes (optional but clean)
+  sortSelect.value = "default";
+});
+
+sortSelect.addEventListener("change", () => {
+  if (sortSelect.value === "default") {
+    // re-render current category selection without sorting
+    const val = categorySelect.value;
+    const filtered = val === "all"
+      ? products
+      : products.filter(p => p.category === val);
+
+    renderProducts(filtered);
+    return;
   }
 
-  localStorage.setItem("cart", JSON.stringify(cart));
+  let sorted = [...currentList];
 
-  // UI feedback only
-  btn.textContent = "✓";
-  btn.disabled = true;
+  if (sortSelect.value === "priceLow") sorted.sort((a, b) => a.price - b.price);
+  if (sortSelect.value === "priceHigh") sorted.sort((a, b) => b.price - a.price);
+  if (sortSelect.value === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
 
-  updateCounts();
-}
+  renderProducts(sorted);
+});
 
-function toggleWishlist(id, btn){
-  const index = wishlist.findIndex(p => p.id === id);
-
-  if (index > -1) {
-    wishlist.splice(index, 1);
-    btn.style.color = "black";
-  } else {
-    const product = products.find(p => p.id === id);
-    wishlist.push(product);
-    btn.style.color = "crimson";
-  }
+/* ================= WISHLIST ================= */
+function toggleWishlist(id) {
+  wishlist = wishlist.includes(id)
+    ? wishlist.filter(w => w !== id)
+    : [...wishlist, id];
 
   localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+  // Re-render current list so hearts update without losing filter
+  renderProducts(currentList);
+}
+
+/* ================= CART ================= */
+function addToCart(id, btn) {
+  const product = products.find(p => p.id === id);
+  const item = cart.find(c => c.id === id);
+
+  item ? item.qty++ : cart.push({ ...product, qty: 1 });
+
+  localStorage.setItem("cart", JSON.stringify(cart));
   updateCounts();
+
+  // Mobile-friendly feedback
+  const old = btn.textContent;
+  btn.textContent = "✓";
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = old;
+    btn.disabled = false;
+  }, 700);
 }
 
-function updateCounts(){
-  cartCount.textContent = cart.reduce((sum, i) => sum + i.qty, 0);
+/* ================= COUNTS ================= */
+function updateCounts() {
   wishlistCount.textContent = wishlist.length;
+  cartCount.textContent = cart.reduce((t, i) => t + i.qty, 0);
 }
 
-categorySelect.addEventListener("change", renderProducts);
-sortSelect.addEventListener("change", renderProducts);
-
+/* ================= INIT ================= */
+populateCategories();
 renderProducts();
-
-
-function goToProduct(id) {
-  window.location.href = `product-details.html?id=${id}`;
-}
+updateCounts();
