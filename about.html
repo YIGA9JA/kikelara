@@ -1,110 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>About Us | KÍKE LÁRÁ</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="messages.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Premium About CSS -->
+  <link rel="stylesheet" href="about.css" />
+
+  <!-- Shared footer -->
+  <link rel="stylesheet" href="footer.css" />
 </head>
 <body>
 
-<!-- NAVBAR -->
+<!-- ================= PREMIUM HEADER ================= -->
 <header class="main-header" id="navbar">
-  <div class="brand">
-    <img src="images/logo.jpg" alt="Kíke Lárá logo">
+  <a class="brand" href="index.html">
+    <img src="images/logo.jpg" alt="Kíke Lárá logo" />
     <span>KÍKE LÁRÁ</span>
-  </div>
+  </a>
 
-  <button id="menu-toggle" class="menu-btn">☰</button>
-
-  <nav id="mobileNav">
+  <!-- Desktop nav -->
+  <nav class="nav-links" aria-label="Primary navigation">
     <a href="index.html">Home</a>
     <a href="products.html">Products</a>
-    <a href="about.html" class="active">About Us</a>
+    <a href="about.html" class="active">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+
+  <!-- Right side actions -->
+  <div class="header-actions">
+    <a class="icon-link" href="wishlist.html" aria-label="Wishlist">♥</a>
+    <a class="icon-link" href="cart.html" aria-label="Cart">🛒</a>
+
+    <button id="menu-toggle" class="menu-btn" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile overlay + drawer -->
+<div class="nav-overlay" id="navOverlay"></div>
+
+<nav id="mobileNav" class="mobile-drawer" aria-label="Mobile navigation">
+  <div class="drawer-top">
+    <div class="drawer-brand">
+      <img src="images/logo.jpg" alt="Kíke Lárá logo" />
+      <span>KÍKE LÁRÁ</span>
+    </div>
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
+  </div>
+
+  <div class="drawer-links">
+    <a href="index.html">Home</a>
+    <a href="products.html">Products</a>
+    <a href="about.html" class="active">About</a>
     <a href="contact.html">Contact</a>
     <a href="privacy.html">Privacy Policy</a>
     <a href="wishlist.html">Wishlist</a>
     <a href="cart.html">Cart</a>
-  </nav>
-</header>
+  </div>
 
-<!-- HERO -->
-<section class="hero-slider">
-  <div class="hero-slide active" style="background: url('images/about-hero.jpg') center/cover no-repeat;">
-    <div class="hero-text">
-      <h1>Our Story</h1>
-      <p>Luxury skincare rooted in Nigerian heritage and botanical tradition.</p>
+  <div class="drawer-bottom">
+    <div class="drawer-note">Luxury skincare inspired by nature.</div>
+    <a class="drawer-cta" href="products.html">Shop Now</a>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<section class="about-hero">
+  <div class="about-hero__bg" style="background-image:url('images/about-hero.jpg')"></div>
+
+  <div class="about-hero__content">
+    <div class="kicker">KÍKE LÁRÁ</div>
+    <h1>Our Story</h1>
+    <p>
+      Luxury skincare rooted in Nigerian heritage and botanical tradition —
+      crafted for radiant, healthy skin.
+    </p>
+
+    <div class="hero-chips">
+      <span class="chip">Botanical</span>
+      <span class="chip">Luxury Feel</span>
+      <span class="chip">Heritage-Inspired</span>
     </div>
   </div>
 </section>
 
-<!-- ABOUT CONTENT -->
-<section class="about-content">
-  <div class="brand-values">
-    <div class="value-card">
-      <h3>🌿 Inspired by Nature</h3>
-      <p>Every formulation honors Nigeria’s rich botanical legacy, combining tradition with modern skincare science.</p>
-    </div>
-    <div class="value-card">
-      <h3>✨ Premium Craftsmanship</h3>
-      <p>Our products are meticulously crafted for radiant, healthy skin — blending luxury textures with powerful ingredients.</p>
-    </div>
-    <div class="value-card">
-      <h3>💛 Heritage & Innovation</h3>
-      <p>KÍKE LÁRÁ embodies the harmony of cultural heritage and modern innovation, making skincare an indulgent ritual.</p>
-    </div>
-  </div>
+<!-- ================= CONTENT ================= -->
+<main class="about-wrap">
 
-  <div class="founder-section">
-    <img src="images/founder.jpg" alt="Founder of KÍKE LÁRÁ" class="founder-img">
-    <div class="founder-text">
-      <h2>Meet Our Founder</h2>
-      <p>Our founder, inspired by Nigeria’s lush botanicals and traditional skin remedies, envisioned a brand that celebrates nature’s gifts while delivering luxurious results. With a passion for beauty and wellness, every product is crafted to bring heritage-inspired skincare into modern homes.</p>
-    </div>
-  </div>
-</section>
+  <section class="section-head">
+    <h2>What We Stand For</h2>
+    <p>Three pillars that guide every formula, texture, and finish.</p>
+  </section>
 
-<!-- FOOTER -->
-<footer class="main-footer">
-  <div class="footer-top">
-    <div class="footer-brand">
-      <img src="images/logo.jpg" alt="Kíke Lárá Logo">
-      <h3>KÍKE LÁRÁ</h3>
-      <p>Luxury skincare inspired by nature. Crafted to nourish, glow and restore confidence.</p>
+  <section class="values-grid">
+    <article class="value-card">
+      <div class="icon">🌿</div>
+      <h3>Inspired by Nature</h3>
+      <p>Every formulation honors Nigeria’s botanical legacy, blending tradition with modern skincare science.</p>
+    </article>
+
+    <article class="value-card">
+      <div class="icon">✨</div>
+      <h3>Premium Craftsmanship</h3>
+      <p>Meticulously crafted for radiant skin — luxury textures with powerful ingredients.</p>
+    </article>
+
+    <article class="value-card">
+      <div class="icon">💛</div>
+      <h3>Heritage & Innovation</h3>
+      <p>KÍKE LÁRÁ harmonizes cultural heritage and modern innovation, making skincare an indulgent ritual.</p>
+    </article>
+  </section>
+
+  <section class="stat-strip" aria-label="Brand highlights">
+    <div class="stat">
+      <div class="stat-num">Botanical</div>
+      <div class="stat-label">Ingredients</div>
     </div>
-    <div class="footer-links">
-      <h4>Shop</h4>
-      <a href="products.html">All Products</a>
-      <a href="#">Best Sellers</a>
-      <a href="#">New Arrivals</a>
+    <div class="stat">
+      <div class="stat-num">Luxury</div>
+      <div class="stat-label">Textures</div>
     </div>
-    <div class="footer-links">
-      <h4>Company</h4>
-      <a href="about.html">About Us</a>
-      <a href="contact.html">Contact</a>
-      <a href="privacy.html">Privacy Policy</a>
+    <div class="stat">
+      <div class="stat-num">Heritage</div>
+      <div class="stat-label">Inspired</div>
     </div>
-    <div class="footer-social">
-      <h4>Follow Us</h4>
-      <div class="social-icons">
-        <a href="https://www.instagram.com/_kikelara" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram"></a>
-        <a href="https://www.tiktok.com/@_kikelara" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046126.png" alt="TikTok"></a>
-        <a href="https://www.facebook.com/kikelara" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook"></a>
+  </section>
+
+  <section class="founder">
+    <div class="founder__media">
+      <img src="images/founder.jpg" alt="Founder of KÍKE LÁRÁ" loading="lazy" />
+    </div>
+
+    <div class="founder__text">
+      <div class="kicker">Meet Our Founder</div>
+      <h2>Heritage-led beauty, modern confidence.</h2>
+      <p>
+        Inspired by Nigeria’s lush botanicals and traditional skin remedies, our founder envisioned a brand that
+        celebrates nature’s gifts while delivering luxurious results.
+      </p>
+      <p>
+        Every product is crafted to bring heritage-inspired skincare into modern homes — with premium textures,
+        glow, and confidence.
+      </p>
+
+      <div class="founder__cta">
+        <a class="gold-btn" href="products.html">Shop Products</a>
+        <a class="ghost-btn" href="contact.html">Contact Us</a>
       </div>
     </div>
-  </div>
-  <div class="footer-bottom">
-    © 2026 KÍKE LÁRÁ Skincare. All Rights Reserved.
-  </div>
-</footer>
+  </section>
 
-<script src="index.js"></script>
+  <section class="mini-gallery" aria-label="Brand imagery">
+    <div class="mini-card" style="background-image:url('images/ad4.JPG')"></div>
+    <div class="mini-card" style="background-image:url('images/ad7.png')"></div>
+    <div class="mini-card" style="background-image:url('images/ad8.png')"></div>
+  </section>
+
+</main>
+
+<!-- ================= SHARED FOOTER ================= -->
+<div id="siteFooter"></div>
+<script src="footer.js"></script>
+
+<!-- ================= HEADER / DRAWER JS ================= -->
 <script>
   const toggleBtn = document.getElementById("menu-toggle");
-  const nav = document.getElementById("mobileNav");
+  const drawer = document.getElementById("mobileNav");
+  const overlay = document.getElementById("navOverlay");
+  const closeBtn = document.getElementById("drawerClose");
+
+  function openDrawer(){
+    toggleBtn.classList.add("active");
+    drawer.classList.add("show");
+    overlay.classList.add("show");
+    toggleBtn.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeDrawer(){
+    toggleBtn.classList.remove("active");
+    drawer.classList.remove("show");
+    overlay.classList.remove("show");
+    toggleBtn.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
 
   toggleBtn.addEventListener("click", () => {
-    nav.classList.toggle("show");
+    if (drawer.classList.contains("show")) closeDrawer();
+    else openDrawer();
+  });
+
+  overlay.addEventListener("click", closeDrawer);
+  closeBtn.addEventListener("click", closeDrawer);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDrawer();
   });
 </script>
 
