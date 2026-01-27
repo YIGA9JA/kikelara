@@ -434,6 +434,7 @@ function buildDefaultNigeriaPricing(fee = 5000) {
     { name: "Edo", city: "Benin City" },
     { name: "Ekiti", city: "Ado-Ekiti" },
     { name: "Enugu", city: "Enugu" },
+    { name: "FCT", city: "Abuja" },
     { name: "Gombe", city: "Gombe" },
     { name: "Imo", city: "Owerri" },
     { name: "Jigawa", city: "Dutse" },
@@ -455,8 +456,7 @@ function buildDefaultNigeriaPricing(fee = 5000) {
     { name: "Sokoto", city: "Sokoto" },
     { name: "Taraba", city: "Jalingo" },
     { name: "Yobe", city: "Damaturu" },
-    { name: "Zamfara", city: "Gusau" },
-    { name: "FCT", city: "Abuja" }
+    { name: "Zamfara", city: "Gusau" }
   ];
 
   return {

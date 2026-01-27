@@ -1,4 +1,4 @@
-/* ===================== CHECKOUT.JS (BACKEND PRICING + PAYSTACK + BACKUP) ===================== */
+/* ===================== CHECKOUT.JS (BACKEND PRICING + PAYSTACK + BACKUP + NIGERIA LGA FALLBACK) ===================== */
 /* Works with your current IDs:
    #name #email #phone
    radios name="shippingType" (pickup/delivery)
@@ -10,6 +10,10 @@
 
 /* ================= API (BACKEND) ================= */
 const API_BASE = "http://localhost:4000"; // change when deployed
+
+/* ================= NIGERIA STATES + LGAs (FALLBACK SOURCE) ================= */
+const NIGERIA_LGA_SOURCE =
+  "https://gist.githubusercontent.com/chrisidakwo/4ba3a4f03afc442305021be4ca67738e/raw/a8276ee3a756ae47ee853c4be5a82a11d6c8a313/nigerian-states.json";
 
 /* ================= STORAGE KEYS ================= */
 const CART_KEY = "cart";
@@ -109,6 +113,45 @@ function savePricingBackup(p) {
   } catch {}
 }
 
+/* ================= NIGERIA DATASET FALLBACK ================= */
+function buildPricingFromNigeriaDataset(data, defaultFee) {
+  const fee = Number.isFinite(Number(defaultFee))
+    ? Math.max(0, Math.round(Number(defaultFee)))
+    : FALLBACK_DEFAULT_DELIVERY_FEE;
+
+  const states = Object.keys(data || {})
+    .map(stateName => {
+      const lgas = Array.isArray(data[stateName]) ? data[stateName] : [];
+      return {
+        name: String(stateName || "").trim(),
+        cities: lgas
+          .map(lga => ({
+            name: String(lga || "").trim(),
+            fee: fee
+          }))
+          .filter(c => c.name)
+      };
+    })
+    .filter(s => s.name);
+
+  return normalizePricing({
+    defaultFee: fee,
+    updatedAt: new Date().toISOString(),
+    states
+  });
+}
+
+async function fetchNigeriaStatesLgasPricingFallback() {
+  const res = await fetch(NIGERIA_LGA_SOURCE, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Nigeria LGA dataset fetch failed: ${res.status}`);
+  const data = await res.json();
+
+  const def = Number(pricing?.defaultFee);
+  const fee = Number.isFinite(def) ? def : FALLBACK_DEFAULT_DELIVERY_FEE;
+
+  return buildPricingFromNigeriaDataset(data, fee);
+}
+
 /* ================= HELPERS ================= */
 function getSelectedShippingType() {
   return document.querySelector('input[name="shippingType"]:checked')?.value || "pickup";
@@ -133,7 +176,7 @@ function findCity(stateObj, cityName) {
   return stateObj.cities.find(c => String(c.name || "").trim().toLowerCase() === name) || null;
 }
 
-/* ✅ Delivery fee uses selected city fee; falls back to defaultFee */
+/* ✅ Delivery fee uses selected LGA fee; falls back to defaultFee */
 function getDeliveryFee() {
   const type = getSelectedShippingType();
   if (type === "pickup") return PICKUP_FEE;
@@ -188,7 +231,7 @@ function updateShippingUI() {
   updateTotals();
 }
 
-/* ================= POPULATE STATES/CITIES (FROM SERVER PRICING) ================= */
+/* ================= POPULATE STATES/LGAs ================= */
 function populateStates() {
   if (!stateEl) return;
 
@@ -203,11 +246,10 @@ function populateStates() {
     `<option value="">Select State</option>` +
     states.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
 
-  // restore selection if still exists
   if (current && states.includes(current)) stateEl.value = current;
 
   if (cityEl) {
-    cityEl.innerHTML = `<option value="">Select City</option>`;
+    cityEl.innerHTML = `<option value="">Select LGA</option>`;
     cityEl.disabled = true;
   }
 }
@@ -224,7 +266,7 @@ function populateCitiesForState(stateName) {
   const current = cityEl.value || "";
 
   cityEl.innerHTML =
-    `<option value="">Select City</option>` +
+    `<option value="">Select LGA</option>` +
     cities.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
   if (current && cities.includes(current)) cityEl.value = current;
@@ -301,7 +343,7 @@ function validateCheckout() {
     const address = addressEl?.value?.trim() || "";
 
     if (!state) return { ok: false, msg: "Please select your State for delivery." };
-    if (!city) return { ok: false, msg: "Please select your City for delivery." };
+    if (!city) return { ok: false, msg: "Please select your LGA for delivery." };
     if (!address) return { ok: false, msg: "Please enter your delivery address." };
   }
 
@@ -466,13 +508,30 @@ function escapeHtml(str) {
   renderSummaryItems();
   updateShippingUI();
 
-  // ✅ load pricing from SERVER (works for all users)
+  // ✅ fallback chain:
+  // 1) backend pricing
+  // 2) localStorage backup pricing
+  // 3) Nigeria states + LGAs dataset
+  // 4) last resort empty
   try {
     pricing = await fetchPricingFromServer();
     savePricingBackup(pricing);
-  } catch (e) {
-    console.warn("Pricing server failed, using backup:", e);
-    pricing = loadPricingBackup();
+  } catch (e1) {
+    console.warn("Pricing server failed, trying local backup:", e1);
+
+    const backup = loadPricingBackup();
+    if (backup?.states?.length) {
+      pricing = backup;
+    } else {
+      console.warn("No usable backup pricing, fetching Nigeria LGA dataset...");
+      try {
+        pricing = await fetchNigeriaStatesLgasPricingFallback();
+        savePricingBackup(pricing);
+      } catch (e2) {
+        console.warn("Nigeria dataset fallback failed:", e2);
+        pricing = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
+      }
+    }
   }
 
   populateStates();
