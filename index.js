@@ -96,7 +96,7 @@ const latestProducts = [
   { name: "Body Butter", img: "images/bodyButter.JPG" },
     { name: "Hair Butter", img: "images/hairButterfeat.JPG" },
   { name: "Body Oil", img: "images/bodyOil.JPG" },
-  { name: "Baby Body Butter", img: "images/BabyBodyButter.png" },
+  { name: "Body Butter (Fruity)", img: "images/bodyButter(Fruity).png" },
 
 ];
 

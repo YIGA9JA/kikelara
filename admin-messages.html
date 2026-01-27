@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Messages | KÍKE LÁRÁ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="admin-messages.css">
+
+  <!-- ✅ Fast block: prevents page flashing if not logged in -->
+  <script>
+    if (!localStorage.getItem("admin-token")) {
+      location.replace("admin-login.html");
+    }
+  </script>
+</head>
+<body>
+
+<header class="main-header">
+  <div class="brand">
+    <img src="images/logo.jpg" alt="Kíke Lárá">
+    <span>KÍKE LÁRÁ Admin</span>
+  </div>
+
+  <div class="header-actions">
+    <button id="refreshBtn" class="ghost-btn" type="button">Refresh</button>
+    <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
+  </div>
+</header>
+
+<section class="admin-page">
+  <div class="page-head">
+    <div>
+      <h1>Messages</h1>
+      <p class="muted">All contact form messages (backend). View, search, and delete.</p>
+    </div>
+
+    <div class="chips">
+      <span class="chip">API: <b id="apiLabel">http://localhost:4000</b></span>
+      <span class="chip">Storage: <b>messages.json</b></span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <input id="searchBox" type="text" placeholder="Search name, email, message...">
+    </div>
+
+    <div class="toolbar-actions">
+      <button id="exportBtn" class="ghost-btn" type="button">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="stats" id="statsRow"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Inbox</div>
+      <div class="panel-sub" id="countLabel">0 messages</div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="messagesTable">
+        <thead>
+          <tr>
+            <th style="width: 18%;">Name</th>
+            <th style="width: 22%;">Email</th>
+            <th>Message</th>
+            <th style="width: 18%;">Date</th>
+            <th style="width: 160px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ✅ VIEW MODAL -->
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="modalTitle">Message</div>
+          <div class="modal-sub" id="modalMeta">—</div>
+        </div>
+        <button class="icon-btn" id="closeModalBtn" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="kv-grid">
+          <div class="kv">
+            <div class="k">Name</div>
+            <div class="v" id="mName">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">Email</div>
+            <div class="v">
+              <a href="#" id="mEmailLink">—</a>
+              <button class="mini-btn" id="copyEmailBtn" type="button">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg-box">
+          <div class="k">Message</div>
+          <div class="msg" id="mMessage">—</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="ghost-btn" id="replyBtn" type="button">Reply</button>
+        <button class="danger-btn" id="deleteBtn" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div id="toast" class="toast" aria-live="polite"></div>
+</section>
+
+<script src="admin-login.js"></script>
+<script src="admin-messages.js"></script>
+</body>
+</html>

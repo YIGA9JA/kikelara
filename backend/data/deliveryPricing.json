@@ -1,0 +1,339 @@
+{
+  "defaultFee": 5000,
+  "updatedAt": "2026-01-27T05:30:45.496Z",
+  "states": [
+    {
+      "name": "Abia",
+      "cities": [
+        {
+          "name": "Umuahia",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Adamawa",
+      "cities": [
+        {
+          "name": "Yola",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Akwa Ibom",
+      "cities": [
+        {
+          "name": "Uyo",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Anambra",
+      "cities": [
+        {
+          "name": "Awka",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Bauchi",
+      "cities": [
+        {
+          "name": "Bauchi",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Bayelsa",
+      "cities": [
+        {
+          "name": "Yenagoa",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Benue",
+      "cities": [
+        {
+          "name": "Makurdi",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Borno",
+      "cities": [
+        {
+          "name": "Maiduguri",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Cross River",
+      "cities": [
+        {
+          "name": "Calabar",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Delta",
+      "cities": [
+        {
+          "name": "Asaba",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Ebonyi",
+      "cities": [
+        {
+          "name": "Abakaliki",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Edo",
+      "cities": [
+        {
+          "name": "Benin City",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Ekiti",
+      "cities": [
+        {
+          "name": "Ado-Ekiti",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Enugu",
+      "cities": [
+        {
+          "name": "Enugu",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "FCT",
+      "cities": [
+        {
+          "name": "Abuja",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Gombe",
+      "cities": [
+        {
+          "name": "Gombe",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Imo",
+      "cities": [
+        {
+          "name": "Owerri",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Jigawa",
+      "cities": [
+        {
+          "name": "Dutse",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Kaduna",
+      "cities": [
+        {
+          "name": "Kaduna",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Kano",
+      "cities": [
+        {
+          "name": "Kano",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Katsina",
+      "cities": [
+        {
+          "name": "Katsina",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Kebbi",
+      "cities": [
+        {
+          "name": "Birnin Kebbi",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Kogi",
+      "cities": [
+        {
+          "name": "Lokoja",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Kwara",
+      "cities": [
+        {
+          "name": "Ilorin",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Lagos",
+      "cities": [
+        {
+          "name": "Ikeja",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Nasarawa",
+      "cities": [
+        {
+          "name": "Lafia",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Niger",
+      "cities": [
+        {
+          "name": "Minna",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Ogun",
+      "cities": [
+        {
+          "name": "Abeokuta",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Ondo",
+      "cities": [
+        {
+          "name": "Akure",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Osun",
+      "cities": [
+        {
+          "name": "Osogbo",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Oyo",
+      "cities": [
+        {
+          "name": "Ibadan",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Plateau",
+      "cities": [
+        {
+          "name": "Jos",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Rivers",
+      "cities": [
+        {
+          "name": "Port Harcourt",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Sokoto",
+      "cities": [
+        {
+          "name": "Sokoto",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Taraba",
+      "cities": [
+        {
+          "name": "Jalingo",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Yobe",
+      "cities": [
+        {
+          "name": "Damaturu",
+          "fee": 5000
+        }
+      ]
+    },
+    {
+      "name": "Zamfara",
+      "cities": [
+        {
+          "name": "Gusau",
+          "fee": 5000
+        }
+      ]
+    }
+  ]
+}

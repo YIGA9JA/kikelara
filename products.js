@@ -75,11 +75,9 @@ const defaultProducts = [
 
 /**
  * Create a "signature" of defaultProducts.
- * If ANY product changes (id/name/category/price/discount/image/description),
- * the signature changes and we reset localStorage products.
+ * If ANY product changes, signature changes and we reset localStorage products.
  */
 function makeDefaultsSignature(items) {
-  // Sort by id to keep signature stable even if you reorder the array
   const normalized = [...items]
     .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
     .map(p => ({
@@ -96,9 +94,6 @@ function makeDefaultsSignature(items) {
 
 /**
  * Ensures localStorage products match current defaults.
- * - If no products saved -> seed defaults
- * - If defaults changed -> overwrite saved products with defaults
- * - If saved products corrupt -> reset to defaults
  */
 function syncProductsWithDefaults() {
   const currentSig = makeDefaultsSignature(defaultProducts);
@@ -113,19 +108,12 @@ function syncProductsWithDefaults() {
 
   const savedValid = Array.isArray(savedProducts) && savedProducts.length > 0;
 
-  // If no saved data OR signature mismatch => reset to defaults
   if (!savedValid || savedSig !== currentSig) {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts));
     localStorage.setItem(DEFAULTS_SIG_KEY, currentSig);
-
-    // Optional: also clear cart/wishlist if you want a full reset
-    // localStorage.removeItem(CART_KEY);
-    // localStorage.removeItem(WISHLIST_KEY);
-
     return defaultProducts;
   }
 
-  // If everything is fine, use saved products
   return savedProducts;
 }
 
@@ -135,7 +123,7 @@ let products = syncProductsWithDefaults();
 /* ================= STATE ================= */
 let wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; // IDs only
 let cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
-let currentList = products; // used for sorting filtered results
+let currentList = products; // sorting/filter rendering
 
 /* ================= ELEMENTS ================= */
 const grid = document.getElementById("productsGrid");
@@ -144,7 +132,7 @@ const cartCount = document.getElementById("cartCount");
 const categorySelect = document.getElementById("categorySelect");
 const sortSelect = document.getElementById("sortSelect");
 
-/* ================= POPULATE CATEGORIES (DIRECT FROM PRODUCTS) ================= */
+/* ================= POPULATE CATEGORIES ================= */
 function populateCategories() {
   categorySelect.innerHTML = `<option value="all">All</option>`;
 
@@ -157,6 +145,29 @@ function populateCategories() {
   });
 }
 
+/* ================= CART HELPERS ================= */
+function getQtyInCart(id) {
+  return (cart.find(c => c.id === id)?.qty) || 0;
+}
+
+function changeQty(id, delta) {
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+
+  const idx = cart.findIndex(c => c.id === id);
+
+  if (idx === -1) {
+    if (delta > 0) cart.push({ ...product, qty: 1 });
+  } else {
+    cart[idx].qty = (cart[idx].qty || 0) + delta;
+    if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  updateCounts();
+  renderProducts(currentList);
+}
+
 /* ================= RENDER PRODUCTS ================= */
 function renderProducts(list = products) {
   currentList = list;
@@ -167,6 +178,7 @@ function renderProducts(list = products) {
     card.className = "product-card";
 
     const isWishlisted = wishlist.includes(p.id);
+    const qtyInCart = getQtyInCart(p.id);
 
     card.innerHTML = `
       ${p.discount ? `<span class="discount">-${p.discount}%</span>` : ""}
@@ -182,6 +194,13 @@ function renderProducts(list = products) {
         <button class="wishlist-btn" aria-label="Add to wishlist">
           ${isWishlisted ? "♥" : "♡"}
         </button>
+
+        <div class="qty-box" aria-label="Quantity">
+          <button class="qty-btn minus" aria-label="Decrease quantity">−</button>
+          <span class="qty-num">${qtyInCart}</span>
+          <button class="qty-btn plus" aria-label="Increase quantity">+</button>
+        </div>
+
         <button class="cart-btn" aria-label="Add to cart">🛒</button>
       </div>
     `;
@@ -191,16 +210,27 @@ function renderProducts(list = products) {
       window.location.href = `product-details.html?id=${p.id}`;
     };
 
-    // Wishlist
-    card.querySelector(".wishlist-btn").onclick = e => {
+    // Wishlist toggle
+    card.querySelector(".wishlist-btn").onclick = (e) => {
       e.stopPropagation();
       toggleWishlist(p.id);
     };
 
-    // Cart
-    card.querySelector(".cart-btn").onclick = e => {
+    // Qty controls
+    card.querySelector(".qty-btn.plus").onclick = (e) => {
       e.stopPropagation();
-      addToCart(p.id, e.target);
+      changeQty(p.id, +1);
+    };
+
+    card.querySelector(".qty-btn.minus").onclick = (e) => {
+      e.stopPropagation();
+      changeQty(p.id, -1);
+    };
+
+    // Cart icon = quick +1
+    card.querySelector(".cart-btn").onclick = (e) => {
+      e.stopPropagation();
+      changeQty(p.id, +1);
     };
 
     grid.appendChild(card);
@@ -224,7 +254,6 @@ categorySelect.addEventListener("change", () => {
 sortSelect.addEventListener("change", () => {
   const val = categorySelect.value;
 
-  // get list for the current category first
   const filtered = val === "all"
     ? products
     : products.filter(p => p.category === val);
@@ -251,27 +280,6 @@ function toggleWishlist(id) {
 
   localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
   renderProducts(currentList);
-}
-
-/* ================= CART ================= */
-function addToCart(id, btn) {
-  const product = products.find(p => p.id === id);
-  if (!product) return;
-
-  const item = cart.find(c => c.id === id);
-  item ? item.qty++ : cart.push({ ...product, qty: 1 });
-
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  updateCounts();
-
-  // Mobile-friendly feedback
-  const old = btn.textContent;
-  btn.textContent = "✓";
-  btn.disabled = true;
-  setTimeout(() => {
-    btn.textContent = old;
-    btn.disabled = false;
-  }, 700);
 }
 
 /* ================= COUNTS ================= */

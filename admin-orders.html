@@ -11,17 +11,50 @@
 <header class="main-header">
   <div class="brand">
     <img src="images/logo.jpg" alt="Kíke Lárá">
-    <span>Admin Panel</span>
+    <span>KÍKE LÁRÁ Admin</span>
+  </div>
+
+  <div class="header-actions">
+    <button id="refreshBtn" class="ghost-btn" type="button">Refresh</button>
+    <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
   </div>
 </header>
 
 <section class="admin-page">
-  <h1>All Orders</h1>
-  <div id="ordersContainer"></div>
+  <div class="page-head">
+    <div>
+      <h1>Orders</h1>
+      <p class="muted">All orders from all users (backend). Update statuses live.</p>
+    </div>
+
+    <div class="chips">
+      <span class="chip">API: <b id="apiLabel">http://localhost:4000</b></span>
+      <span class="chip">Auto refresh: <b>30s</b></span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs" id="statusTabs">
+      <button class="tab active" data-status="all" type="button">All</button>
+      <button class="tab" data-status="Pending" type="button">Pending</button>
+      <button class="tab" data-status="Confirmed" type="button">Confirmed</button>
+      <button class="tab" data-status="Shipped" type="button">Shipped</button>
+      <button class="tab" data-status="Delivered" type="button">Delivered</button>
+    </div>
+
+    <div class="search">
+      <input id="searchBox" type="text" placeholder="Search name, phone, email, reference...">
+    </div>
+  </div>
+
+  <div class="stats" id="statsRow"></div>
+
+  <div id="ordersContainer" class="orders"></div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
 </section>
 
-<script src="admin-login.js"></script>
+<script src="auth.js"></script>
 <script src="admin-orders.js"></script>
-
 </body>
 </html>

@@ -1,24 +1,68 @@
+/* ================= STORAGE KEYS ================= */
+const CART_KEY = "cart";
+const WISHLIST_KEY = "wishlist";
+
 /* ================= STATE ================= */
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
+let cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
+let wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || [];
 
 /* ================= ELEMENTS ================= */
 const cartItems = document.getElementById("cartItems");
 const subtotalEl = document.getElementById("subtotal");
 const totalEl = document.getElementById("total");
 const cartCount = document.getElementById("cartCount");
+const wishlistCount = document.getElementById("wishlistCount");
 const checkoutBtn = document.getElementById("checkoutBtn");
 
 const DELIVERY_FEE = 2000;
+
+/* ================= SAVE CART ================= */
+function saveCart() {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+/* ================= COUNTS ================= */
+function updateCounts() {
+  // cart badge = total qty
+  const cartQty = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
+  if (cartCount) cartCount.textContent = cartQty;
+
+  // wishlist badge = IDs length
+  if (wishlistCount) wishlistCount.textContent = Array.isArray(wishlist) ? wishlist.length : 0;
+}
+
+/* ================= SUMMARY ================= */
+function updateSummary() {
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0);
+
+  subtotalEl.textContent = `₦${subtotal.toLocaleString()}`;
+  totalEl.textContent = `₦${(subtotal + (cart.length ? DELIVERY_FEE : 0)).toLocaleString()}`;
+}
+
+/* ================= CHECKOUT STATE ================= */
+function updateCheckoutState() {
+  if (!checkoutBtn) return;
+
+  if (cart.length === 0) {
+    checkoutBtn.disabled = true;
+    checkoutBtn.style.opacity = "0.5";
+    checkoutBtn.style.cursor = "not-allowed";
+  } else {
+    checkoutBtn.disabled = false;
+    checkoutBtn.style.opacity = "1";
+    checkoutBtn.style.cursor = "pointer";
+  }
+}
 
 /* ================= RENDER CART ================= */
 function renderCart() {
   cartItems.innerHTML = "";
 
-  if (cart.length === 0) {
+  if (!Array.isArray(cart) || cart.length === 0) {
     cartItems.innerHTML = "<p>Your cart is empty.</p>";
     subtotalEl.textContent = "₦0";
     totalEl.textContent = "₦0";
-    cartCount.textContent = "0";
+    updateCounts();
     updateCheckoutState();
     return;
   }
@@ -31,62 +75,40 @@ function renderCart() {
       <img src="${item.image}" alt="${item.name}">
       <div class="cart-info">
         <h4>${item.name}</h4>
-        <p>₦${item.price.toLocaleString()}</p>
+        <p>₦${Number(item.price).toLocaleString()}</p>
         <div class="quantity">
           <button data-id="${item.id}" data-action="decrease">−</button>
-          <span>${item.qty}</span>
+          <span>${item.qty || 1}</span>
           <button data-id="${item.id}" data-action="increase">+</button>
         </div>
       </div>
       <span class="remove" data-id="${item.id}">Remove</span>
     `;
+
     cartItems.appendChild(div);
   });
 
   updateSummary();
+  updateCounts();
   updateCheckoutState();
 }
 
-/* ================= SUMMARY ================= */
-function updateSummary() {
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  subtotalEl.textContent = `₦${subtotal.toLocaleString()}`;
-  totalEl.textContent = `₦${(subtotal + DELIVERY_FEE).toLocaleString()}`;
-  cartCount.textContent = cart.reduce((sum, item) => sum + item.qty, 0);
-}
-
-/* ================= CHECKOUT STATE ================= */
-function updateCheckoutState() {
-  if (!checkoutBtn) return;
-  if (cart.length === 0) {
-    checkoutBtn.disabled = true;
-    checkoutBtn.style.opacity = "0.5";
-    checkoutBtn.style.cursor = "not-allowed";
-  } else {
-    checkoutBtn.disabled = false;
-    checkoutBtn.style.opacity = "1";
-    checkoutBtn.style.cursor = "pointer";
-  }
-}
-
-/* ================= SAVE CART ================= */
-function saveCart() {
-  localStorage.setItem("cart", JSON.stringify(cart));
-}
-
 /* ================= EVENT DELEGATION ================= */
-cartItems.addEventListener("click", e => {
-  const id = parseInt(e.target.dataset.id);
+cartItems.addEventListener("click", (e) => {
+  const action = e.target.dataset.action;
+  const id = Number(e.target.dataset.id);
 
-  if (e.target.dataset.action === "increase") {
+  if (!id) return;
+
+  if (action === "increase") {
     const item = cart.find(i => i.id === id);
-    if (item) item.qty++;
+    if (item) item.qty = (item.qty || 1) + 1;
   }
 
-  if (e.target.dataset.action === "decrease") {
+  if (action === "decrease") {
     const item = cart.find(i => i.id === id);
     if (item) {
-      item.qty--;
+      item.qty = (item.qty || 1) - 1;
       if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
     }
   }
@@ -100,7 +122,7 @@ cartItems.addEventListener("click", e => {
 });
 
 /* ================= CHECKOUT ================= */
-checkoutBtn.addEventListener("click", () => {
+checkoutBtn?.addEventListener("click", () => {
   if (cart.length === 0) return;
   window.location.href = "checkout.html";
 });
@@ -109,10 +131,11 @@ checkoutBtn.addEventListener("click", () => {
 const menuToggle = document.getElementById("menuToggle");
 const navbarLinks = document.getElementById("navbarLinks");
 
-menuToggle.addEventListener("click", () => {
+menuToggle?.addEventListener("click", () => {
   navbarLinks.classList.toggle("show");
   document.body.classList.toggle("menu-open");
 });
 
 /* ================= INIT ================= */
 renderCart();
+updateCounts();

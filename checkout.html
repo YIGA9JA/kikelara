@@ -4,19 +4,20 @@
   <meta charset="UTF-8" />
   <title>Checkout | KÍKE LÁRÁ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <link rel="stylesheet" href="checkout.css">
+  <link rel="stylesheet" href="footer.css">
 </head>
 <body>
 
 <header class="main-header">
   <div class="brand">
-    <img src="images/logo.jpg" alt="Kíke Lárá">
+    <img src="/images/logo.jpg" alt="Kíke Lárá">
     <span>KÍKE LÁRÁ</span>
   </div>
 </header>
 
 <section class="checkout-page">
-
   <h1>Checkout</h1>
 
   <div class="checkout-grid">
@@ -25,50 +26,109 @@
     <div class="checkout-box checkout-form">
       <h2>Customer Information</h2>
 
-      <label for="name">Full Name</label>
-      <input id="name" placeholder="Full Name" required>
-
-      <label for="email">Email</label>
-      <input id="email" placeholder="Email Address" required>
-
-      <label for="phone">Phone</label>
-      <input id="phone" placeholder="Phone Number (234...)" required>
-
-      <label>Shipping Type</label>
-      <div class="shipping-options">
-        <label><input type="radio" name="shippingType" value="pickup" checked> Pickup</label>
-        <label><input type="radio" name="shippingType" value="delivery"> Delivery</label>
+      <div class="field">
+        <label for="name">Full Name</label>
+        <input id="name" placeholder="Full Name" required>
       </div>
 
-      <!-- Delivery Fields -->
-      <div id="deliveryFields" style="display:none;">
-        <label for="deliveryState">State</label>
-        <select id="deliveryState">
-          <option value="">Select State</option>
-        </select>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" placeholder="Email Address" required>
+      </div>
 
-        <label for="deliveryCity">City</label>
-        <select id="deliveryCity" disabled>
-          <option value="">Select City</option>
-        </select>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" placeholder="Phone Number (234...)" required>
+      </div>
 
-        <label for="address">Address</label>
-        <textarea id="address" placeholder="Delivery Address"></textarea>
+      <div class="divider"></div>
+
+      <h3 class="subhead">Shipping Type</h3>
+
+      <!-- PREMIUM SEGMENT CONTROL -->
+      <div class="ship-segment" data-ship>
+        <input id="shipPickup" type="radio" name="shippingType" value="pickup" checked>
+        <label for="shipPickup" class="seg">
+          <span class="seg-ico">🏬</span>
+          <span class="seg-title">Pickup</span>
+          <span class="seg-sub">Free • Fast</span>
+        </label>
+
+        <input id="shipDelivery" type="radio" name="shippingType" value="delivery">
+        <label for="shipDelivery" class="seg">
+          <span class="seg-ico">🚚</span>
+          <span class="seg-title">Delivery</span>
+          <span class="seg-sub">Doorstep</span>
+        </label>
+
+        <span class="seg-indicator" aria-hidden="true"></span>
       </div>
 
       <!-- Pickup Info -->
-      <div id="pickupInfo">
-        <p><strong>Lagos Pickup:</strong> Lekki Horizon II, 9am-6pm, Call 09013896342</p>
-        <p><strong>Abuja Pickup:</strong> Garki store, 9am-6pm, Call 09013896342</p>
+      <div id="pickupInfo" class="ship-card pickup-card">
+        <div class="ship-card-head">
+          <div class="ship-badge">Pickup locations</div>
+          <div class="ship-chip">9am–6pm</div>
+        </div>
+
+        <div class="pickup-list">
+          <div class="pickup-item">
+            <div class="pickup-left">
+              <div class="pickup-city">Lagos</div>
+              <div class="pickup-place">Lekki Horizon II</div>
+            </div>
+            <a class="pickup-call" href="tel:09013896342">Call</a>
+          </div>
+
+          <div class="pickup-item">
+            <div class="pickup-left">
+              <div class="pickup-city">Abuja</div>
+              <div class="pickup-place">Garki store</div>
+            </div>
+            <a class="pickup-call" href="tel:09013896342">Call</a>
+          </div>
+        </div>
+
+        <p class="ship-note">We’ll confirm availability immediately after checkout.</p>
       </div>
 
+      <!-- Delivery Fields -->
+      <div id="deliveryFields" class="ship-card delivery-card is-hidden">
+        <div class="ship-card-head">
+          <div class="ship-badge">Delivery address</div>
+          <div class="ship-chip">From ₦<span id="deliveryFeeChip">0</span></div>
+        </div>
+
+        <div class="delivery-grid">
+          <div class="field">
+            <label for="deliveryState">State</label>
+            <select id="deliveryState">
+              <option value="">Select State</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="deliveryCity">City</label>
+            <select id="deliveryCity" disabled>
+              <option value="">Select City</option>
+            </select>
+          </div>
+
+          <div class="field delivery-full">
+            <label for="address">Address</label>
+            <textarea id="address" placeholder="House number, street, landmark"></textarea>
+          </div>
+        </div>
+
+        <p class="ship-note">Accurate address = faster dispatch & fewer delays.</p>
+      </div>
     </div>
 
     <!-- ORDER SUMMARY -->
     <div class="checkout-box checkout-summary">
       <h2>Order Summary</h2>
 
-      <div id="summaryItems"></div>
+      <div id="summaryItems" class="summary-items"></div>
 
       <div class="summary-row">
         <span>Delivery Fee</span>
@@ -83,12 +143,19 @@
       <button id="payNowBtn" class="pay-btn">
         Pay ₦<span id="payBtnAmount">0</span>
       </button>
+
+      <p class="pay-note">Secure payment powered by Paystack.</p>
     </div>
 
   </div>
 </section>
 
+<!-- ✅ Global footer mount -->
+<div id="siteFooter"></div>
+
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script src="checkout.js"></script>
+<script src="footer.js"></script>
+
 </body>
 </html>

@@ -1,24 +1,16 @@
-const ADMIN_CODE = "4567"; // change to your code
+// admin-dashboard.js
+(async () => {
+  // ✅ block page if not logged in
+  const ok = await checkAuth();
+  if (!ok) return;
 
-function adminLogin() {
-  const input = document.getElementById("pin").value.trim();
-  const errorBox = document.getElementById("error");
+  const logoutBtn = document.getElementById("logoutBtn");
+  logoutBtn?.addEventListener("click", adminLogout);
 
-  if (input === ADMIN_CODE) {
-    localStorage.setItem("admin-auth", "yes");
-    window.location.href = "admin-dashboard.html";
-  } else {
-    errorBox.textContent = "Incorrect code";
-  }
-}
-
-function checkAuth() {
-  if (localStorage.getItem("admin-auth") !== "yes") {
-    window.location.href = "admin-login.html";
-  }
-}
-
-function adminLogout() {
-  localStorage.removeItem("admin-auth");
-  window.location.href = "admin-login.html";
-}
+  // ✅ click cards
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-go]");
+    if (!card) return;
+    window.location.href = card.getAttribute("data-go");
+  });
+})();

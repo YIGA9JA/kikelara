@@ -1,26 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard | KÍKE LÁRÁ</title>
   <link rel="stylesheet" href="admin-dashboard.css">
 </head>
-<body onload="checkAuth()">
+<body>
 
 <header class="dash-header">
-  <h2>Admin Dashboard</h2>
-  <button onclick="adminLogout()">Logout</button>
+  <div class="brand">
+    <span class="logo">KÍKE LÁRÁ</span>
+    <span class="sub">Admin Dashboard</span>
+  </div>
+
+  <button id="logoutBtn" class="dash-logout">Logout</button>
 </header>
 
-<div class="dash-grid">
-  <div class="dash-card" onclick="window.location.href='admin-orders.html'">
-    📦 <br> Orders
-  </div>
+<section class="dash-hero">
+  <h1>Welcome Admin</h1>
+  <p>Manage orders, delivery pricing, and customer messages.</p>
+</section>
 
-  <div class="dash-card" onclick="window.location.href='admin-delivery.html'">
-    🚚 <br> Delivery Pricing
-  </div>
-</div>
-<script src="admin-login.js"></script>
+<section class="dash-grid">
+  <button class="dash-card" data-go="admin-orders.html" type="button">
+    <div class="icon">📦</div>
+    <div class="title">Orders</div>
+    <div class="desc">View and update order status</div>
+  </button>
+
+  <button class="dash-card" data-go="admin-delivery.html" type="button">
+    <div class="icon">🚚</div>
+    <div class="title">Delivery Pricing</div>
+    <div class="desc">Edit state & city delivery fees</div>
+  </button>
+
+  <button class="dash-card" data-go="admin-messages.html" type="button">
+    <div class="icon">💬</div>
+    <div class="title">Messages</div>
+    <div class="desc">View contact form messages</div>
+  </button>
+</section>
+
+<script src="auth.js"></script>
 <script src="admin-dashboard.js"></script>
 </body>
 </html>

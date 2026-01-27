@@ -10,32 +10,94 @@
 
 <header class="main-header">
   <div class="brand">
+    <!-- ✅ remove leading / -->
     <img src="images/logo.jpg" alt="Kíke Lárá">
     <span>KÍKE LÁRÁ Admin</span>
+  </div>
+
+  <div class="header-actions">
+    <button id="exportBtn" class="ghost-btn" title="Download JSON backup" type="button">Export</button>
+
+    <label class="ghost-btn file-btn" title="Import JSON backup">
+      Import
+      <input id="importInput" type="file" accept="application/json">
+    </label>
+
+    <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
   </div>
 </header>
 
 <section class="admin-page">
-  <h1>Delivery Pricing Manager</h1>
+  <div class="page-head">
+    <div>
+      <h1>Delivery Pricing</h1>
+      <p class="muted">Manage delivery fees by <b>State</b> & <b>City/LGA</b>. Changes apply instantly at checkout.</p>
+    </div>
+    <div class="chips">
+      <span class="chip">Storage: <b>deliveryPricing_v1</b></span>
+      <span class="chip">Currency: <b>NGN</b></span>
+      <span class="chip">Last update: <b id="lastUpdate">—</b></span>
+    </div>
+  </div>
 
   <div class="admin-container">
 
-    <!-- ADD STATE -->
-    <div class="admin-box">
-      <h3>Add State</h3>
-      <input type="text" id="newStateName" placeholder="State Name">
-      <button id="addStateBtn" class="gold-btn">Add State</button>
-    </div>
+    <!-- LEFT -->
+    <aside class="admin-box sticky">
+      <h3>Default Delivery Fee</h3>
+      <p class="muted small">Used when no city fee is selected/found.</p>
 
-    <!-- STATES LIST -->
-    <div class="admin-box">
-      <h3>States & Cities</h3>
+      <div class="row">
+        <input type="number" id="defaultFee" placeholder="Default fee (₦)" min="0">
+        <button id="saveDefaultFeeBtn" class="btn primary" type="button">Save</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>Quick Setup</h3>
+      <p class="muted small">
+        Seed all Nigerian States + LGAs and set every city fee to <b>₦5000</b>. You can edit later.
+      </p>
+
+      <button id="seedNigeriaBtn" class="btn gold" type="button">Seed Nigeria (₦5000)</button>
+
+      <div class="divider"></div>
+
+      <h3>Add State</h3>
+      <div class="row">
+        <input type="text" id="newStateName" placeholder="State name">
+        <button id="addStateBtn" class="btn primary" type="button">Add</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>Search</h3>
+      <div class="search-wrap">
+        <input id="searchBox" type="text" placeholder="Search state or city...">
+      </div>
+
+      <p class="muted small tip">
+        Tip: Open a state → you can edit fees inline.
+      </p>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="admin-box">
+      <div class="list-head">
+        <h3>States & Cities</h3>
+        <div class="list-actions">
+          <button id="collapseAllBtn" class="btn ghost" type="button">Collapse all</button>
+          <button id="expandAllBtn" class="btn ghost" type="button">Expand all</button>
+        </div>
+      </div>
+
       <div id="stateList"></div>
-    </div>
+    </main>
 
   </div>
 </section>
-<script src="admin-login.js"></script>
+
+<script src="auth.js"></script>
 <script src="admin-delivery.js"></script>
 </body>
 </html>

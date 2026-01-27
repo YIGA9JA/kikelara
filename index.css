@@ -417,3 +417,92 @@ nav a {
     display: flex;
   }
 }
+
+
+
+/* Social icons + handle styling */
+.social-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.social-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(95, 75, 0, 0.18);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.social-handle {
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+
+/* ================= UNIFORM IMAGE SIZES (FEATURED + LATEST) ================= */
+
+/* 1) Featured product image: same size always */
+.featured-left img,
+#featuredImage {
+  width: 100%;
+  height: 700px;          /* adjust if you want taller/shorter */
+  object-fit: cover;      /* crops nicely to fill the box */
+  border-radius: 20px;
+  display: block;
+}
+
+/* Make featured box consistent */
+.featured-slider {
+  width: 100%;
+}
+
+#featuredName {
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* 2) Latest cards: same card height + same image box */
+.latest-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 360px;          /* controls overall card size */
+  overflow: hidden;
+}
+
+/* Image in latest cards: fixed height, cover crop */
+.latest-card img {
+  width: 100%;
+  height: 320px;          /* controls image size */
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+}
+
+/* Title area stays consistent */
+.latest-card h4 {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+/* Mobile tweak */
+@media (max-width: 600px) {
+  .featured-left img,
+  #featuredImage {
+    height: 260px;
+  }
+
+  .latest-card {
+    height: 240px;
+  }
+
+  .latest-card img {
+    height: 155px;
+  }
+}
