@@ -5,41 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Product Details | KÍKE LÁRÁ</title>
   <meta name="description" content="Luxury skincare by KÍKE LÁRÁ">
+
   <link rel="stylesheet" href="product-details.css">
   <link rel="stylesheet" href="header.css">
-
 </head>
-  <div id="siteHeader"></div>
 
 <body>
 
+  <!-- Header inject must be INSIDE body -->
+  <div id="siteHeader"></div>
 
-<!-- ================= PRODUCT DETAILS ================= -->
-<section class="product-details">
-  <div class="product-image">
-    <img id="productImage" src="" alt="">
-  </div>
-
-  <div class="product-info">
-    <h1 id="productName"></h1>
-    <p class="price" id="productPrice"></p>
-    <p class="description" id="productDescription"></p>
-    <ul class="features" id="productFeatures"></ul>
-
-    <div class="actions icon-row">
-      <button class="wishlist-btn" id="wishlistBtn">♥</button>
-      <button class="cart-btn" id="cartBtn">🛒</button>
+  <!-- ================= PRODUCT DETAILS ================= -->
+  <section class="product-details">
+    <div class="product-image">
+      <img id="productImage" src="" alt="">
     </div>
-  </div>
-</section>
 
-<!-- ================= FOOTER ================= -->
-<footer class="main-footer">
-  <p>© 2026 KÍKE LÁRÁ Skincare</p>
-</footer>
+    <div class="product-info">
+      <h1 id="productName"></h1>
+      <p class="price" id="productPrice"></p>
+      <p class="description" id="productDescription"></p>
+      <ul class="features" id="productFeatures"></ul>
 
-<script src="product-details.js"></script>
-<script src="header.js"></script>
+      <div class="actions icon-row">
+        <button class="wishlist-btn" id="wishlistBtn" aria-label="Add to wishlist">♥</button>
+        <button class="cart-btn" id="cartBtn" aria-label="Add to cart">🛒</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="main-footer">
+    <p>© 2026 KÍKE LÁRÁ Skincare</p>
+  </footer>
+
+  <!-- IMPORTANT: header.js first (inject header), then product-details.js -->
+  <script src="header.js"></script>
+  <script src="product-details.js"></script>
 
 </body>
 </html>
