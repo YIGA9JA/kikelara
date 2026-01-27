@@ -17,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
         <a href="products.html" data-nav="products.html">Products</a>
         <a href="about.html" data-nav="about.html">About</a>
         <a href="contact.html" data-nav="contact.html">Contact</a>
-        <a href="privacy.html" data-nav="privacy.html">Privacy</a>
       </nav>
 
       <div class="header-actions">
@@ -104,4 +103,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const link = e.target.closest("a");
     if (link) closeDrawer();
   });
+});
+
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 900) {
+    // close drawer automatically on desktop
+    toggleBtn.classList.remove("active");
+    drawer.classList.remove("show");
+    overlay.classList.remove("show");
+    toggleBtn.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
 });

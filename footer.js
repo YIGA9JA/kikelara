@@ -64,7 +64,7 @@
               <img src="/images/logo.jpg" alt="Kíke Lárá Logo">
             </a>
 
-            <h4 class="footer-brand-name">KÍKÉLÁRÁ</h4>
+            <h4 class="footer-brand-name">KÍKÉLÁRÁ </h4>
             <p class="footer-brand-desc">
               Luxury skincare inspired by nature. Crafted to nourish, glow and restore confidence.
             </p>
