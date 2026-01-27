@@ -5,23 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Contact Us | KÍKE LÁRÁ</title>
   <link rel="stylesheet" href="contact.css">
+  <link rel="stylesheet" href="header.css">
+  <link rel="stylesheet" href="footer.css">
 </head>
+  <div id="siteHeader"></div>
+
 <body>
-
-<header class="main-header">
-  <div class="brand">
-    <img src="images/logo.jpg" alt="Kíke Lárá Logo">
-    <span>KÍKE LÁRÁ</span>
-  </div>
-
-  <button id="menu-toggle" class="menu-btn">☰</button>
-
-  <nav id="mobileNav">
-    <a href="index.html">Home</a>
-    <a href="products.html">Products</a>
-    <a href="contact.html" class="active">Contact Us</a>
-  </nav>
-</header>
 
 <section class="contact-hero">
   <h1>Contact Us</h1>
@@ -38,9 +27,8 @@
   </form>
 </section>
 
-<footer class="main-footer">
-  © 2026 KÍKE LÁRÁ Skincare. All Rights Reserved.
-</footer>
+<div id="siteFooter"></div>
+
 
 <script>
 const toggleBtn = document.getElementById("menu-toggle");
@@ -73,6 +61,8 @@ form.addEventListener("submit", async (e) => {
   }
 });
 </script>
+<script src="header.js"></script>
+<script src="footer.js"></script>
 
 </body>
 </html>
