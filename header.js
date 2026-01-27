@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <header class="main-header" id="navbar">
       <a class="brand" href="index.html">
         <img src="images/logo.jpg" alt="Kíke Lárá logo" />
-        <span>KÍKE LÁRÁ</span>
+        <span>KÍKÉLÁRÁ</span>
       </a>
 
       <nav class="nav-links" aria-label="Primary navigation">
@@ -44,11 +44,11 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="drawer-links">
         <a href="index.html" data-nav="index.html">Home</a>
         <a href="products.html" data-nav="products.html">Products</a>
+                <a href="wishlist.html" data-nav="wishlist.html">Wishlist</a>
+                        <a href="cart.html" data-nav="cart.html">Cart</a>
+
         <a href="about.html" data-nav="about.html">About</a>
         <a href="contact.html" data-nav="contact.html">Contact</a>
-        <a href="privacy.html" data-nav="privacy.html">Privacy Policy</a>
-        <a href="wishlist.html" data-nav="wishlist.html">Wishlist</a>
-        <a href="cart.html" data-nav="cart.html">Cart</a>
       </div>
 
       <div class="drawer-bottom">

@@ -37,97 +37,265 @@ body {
   to { opacity: 1; }
 }
 
-/* NAVBAR */
-.main-header {
-  position: sticky;
-  top: 0;
-  background: linear-gradient(90deg, #ffefd5, #ffefd5);
-  padding: 15px 6%;
+/* ================= SLEEK PREMIUM HERO ================= */
+.hero-slider{
+  height: 70vh;
+  min-height: 520px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-slide{
+  height: 100%;
+  width: 100%;
+  position: relative;
+
+  /* keep your hero image */
+  background: url("images/hero.JPG") center/cover no-repeat;
+
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  z-index: 100;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: bold;
+/* luxury overlay */
+.hero-slide::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(900px 520px at 18% 35%, rgba(255,255,255,.55), rgba(255,255,255,0) 60%),
+    linear-gradient(90deg, rgba(255,239,213,.86), rgba(255,239,213,.38), rgba(255,239,213,0));
 }
 
-.brand img {
-  width: 36px;
+/* subtle grain for premium feel */
+.hero-slide::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.12;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
 }
 
-nav a {
-  margin-left: 20px;
-  text-decoration: none;
-  font-weight: 600;
+/* optional ambient glow */
+.hero-glow{
+  position:absolute;
+  left: 6%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 520px;
+  height: 520px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(212,175,55,.18), rgba(212,175,55,0) 62%);
+  filter: blur(2px);
+  z-index: 1;
+}
+
+.hero-text{
+  position: relative;
+  z-index: 2;
+  margin-left: 6%;
+  max-width: 560px;
+
+  /* glass card */
+  background: rgba(255,255,255,.38);
+  border: 1px solid rgba(95,75,0,.16);
+  backdrop-filter: blur(14px);
+  border-radius: 26px;
+  padding: 38px 34px;
+  box-shadow: 0 22px 50px rgba(0,0,0,.12);
+
+  /* sleek entrance */
+  opacity: 0;
+  transform: translateY(18px);
+  animation: heroRise .9s ease forwards;
+}
+
+@keyframes heroRise{
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-kicker{
+  display:inline-flex;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,239,213,.65);
+  border: 1px solid rgba(212,175,55,.35);
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: .78rem;
+  color: rgba(95,75,0,.92);
+}
+
+.hero-text h1{
+  margin-top: 14px;
+  font-size: clamp(2.4rem, 4.5vw, 3.7rem);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
   color: #111;
 }
 
-/* HERO */
-/* HERO */
-.hero-slider {
-  height: 65vh; /* was 85vh */
-  width: 100%;
+.hero-text p{
+  margin-top: 12px;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: rgba(95,75,0,.92);
+  max-width: 480px;
 }
 
-.hero-slide {
-  height: 100%;
-  width: 100%;
-  background: url("images/hero.JPG") center/cover no-repeat;
-  display: flex;
-  align-items: center;
+/* buttons row */
+.hero-actions{
+  display:flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
 }
 
-.hero-text {
-  margin-left: 6%;
-  max-width: 520px;
-  background: #ffefd5;
-  padding: 36px;
-  border-radius: 24px;
+/* your existing gold-btn can stay; this just makes it more premium if you want */
+.gold-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 13px 18px;
+  border-radius: 999px;
+  text-decoration:none;
+  font-weight: 950;
+  background: var(--gold, #d4af37);
+  color: #111;
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 14px 30px rgba(212,175,55,.30);
+  transition: transform .25s ease, box-shadow .25s ease;
 }
 
-.hero-text h1 {
-  font-size: 3rem;
-}
-
-@media (max-width: 768px) {
-  .hero-slider {
-    height: 55vh;
-  }
-
-  .hero-text h1 {
-    font-size: 2.2rem;
-  }
-}
-
-/* HERO TEXT ANIMATION */
-.hero-text {
-  opacity: 0;
-  transform: translateY(20px);
-  animation: heroFadeUp 1.4s ease forwards;
-  animation-delay: 0.4s;
-}
-
-@keyframes heroFadeUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Button micro animation */
-.gold-btn {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.gold-btn:hover {
+.gold-btn:hover{
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(212, 175, 55, 0.4);
+  box-shadow: 0 18px 38px rgba(212,175,55,.38);
 }
+
+.ghost-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 13px 18px;
+  border-radius: 999px;
+  text-decoration:none;
+  font-weight: 950;
+  color: rgba(95,75,0,.95);
+  border: 1px solid rgba(95,75,0,.18);
+  background: rgba(255,255,255,.35);
+  transition: transform .25s ease, background .25s ease;
+}
+
+.ghost-btn:hover{
+  transform: translateY(-2px);
+  background: rgba(255,255,255,.55);
+}
+
+/* metrics chips */
+.hero-metrics{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.metric{
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255,239,213,.58);
+  border: 1px solid rgba(95,75,0,.14);
+  font-weight: 850;
+  font-size: .9rem;
+  color: rgba(95,75,0,.92);
+}
+
+/* responsive */
+@media (max-width: 900px){
+  .hero-slider{
+    height: 62vh;
+    min-height: 460px;
+  }
+  .hero-text{
+    margin: 0 6%;
+    padding: 30px 24px;
+  }
+  .hero-glow{ display:none; }
+}
+
+@media (max-width: 520px){
+  .hero-slider{
+    height: 58vh;
+    min-height: 420px;
+  }
+  .hero-text h1{
+    font-size: 2.25rem;
+  }
+}
+/* HERO TEXT: TRANSPARENT (NO CARD) */
+.hero-text{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+
+  padding: 0 !important;
+  border-radius: 0 !important;
+
+  max-width: 600px;
+}
+
+/* Make text readable on image */
+.hero-text h1,
+.hero-text p,
+.hero-kicker,
+.metric{
+  text-shadow: 0 8px 28px rgba(0,0,0,.28);
+}
+
+/* Optional: make paragraph a bit stronger on bright images */
+.hero-text p{
+  background: transparent;
+  font-weight: 650;
+}
+
+/* Keep layout nice */
+.hero-actions{ margin-top: 16px; }
+.hero-metrics{ margin-top: 16px; }
+
+/* HERO TEXT: TRANSPARENT (NO CARD) */
+.hero-text{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+
+  padding: 0 !important;
+  border-radius: 0 !important;
+
+  max-width: 600px;
+}
+
+/* Make text readable on image */
+.hero-text h1,
+.hero-text p,
+.hero-kicker,
+.metric{
+  text-shadow: 0 8px 28px rgba(0,0,0,.28);
+}
+
+/* Optional: make paragraph a bit stronger on bright images */
+.hero-text p{
+  background: transparent;
+  font-weight: 650;
+}
+
+/* Keep layout nice */
+.hero-actions{ margin-top: 16px; }
+.hero-metrics{ margin-top: 16px; }
 
 /* FEATURED */
 .featured {
