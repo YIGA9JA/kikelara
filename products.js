@@ -49,7 +49,7 @@ const defaultProducts = [
     category: "Serum",
     price: 7500,
     discount: 0,
-    image: "images/hairOil1.JPG",
+    image: "images/hairll.JPG",
     description: "Locks in moisture. Jojoba Oil, Castor Oil, Argan Oil, Vitamin E."
   },
   {

@@ -9,57 +9,42 @@
   <link rel="stylesheet" href="footer.css">
   <link rel="stylesheet" href="header.css">
 
+  <!-- ✅ IMPORTANT: defer keeps scripts from running before HTML is ready -->
+  <script src="header.js" defer></script>
+  <script src="products.js" defer></script>
+  <script src="footer.js" defer></script>
 </head>
-  <div id="siteHeader"></div>
 
 <body>
+  <!-- ✅ Header mount must be inside BODY -->
+  <div id="siteHeader"></div>
 
+  <!-- ================= FILTERS ================= -->
+  <section class="filters-section">
+    <div class="filter-group">
+      <label for="categorySelect">Category:</label>
+      <select id="categorySelect">
+        <option value="all">All</option>
+      </select>
+    </div>
 
+    <div class="filter-group">
+      <label for="sortSelect">Sort By:</label>
+      <select id="sortSelect">
+        <option value="default">Default</option>
+        <option value="priceLow">Price: Low → High</option>
+        <option value="priceHigh">Price: High → Low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+  </section>
 
-<!-- ================= FILTERS ================= -->
-<section class="filters-section">
-  <div class="filter-group">
-    <label for="categorySelect">Category:</label>
-    <select id="categorySelect">
-      <option value="all">All</option>
-    </select>
-  </div>
+  <!-- ================= PRODUCTS GRID ================= -->
+  <section class="products-page">
+    <div class="products-grid" id="productsGrid"></div>
+  </section>
 
-  <div class="filter-group">
-    <label for="sortSelect">Sort By:</label>
-    <select id="sortSelect">
-      <option value="default">Default</option>
-      <option value="priceLow">Price: Low → High</option>
-      <option value="priceHigh">Price: High → Low</option>
-      <option value="name">Name</option>
-    </select>
-  </div>
-</section>
-
-<!-- ================= PRODUCTS GRID ================= -->
-<section class="products-page">
-  <div class="products-grid" id="productsGrid"></div>
-</section>
-
-<!-- ✅ IMPORTANT: Footer mount for your global footer.js -->
-<div id="siteFooter"></div>
-
-
-<script>
-  // MOBILE MENU TOGGLE
-  const menuToggle = document.getElementById("menu-toggle");
-  const navbarLinks = document.getElementById("navbarLinks");
-
-  menuToggle.addEventListener("click", () => {
-    navbarLinks.classList.toggle("show");
-  });
-</script>
-
-<!-- Your global footer -->
-<script src="footer.js"></script>
-<script src="header.js"></script>
-<script src="products.js"></script>
-
-
+  <!-- ✅ Footer mount -->
+  <div id="siteFooter"></div>
 </body>
 </html>
