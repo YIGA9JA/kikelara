@@ -1,3 +1,11 @@
+/* ================= PRODUCTS.JS (FULL UPDATED) =================
+   Fixes your errors:
+   - Prevents null crashes if #cartCount/#wishlistCount/#categorySelect/#sortSelect are missing
+   - Runs only after DOMContentLoaded
+   - Still supports: wishlist, qty +/- counter, cart icon +1, filters, sorting
+   - Keeps your "reset when defaults change" logic
+=============================================================== */
+
 /* ================= LOAD / SEED PRODUCTS ================= */
 
 /** Change these only if you want to rename storage keys globally */
@@ -121,33 +129,73 @@ function syncProductsWithDefaults() {
 let products = syncProductsWithDefaults();
 
 /* ================= STATE ================= */
-let wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; // IDs only
-let cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
-let currentList = products; // sorting/filter rendering
+let wishlist = [];
+let cart = [];
+let currentList = products;
 
-/* ================= ELEMENTS ================= */
-const grid = document.getElementById("productsGrid");
-const wishlistCount = document.getElementById("wishlistCount");
-const cartCount = document.getElementById("cartCount");
-const categorySelect = document.getElementById("categorySelect");
-const sortSelect = document.getElementById("sortSelect");
+/* ================= ELEMENTS (SAFE - will be set on DOMContentLoaded) ================= */
+let grid = null;
+let wishlistCountEl = null;
+let cartCountEl = null;
+let categorySelectEl = null;
+let sortSelectEl = null;
 
-/* ================= POPULATE CATEGORIES ================= */
+/* ================= STORAGE LOADERS (SAFE) ================= */
+function loadWishlist() {
+  try {
+    const w = JSON.parse(localStorage.getItem(WISHLIST_KEY));
+    wishlist = Array.isArray(w) ? w : [];
+  } catch {
+    wishlist = [];
+  }
+}
+
+function loadCart() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CART_KEY));
+    cart = Array.isArray(c) ? c : [];
+  } catch {
+    cart = [];
+  }
+}
+
+/* ================= COUNTS (SAFE) ================= */
+function updateCounts() {
+  const wishNum = Array.isArray(wishlist) ? wishlist.length : 0;
+  const cartNum = Array.isArray(cart)
+    ? cart.reduce((t, i) => t + (Number(i.qty) || 0), 0)
+    : 0;
+
+  if (wishlistCountEl) wishlistCountEl.textContent = wishNum;
+  if (cartCountEl) cartCountEl.textContent = cartNum;
+}
+
+/* ================= POPULATE CATEGORIES (SAFE) ================= */
 function populateCategories() {
-  categorySelect.innerHTML = `<option value="all">All</option>`;
+  if (!categorySelectEl) return;
 
+  categorySelectEl.innerHTML = `<option value="all">All</option>`;
   const categories = [...new Set(products.map(p => p.category))];
+
   categories.forEach(cat => {
     const opt = document.createElement("option");
     opt.value = cat;
     opt.textContent = cat;
-    categorySelect.appendChild(opt);
+    categorySelectEl.appendChild(opt);
   });
 }
 
 /* ================= CART HELPERS ================= */
 function getQtyInCart(id) {
   return (cart.find(c => c.id === id)?.qty) || 0;
+}
+
+function saveCart() {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+function saveWishlist() {
+  localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
 }
 
 function changeQty(id, delta) {
@@ -159,17 +207,30 @@ function changeQty(id, delta) {
   if (idx === -1) {
     if (delta > 0) cart.push({ ...product, qty: 1 });
   } else {
-    cart[idx].qty = (cart[idx].qty || 0) + delta;
+    cart[idx].qty = (Number(cart[idx].qty) || 0) + delta;
     if (cart[idx].qty <= 0) cart.splice(idx, 1);
   }
 
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  saveCart();
   updateCounts();
   renderProducts(currentList);
 }
 
+/* ================= WISHLIST ================= */
+function toggleWishlist(id) {
+  wishlist = wishlist.includes(id)
+    ? wishlist.filter(w => w !== id)
+    : [...wishlist, id];
+
+  saveWishlist();
+  renderProducts(currentList);
+  updateCounts();
+}
+
 /* ================= RENDER PRODUCTS ================= */
 function renderProducts(list = products) {
+  if (!grid) return;
+
   currentList = list;
   grid.innerHTML = "";
 
@@ -206,32 +267,48 @@ function renderProducts(list = products) {
     `;
 
     // Navigate only on image tap
-    card.querySelector("img").onclick = () => {
-      window.location.href = `product-details.html?id=${p.id}`;
-    };
+    const img = card.querySelector("img");
+    if (img) {
+      img.onclick = () => {
+        window.location.href = `product-details.html?id=${p.id}`;
+      };
+    }
 
     // Wishlist toggle
-    card.querySelector(".wishlist-btn").onclick = (e) => {
-      e.stopPropagation();
-      toggleWishlist(p.id);
-    };
+    const wishBtn = card.querySelector(".wishlist-btn");
+    if (wishBtn) {
+      wishBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleWishlist(p.id);
+      };
+    }
 
     // Qty controls
-    card.querySelector(".qty-btn.plus").onclick = (e) => {
-      e.stopPropagation();
-      changeQty(p.id, +1);
-    };
+    const plusBtn = card.querySelector(".qty-btn.plus");
+    const minusBtn = card.querySelector(".qty-btn.minus");
 
-    card.querySelector(".qty-btn.minus").onclick = (e) => {
-      e.stopPropagation();
-      changeQty(p.id, -1);
-    };
+    if (plusBtn) {
+      plusBtn.onclick = (e) => {
+        e.stopPropagation();
+        changeQty(p.id, +1);
+      };
+    }
+
+    if (minusBtn) {
+      minusBtn.onclick = (e) => {
+        e.stopPropagation();
+        changeQty(p.id, -1);
+      };
+    }
 
     // Cart icon = quick +1
-    card.querySelector(".cart-btn").onclick = (e) => {
-      e.stopPropagation();
-      changeQty(p.id, +1);
-    };
+    const cartBtn = card.querySelector(".cart-btn");
+    if (cartBtn) {
+      cartBtn.onclick = (e) => {
+        e.stopPropagation();
+        changeQty(p.id, +1);
+      };
+    }
 
     grid.appendChild(card);
   });
@@ -239,56 +316,68 @@ function renderProducts(list = products) {
   updateCounts();
 }
 
-/* ================= FILTERS ================= */
-categorySelect.addEventListener("change", () => {
-  const val = categorySelect.value;
+/* ================= FILTERS (SAFE) ================= */
+function bindFilters() {
+  if (categorySelectEl) {
+    categorySelectEl.addEventListener("change", () => {
+      const val = categorySelectEl.value;
 
-  const filtered = val === "all"
-    ? products
-    : products.filter(p => p.category === val);
+      const filtered = val === "all"
+        ? products
+        : products.filter(p => p.category === val);
 
-  renderProducts(filtered);
-  sortSelect.value = "default";
-});
+      renderProducts(filtered);
 
-sortSelect.addEventListener("change", () => {
-  const val = categorySelect.value;
+      if (sortSelectEl) sortSelectEl.value = "default";
+    });
+  }
 
-  const filtered = val === "all"
-    ? products
-    : products.filter(p => p.category === val);
+  if (sortSelectEl) {
+    sortSelectEl.addEventListener("change", () => {
+      const val = categorySelectEl ? categorySelectEl.value : "all";
 
-  if (sortSelect.value === "default") {
-    renderProducts(filtered);
+      const filtered = val === "all"
+        ? products
+        : products.filter(p => p.category === val);
+
+      if (sortSelectEl.value === "default") {
+        renderProducts(filtered);
+        return;
+      }
+
+      let sorted = [...filtered];
+
+      if (sortSelectEl.value === "priceLow") sorted.sort((a, b) => a.price - b.price);
+      if (sortSelectEl.value === "priceHigh") sorted.sort((a, b) => b.price - a.price);
+      if (sortSelectEl.value === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+
+      renderProducts(sorted);
+    });
+  }
+}
+
+/* ================= INIT (RUN AFTER DOM READY) ================= */
+document.addEventListener("DOMContentLoaded", () => {
+  // Load storage first
+  loadWishlist();
+  loadCart();
+
+  // Grab elements safely
+  grid = document.getElementById("productsGrid");
+  wishlistCountEl = document.getElementById("wishlistCount");
+  cartCountEl = document.getElementById("cartCount");
+  categorySelectEl = document.getElementById("categorySelect");
+  sortSelectEl = document.getElementById("sortSelect");
+
+  // If this page doesn't have the products grid, don't run
+  if (!grid) {
+    // Still update counters if they exist (e.g. header shared layout)
+    updateCounts();
     return;
   }
 
-  let sorted = [...filtered];
-
-  if (sortSelect.value === "priceLow") sorted.sort((a, b) => a.price - b.price);
-  if (sortSelect.value === "priceHigh") sorted.sort((a, b) => b.price - a.price);
-  if (sortSelect.value === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
-
-  renderProducts(sorted);
+  populateCategories();
+  bindFilters();
+  renderProducts(products);
+  updateCounts();
 });
-
-/* ================= WISHLIST ================= */
-function toggleWishlist(id) {
-  wishlist = wishlist.includes(id)
-    ? wishlist.filter(w => w !== id)
-    : [...wishlist, id];
-
-  localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
-  renderProducts(currentList);
-}
-
-/* ================= COUNTS ================= */
-function updateCounts() {
-  wishlistCount.textContent = wishlist.length;
-  cartCount.textContent = cart.reduce((t, i) => t + (i.qty || 0), 0);
-}
-
-/* ================= INIT ================= */
-populateCategories();
-renderProducts();
-updateCounts();
