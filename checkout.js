@@ -1,15 +1,7 @@
-/* ===================== CHECKOUT.JS (BACKEND PRICING + PAYSTACK + BACKUP + NIGERIA LGA FALLBACK) ===================== */
-/* Works with your current IDs:
-   #name #email #phone
-   radios name="shippingType" (pickup/delivery)
-   #deliveryFields #pickupInfo
-   #deliveryState #deliveryCity #address
-   #summaryItems #deliveryFee #deliveryFeeChip #totalAmount #payBtnAmount
-   #payNowBtn
-*/
+/* ===================== CHECKOUT.JS (NECESSAIRE-STYLE UI + YOUR COLORS + YOUR LOGIC) ===================== */
 
 /* ================= API (BACKEND) ================= */
-const API_BASE = "http://localhost:4000"; // change when deployed
+const API_BASE = "http://localhost:4000"; // change when deployed (Render URL)
 
 /* ================= NIGERIA STATES + LGAs (FALLBACK SOURCE) ================= */
 const NIGERIA_LGA_SOURCE =
@@ -17,8 +9,8 @@ const NIGERIA_LGA_SOURCE =
 
 /* ================= STORAGE KEYS ================= */
 const CART_KEY = "cart";
-const PRICING_BACKUP_KEY = "deliveryPricing_backup_v1"; // ✅ backup of server pricing
-const LOCAL_ORDERS_KEY = "orders_backup";               // local fallback if backend fails
+const PRICING_BACKUP_KEY = "deliveryPricing_backup_v1";
+const LOCAL_ORDERS_KEY = "orders_backup";
 
 /* ================= SETTINGS ================= */
 const PICKUP_FEE = 0;
@@ -43,6 +35,10 @@ const deliveryFeeChipEl = document.getElementById("deliveryFeeChip");
 const totalAmountEl = document.getElementById("totalAmount");
 const payNowBtn = document.getElementById("payNowBtn");
 
+/* Segment indicator */
+const shipSegment = document.querySelector("[data-ship]");
+const segIndicator = shipSegment ? shipSegment.querySelector(".seg-indicator") : null;
+
 /* ================= LOAD CART ================= */
 let cart = [];
 try {
@@ -51,19 +47,11 @@ try {
   cart = [];
 }
 
-/* ================= PRICING (SERVER) =================
-Server returns:
-{
-  defaultFee: 5000,
-  updatedAt: "...", (optional)
-  states: [{ name:"Lagos", cities:[{name:"Ikeja", fee:5000}, ...] }, ...]
-}
-*/
+/* ================= PRICING ================= */
 let pricing = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
 
 function normalizePricing(raw) {
   const out = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
-
   if (!raw || typeof raw !== "object") return out;
 
   const def = Number(raw.defaultFee);
@@ -84,7 +72,6 @@ function normalizePricing(raw) {
     }))
     .filter(s => s.name);
 
-  // sort
   out.states.sort((a, b) => a.name.localeCompare(b.name));
   out.states.forEach(s => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
 
@@ -108,12 +95,10 @@ function loadPricingBackup() {
 }
 
 function savePricingBackup(p) {
-  try {
-    localStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p));
-  } catch {}
+  try { localStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p)); } catch {}
 }
 
-/* ================= NIGERIA DATASET FALLBACK ================= */
+/* Nigeria dataset fallback */
 function buildPricingFromNigeriaDataset(data, defaultFee) {
   const fee = Number.isFinite(Number(defaultFee))
     ? Math.max(0, Math.round(Number(defaultFee)))
@@ -124,12 +109,7 @@ function buildPricingFromNigeriaDataset(data, defaultFee) {
       const lgas = Array.isArray(data[stateName]) ? data[stateName] : [];
       return {
         name: String(stateName || "").trim(),
-        cities: lgas
-          .map(lga => ({
-            name: String(lga || "").trim(),
-            fee: fee
-          }))
-          .filter(c => c.name)
+        cities: lgas.map(lga => ({ name: String(lga || "").trim(), fee })).filter(c => c.name)
       };
     })
     .filter(s => s.name);
@@ -176,7 +156,6 @@ function findCity(stateObj, cityName) {
   return stateObj.cities.find(c => String(c.name || "").trim().toLowerCase() === name) || null;
 }
 
-/* ✅ Delivery fee uses selected LGA fee; falls back to defaultFee */
 function getDeliveryFee() {
   const type = getSelectedShippingType();
   if (type === "pickup") return PICKUP_FEE;
@@ -210,15 +189,25 @@ function setBtnLoading(isLoading) {
   payNowBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
 
   if (isLoading) {
-    payNowBtn.textContent = "Processing...";
+    payNowBtn.textContent = "PROCESSING…";
   } else {
     payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira(getGrandTotal())}</span>`;
   }
 }
 
+/* ✅ Segment indicator */
+function updateShippingIndicator() {
+  if (!shipSegment || !segIndicator) return;
+  const type = getSelectedShippingType();
+  // left = pickup, right = delivery
+  segIndicator.style.transform = type === "delivery" ? "translateX(calc(100% + 10px))" : "translateX(0)";
+}
+
 /* ================= UI: SHIPPING SHOW/HIDE ================= */
 function updateShippingUI() {
   const type = getSelectedShippingType();
+
+  updateShippingIndicator();
 
   if (type === "delivery") {
     deliveryFields?.classList.remove("is-hidden");
@@ -279,7 +268,7 @@ function renderSummaryItems() {
   if (!summaryItemsEl) return;
 
   if (!Array.isArray(cart) || cart.length === 0) {
-    summaryItemsEl.innerHTML = `<p>Your cart is empty.</p>`;
+    summaryItemsEl.innerHTML = `<p style="opacity:.8">Your cart is empty.</p>`;
     return;
   }
 
@@ -290,7 +279,7 @@ function renderSummaryItems() {
 
     return `
       <div class="summary-item">
-        <img src="${item.image}" alt="${escapeHtml(item.name)}">
+        <img src="${item.image}" alt="${escapeHtml(item.name)}" draggable="false">
         <div>
           <div class="summary-name">${escapeHtml(item.name)}</div>
           <div class="summary-meta">Qty: ${qty} • ₦${formatNaira(price)}</div>
@@ -350,7 +339,7 @@ function validateCheckout() {
   return { ok: true };
 }
 
-/* ================= ORDER SHAPE (MATCH ADMIN PAGE) ================= */
+/* ================= ORDER SHAPE ================= */
 function buildBackendOrder(paystackRef) {
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
@@ -395,7 +384,6 @@ function buildBackendOrder(paystackRef) {
   };
 }
 
-/* ================= SAVE FALLBACK LOCAL ================= */
 function saveOrderFallbackLocal(order) {
   try {
     const arr = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY)) || [];
@@ -404,7 +392,6 @@ function saveOrderFallbackLocal(order) {
   } catch {}
 }
 
-/* ================= SEND ORDER TO BACKEND ================= */
 async function sendOrderToBackend(order) {
   const res = await fetch(`${API_BASE}/orders`, {
     method: "POST",
@@ -461,7 +448,7 @@ function payWithPaystack() {
           window.location.href = "index.html";
         } catch (err) {
           console.error(err);
-          alert("Payment succeeded, but saving the order failed. Please contact support with your reference: " + reference);
+          alert("Payment succeeded, but saving the order failed. Contact support with reference: " + reference);
         } finally {
           setBtnLoading(false);
         }
@@ -475,6 +462,16 @@ function payWithPaystack() {
   });
 
   handler.openIframe();
+}
+
+/* ================= UTILS ================= */
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 /* ================= EVENTS ================= */
@@ -493,26 +490,12 @@ payNowBtn?.addEventListener("click", (e) => {
   payWithPaystack();
 });
 
-/* ================= UTILS ================= */
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 /* ================= INIT ================= */
 (async function init() {
   renderSummaryItems();
-  updateShippingUI();
+  updateShippingUI(); // also positions segment indicator
 
-  // ✅ fallback chain:
-  // 1) backend pricing
-  // 2) localStorage backup pricing
-  // 3) Nigeria states + LGAs dataset
-  // 4) last resort empty
+  // pricing fallback chain
   try {
     pricing = await fetchPricingFromServer();
     savePricingBackup(pricing);

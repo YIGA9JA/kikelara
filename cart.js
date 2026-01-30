@@ -1,141 +1,208 @@
-/* ================= STORAGE KEYS ================= */
+/* ================= CART.JS (PREMIUM + YOUR COLORS) =================
+   ✅ Qty +/- only in cart
+   ✅ No wishlist dependency (but won’t crash if wishlistCount exists in header)
+   ✅ Delivery shown as “calculated at checkout”
+   ✅ Shows totals inside checkout button
+   ✅ Sticky mobile checkout bar
+==================================================================== */
+
 const CART_KEY = "cart";
-const WISHLIST_KEY = "wishlist";
+const WISHLIST_KEY = "wishlist"; // optional safety for header badge
 
-/* ================= STATE ================= */
-let cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
-let wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || [];
+let cart = [];
+try {
+  cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
+} catch {
+  cart = [];
+}
 
-/* ================= ELEMENTS ================= */
 const cartItems = document.getElementById("cartItems");
 const subtotalEl = document.getElementById("subtotal");
 const totalEl = document.getElementById("total");
-const cartCount = document.getElementById("cartCount");
-const wishlistCount = document.getElementById("wishlistCount");
+
 const checkoutBtn = document.getElementById("checkoutBtn");
+const checkoutBtnTotal = document.getElementById("checkoutBtnTotal");
 
-const DELIVERY_FEE = 2000;
+const mobileCheckout = document.getElementById("mobileCheckout");
+const mobileCheckoutBtn = document.getElementById("mobileCheckoutBtn");
+const mobileCheckoutTotal = document.getElementById("mobileCheckoutTotal");
 
-/* ================= SAVE CART ================= */
 function saveCart() {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 
-/* ================= COUNTS ================= */
-function updateCounts() {
-  // cart badge = total qty
-  const cartQty = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
-  if (cartCount) cartCount.textContent = cartQty;
-
-  // wishlist badge = IDs length
-  if (wishlistCount) wishlistCount.textContent = Array.isArray(wishlist) ? wishlist.length : 0;
+function formatNaira(n) {
+  return `₦${Number(n || 0).toLocaleString()}`;
 }
 
-/* ================= SUMMARY ================= */
-function updateSummary() {
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0);
+/* ================= HEADER BADGES ================= */
+function updateHeaderBadges() {
+  const cartCountEl = document.getElementById("cartCount");
+  const wishlistCountEl = document.getElementById("wishlistCount");
 
-  subtotalEl.textContent = `₦${subtotal.toLocaleString()}`;
-  totalEl.textContent = `₦${(subtotal + (cart.length ? DELIVERY_FEE : 0)).toLocaleString()}`;
-}
+  const cartQty = Array.isArray(cart)
+    ? cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+    : 0;
 
-/* ================= CHECKOUT STATE ================= */
-function updateCheckoutState() {
-  if (!checkoutBtn) return;
+  if (cartCountEl) cartCountEl.textContent = cartQty;
 
-  if (cart.length === 0) {
-    checkoutBtn.disabled = true;
-    checkoutBtn.style.opacity = "0.5";
-    checkoutBtn.style.cursor = "not-allowed";
-  } else {
-    checkoutBtn.disabled = false;
-    checkoutBtn.style.opacity = "1";
-    checkoutBtn.style.cursor = "pointer";
+  if (wishlistCountEl) {
+    let wishlist = [];
+    try { wishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; } catch {}
+    wishlistCountEl.textContent = Array.isArray(wishlist) ? wishlist.length : 0;
   }
 }
 
-/* ================= RENDER CART ================= */
+/* ================= TOTALS ================= */
+function calcSubtotal() {
+  return cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0);
+}
+
+function updateSummary() {
+  const subtotal = calcSubtotal();
+  const total = subtotal; // delivery at checkout
+
+  if (subtotalEl) subtotalEl.textContent = formatNaira(subtotal);
+  if (totalEl) totalEl.textContent = formatNaira(total);
+
+  // Put total inside buttons
+  if (checkoutBtnTotal) checkoutBtnTotal.textContent = formatNaira(total);
+  if (mobileCheckoutTotal) mobileCheckoutTotal.textContent = formatNaira(total);
+}
+
+function updateCheckoutState() {
+  const empty = !Array.isArray(cart) || cart.length === 0;
+
+  if (checkoutBtn) {
+    checkoutBtn.disabled = empty;
+    checkoutBtn.style.opacity = empty ? "0.55" : "1";
+    checkoutBtn.style.cursor = empty ? "not-allowed" : "pointer";
+  }
+
+  if (mobileCheckoutBtn) {
+    mobileCheckoutBtn.disabled = empty;
+    mobileCheckoutBtn.style.opacity = empty ? "0.55" : "1";
+    mobileCheckoutBtn.style.cursor = empty ? "not-allowed" : "pointer";
+  }
+}
+
+/* ================= RENDER ================= */
 function renderCart() {
+  if (!cartItems) return;
+
   cartItems.innerHTML = "";
 
   if (!Array.isArray(cart) || cart.length === 0) {
-    cartItems.innerHTML = "<p>Your cart is empty.</p>";
-    subtotalEl.textContent = "₦0";
-    totalEl.textContent = "₦0";
-    updateCounts();
+    cartItems.innerHTML = `
+      <div class="empty">
+        <div class="empty-title">Your cart is empty.</div>
+        <div class="empty-sub">Go to the shop and add something you love.</div>
+        <a class="empty-btn" href="products.html">Back to Shop</a>
+      </div>
+    `;
+    if (subtotalEl) subtotalEl.textContent = "₦0";
+    if (totalEl) totalEl.textContent = "₦0";
+    if (checkoutBtnTotal) checkoutBtnTotal.textContent = "₦0";
+    if (mobileCheckoutTotal) mobileCheckoutTotal.textContent = "₦0";
+
+    updateHeaderBadges();
     updateCheckoutState();
     return;
   }
 
   cart.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "cart-item";
+    const qty = Number(item.qty || 1);
+    const price = Number(item.price || 0);
 
-    div.innerHTML = `
-      <img src="${item.image}" alt="${item.name}">
+    const row = document.createElement("div");
+    row.className = "cart-item";
+
+    row.innerHTML = `
+      <img class="cart-img" src="${item.image}" alt="${item.name}" draggable="false">
       <div class="cart-info">
-        <h4>${item.name}</h4>
-        <p>₦${Number(item.price).toLocaleString()}</p>
-        <div class="quantity">
-          <button data-id="${item.id}" data-action="decrease">−</button>
-          <span>${item.qty || 1}</span>
-          <button data-id="${item.id}" data-action="increase">+</button>
+        <div class="cart-name">${item.name}</div>
+
+        <div class="cart-meta">
+          <span class="cart-price">${formatNaira(price)}</span>
+          <span class="cart-dot">•</span>
+          <span class="cart-line">${formatNaira(price * qty)}</span>
+        </div>
+
+        <div class="qty">
+          <button class="qty-btn" data-action="decrease" data-id="${item.id}" aria-label="Decrease quantity">−</button>
+          <span class="qty-num">${qty}</span>
+          <button class="qty-btn" data-action="increase" data-id="${item.id}" aria-label="Increase quantity">+</button>
         </div>
       </div>
-      <span class="remove" data-id="${item.id}">Remove</span>
+
+      <button class="remove" data-action="remove" data-id="${item.id}" type="button" aria-label="Remove item">
+        Remove
+      </button>
     `;
 
-    cartItems.appendChild(div);
+    cartItems.appendChild(row);
   });
 
   updateSummary();
-  updateCounts();
+  updateHeaderBadges();
   updateCheckoutState();
 }
 
-/* ================= EVENT DELEGATION ================= */
-cartItems.addEventListener("click", (e) => {
-  const action = e.target.dataset.action;
-  const id = Number(e.target.dataset.id);
+/* ================= EVENTS ================= */
+cartItems?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
 
+  const action = btn.dataset.action;
+  const id = Number(btn.dataset.id);
   if (!id) return;
 
-  if (action === "increase") {
-    const item = cart.find(i => i.id === id);
-    if (item) item.qty = (item.qty || 1) + 1;
+  const item = cart.find(i => Number(i.id) === id);
+
+  if (action === "increase" && item) {
+    item.qty = (Number(item.qty) || 1) + 1;
   }
 
-  if (action === "decrease") {
-    const item = cart.find(i => i.id === id);
-    if (item) {
-      item.qty = (item.qty || 1) - 1;
-      if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
-    }
+  if (action === "decrease" && item) {
+    item.qty = (Number(item.qty) || 1) - 1;
+    if (item.qty <= 0) cart = cart.filter(i => Number(i.id) !== id);
   }
 
-  if (e.target.classList.contains("remove")) {
-    cart = cart.filter(i => i.id !== id);
+  if (action === "remove") {
+    cart = cart.filter(i => Number(i.id) !== id);
   }
 
   saveCart();
   renderCart();
 });
 
-/* ================= CHECKOUT ================= */
-checkoutBtn?.addEventListener("click", () => {
-  if (cart.length === 0) return;
+function goCheckout() {
+  if (!cart.length) return;
   window.location.href = "checkout.html";
+}
+
+checkoutBtn?.addEventListener("click", goCheckout);
+mobileCheckoutBtn?.addEventListener("click", goCheckout);
+
+/* ================= MOBILE STICKY TOGGLE ================= */
+function updateMobileBar() {
+  const isMobile = window.matchMedia("(max-width: 980px)").matches;
+  if (!mobileCheckout) return;
+
+  mobileCheckout.style.display = isMobile ? "block" : "none";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderCart();
+  updateMobileBar();
+
+  window.addEventListener("resize", updateMobileBar);
+
+  // header inject can be late
+  let tries = 0;
+  const t = setInterval(() => {
+    tries++;
+    updateHeaderBadges();
+    if (tries >= 10) clearInterval(t);
+  }, 150);
 });
-
-/* ================= HAMBURGER TOGGLE ================= */
-const menuToggle = document.getElementById("menuToggle");
-const navbarLinks = document.getElementById("navbarLinks");
-
-menuToggle?.addEventListener("click", () => {
-  navbarLinks.classList.toggle("show");
-  document.body.classList.toggle("menu-open");
-});
-
-/* ================= INIT ================= */
-renderCart();
-updateCounts();

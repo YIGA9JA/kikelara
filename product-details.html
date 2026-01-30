@@ -8,40 +8,77 @@
 
   <link rel="stylesheet" href="product-details.css">
   <link rel="stylesheet" href="header.css">
+
+  <!-- Defer so DOM is ready -->
+  <script src="header.js" defer></script>
+  <script src="product-details.js" defer></script>
 </head>
 
 <body>
-
-  <!-- Header inject must be INSIDE body -->
   <div id="siteHeader"></div>
 
-  <!-- ================= PRODUCT DETAILS ================= -->
-  <section class="product-details">
-    <div class="product-image">
-      <img id="productImage" src="" alt="">
-    </div>
+  <section class="pd">
+    <a class="pd-back" href="products.html">← Back to shop</a>
 
-    <div class="product-info">
-      <h1 id="productName"></h1>
-      <p class="price" id="productPrice"></p>
-      <p class="description" id="productDescription"></p>
-      <ul class="features" id="productFeatures"></ul>
+    <div class="pd-grid">
+      <!-- IMAGE / GALLERY -->
+      <div class="pd-media">
+        <div class="pd-image-wrap">
+          <img id="productImage" src="" alt="">
+        </div>
 
-      <div class="actions icon-row">
-        <button class="wishlist-btn" id="wishlistBtn" aria-label="Add to wishlist">♥</button>
-        <button class="cart-btn" id="cartBtn" aria-label="Add to cart">🛒</button>
+        <!-- ✅ Thumbnails for multiple images -->
+        <div class="pd-thumbs" id="productThumbs"></div>
+      </div>
+
+      <!-- INFO -->
+      <div class="pd-info">
+        <div class="pd-topline">
+          <span class="pd-cat" id="productCategory">PRODUCT</span>
+          <span class="pd-flag" id="productInCart" style="display:none;">IN CART</span>
+        </div>
+
+        <h1 class="pd-name" id="productName"></h1>
+        <div class="pd-price" id="productPrice"></div>
+
+        <p class="pd-desc" id="productDescription"></p>
+
+        <!-- ADD BUTTON -->
+        <div class="pd-actions">
+          <button class="pd-btn" id="cartBtn" type="button">ADD TO CART</button>
+          <a class="pd-viewcart" id="viewCartLink" href="cart.html" style="display:none;">VIEW CART</a>
+        </div>
+
+        <!-- DETAILS -->
+        <div class="pd-panels">
+
+          <div class="pd-panel">
+            <div class="pd-panel-title">WHY YOU’LL LOVE IT</div>
+            <ul class="pd-list" id="productBenefits"></ul>
+          </div>
+
+          <div class="pd-panel">
+            <div class="pd-panel-title">HOW TO USE</div>
+            <ul class="pd-list" id="productHowToUse"></ul>
+          </div>
+
+          <div class="pd-panel">
+            <div class="pd-panel-title">INGREDIENTS</div>
+            <div class="pd-ingredients" id="productIngredients"></div>
+          </div>
+
+        </div>
+
+        <div class="pd-note">
+          <span>NOTE</span>
+          Patch test before first use. Store in a cool, dry place.
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ================= FOOTER ================= -->
-  <footer class="main-footer">
+  <footer class="pd-footer">
     <p>© 2026 KÍKE LÁRÁ Skincare</p>
   </footer>
-
-  <!-- IMPORTANT: header.js first (inject header), then product-details.js -->
-  <script src="header.js"></script>
-  <script src="product-details.js"></script>
-
 </body>
 </html>

@@ -1,9 +1,17 @@
+/* ================= INDEX.CSS (FULL FIXED) =================
+   ✅ Keeps your luxury hero styles
+   ✅ Featured + Latest uniform
+   ✅ MOST LOVED (#homeProducts) images now same size
+=========================================================== */
+
 :root {
   --gold: #d4af37;
   --cream: #ffefd5;
   --dark: #5f4b00;
+  --shadow: rgba(0,0,0,.12);
 }
 
+/* RESET */
 * {
   margin: 0;
   padding: 0;
@@ -14,9 +22,10 @@
 body {
   background: var(--cream);
   color: var(--dark);
+  overflow-x: hidden;
 }
 
-/* PRELOADER */
+/* ================= PRELOADER ================= */
 #preloader {
   position: fixed;
   inset: 0;
@@ -37,7 +46,7 @@ body {
   to { opacity: 1; }
 }
 
-/* ================= SLEEK PREMIUM HERO ================= */
+/* ================= HERO ================= */
 .hero-slider{
   height: 70vh;
   min-height: 520px;
@@ -50,15 +59,12 @@ body {
   height: 100%;
   width: 100%;
   position: relative;
-
-  /* keep your hero image */
   background: url("images/hero.JPG") center/cover no-repeat;
-
   display: flex;
   align-items: center;
 }
 
-/* luxury overlay */
+/* overlay */
 .hero-slide::before{
   content:"";
   position:absolute;
@@ -68,7 +74,7 @@ body {
     linear-gradient(90deg, rgba(255,239,213,.86), rgba(255,239,213,.38), rgba(255,239,213,0));
 }
 
-/* subtle grain for premium feel */
+/* grain */
 .hero-slide::after{
   content:"";
   position:absolute;
@@ -80,7 +86,6 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* optional ambient glow */
 .hero-glow{
   position:absolute;
   left: 6%;
@@ -94,21 +99,17 @@ body {
   z-index: 1;
 }
 
+/* HERO TEXT transparent */
 .hero-text{
   position: relative;
   z-index: 2;
   margin-left: 6%;
-  max-width: 560px;
-
-  /* glass card */
-  background: rgba(255,255,255,.38);
-  border: 1px solid rgba(95,75,0,.16);
-  backdrop-filter: blur(14px);
-  border-radius: 26px;
-  padding: 38px 34px;
-  box-shadow: 0 22px 50px rgba(0,0,0,.12);
-
-  /* sleek entrance */
+  max-width: 600px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
   opacity: 0;
   transform: translateY(18px);
   animation: heroRise .9s ease forwards;
@@ -145,17 +146,24 @@ body {
   line-height: 1.7;
   color: rgba(95,75,0,.92);
   max-width: 480px;
+  font-weight: 650;
 }
 
-/* buttons row */
+/* Readable on image */
+.hero-text h1,
+.hero-text p,
+.hero-kicker,
+.metric{
+  text-shadow: 0 8px 28px rgba(0,0,0,.28);
+}
+
 .hero-actions{
   display:flex;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
-/* your existing gold-btn can stay; this just makes it more premium if you want */
 .gold-btn{
   display:inline-flex;
   align-items:center;
@@ -164,7 +172,7 @@ body {
   border-radius: 999px;
   text-decoration:none;
   font-weight: 950;
-  background: var(--gold, #d4af37);
+  background: var(--gold);
   color: #111;
   border: 1px solid rgba(0,0,0,.08);
   box-shadow: 0 14px 30px rgba(212,175,55,.30);
@@ -176,31 +184,11 @@ body {
   box-shadow: 0 18px 38px rgba(212,175,55,.38);
 }
 
-.ghost-btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 13px 18px;
-  border-radius: 999px;
-  text-decoration:none;
-  font-weight: 950;
-  color: rgba(95,75,0,.95);
-  border: 1px solid rgba(95,75,0,.18);
-  background: rgba(255,255,255,.35);
-  transition: transform .25s ease, background .25s ease;
-}
-
-.ghost-btn:hover{
-  transform: translateY(-2px);
-  background: rgba(255,255,255,.55);
-}
-
-/* metrics chips */
 .hero-metrics{
   display:flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .metric{
@@ -213,102 +201,7 @@ body {
   color: rgba(95,75,0,.92);
 }
 
-/* responsive */
-@media (max-width: 900px){
-  .hero-slider{
-    height: 62vh;
-    min-height: 460px;
-  }
-  .hero-text{
-    margin: 0 6%;
-    padding: 30px 24px;
-  }
-  .hero-glow{ display:none; }
-}
-
-@media (max-width: 520px){
-  .hero-slider{
-    height: 58vh;
-    min-height: 420px;
-  }
-  .hero-text h1{
-    font-size: 2.25rem;
-  }
-}
-/* HERO TEXT: TRANSPARENT (NO CARD) */
-.hero-text{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-
-  padding: 0 !important;
-  border-radius: 0 !important;
-
-  max-width: 600px;
-}
-
-/* Make text readable on image */
-.hero-text h1,
-.hero-text p,
-.hero-kicker,
-.metric{
-  text-shadow: 0 8px 28px rgba(0,0,0,.28);
-}
-
-/* Optional: make paragraph a bit stronger on bright images */
-.hero-text p{
-  background: transparent;
-  font-weight: 650;
-}
-
-/* Keep layout nice */
-.hero-actions{ margin-top: 16px; }
-.hero-metrics{ margin-top: 16px; }
-
-/* HERO TEXT: TRANSPARENT (NO CARD) */
-.hero-text{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-
-  padding: 0 !important;
-  border-radius: 0 !important;
-
-  max-width: 600px;
-}
-
-/* Make text readable on image */
-.hero-text h1,
-.hero-text p,
-.hero-kicker,
-.metric{
-  text-shadow: 0 8px 28px rgba(0,0,0,.28);
-}
-
-/* Optional: make paragraph a bit stronger on bright images */
-.hero-text p{
-  background: transparent;
-  font-weight: 650;
-}
-
-/* Keep layout nice */
-.hero-actions{ margin-top: 16px; }
-.hero-metrics{ margin-top: 16px; }
-
-/* FEATURED */
-.featured {
-  padding: 70px 6%;
-  text-align: center;
-}
-
-.featured img {
-  max-width: 900px;
-  width: 100%;
-  border-radius: 20px;
-}
-/* FEATURED SPLIT */
+/* ================= FEATURED SPLIT ================= */
 .featured-split {
   padding: 70px 6%;
   display: grid;
@@ -323,10 +216,20 @@ body {
   padding: 30px;
 }
 
-.featured-left img {
+/* ✅ Featured product image always same size */
+#featuredImage {
   width: 100%;
+  height: 700px;
+  object-fit: cover;
   border-radius: 20px;
-  margin-top: 20px;
+  display: block;
+  transition: opacity 0.6s ease;
+}
+
+#featuredName {
+  margin-top: 12px;
+  text-align: center;
+  transition: opacity 0.6s ease;
 }
 
 .latest-grid {
@@ -336,13 +239,18 @@ body {
   margin-top: 20px;
 }
 
+/* ✅ Latest cards uniform */
 .latest-card {
   background: #ffefd5;
   border-radius: 18px;
-  padding: 14px;
+  padding: 0px;
   text-align: center;
   transition: 0.3s;
   cursor: pointer;
+  height: 360px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .latest-card:hover {
@@ -351,59 +259,70 @@ body {
 
 .latest-card img {
   width: 100%;
+  height: 320px;
+  object-fit: cover;
   border-radius: 14px;
+  display: block;
 }
 
-@media (max-width: 900px) {
-  .featured-split {
-    grid-template-columns: 1fr;
-  }
+.latest-card h4 {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  line-height: 1.2;
 }
 
-
-/* ADS */
-.ads {
-  padding: 50px 6%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
-}
-
-.ads img {
-  width: 100%;
-  border-radius: 16px;
-}
-
-/* HOME PRODUCTS */
+/* ================= MOST LOVED (HOME PRODUCTS) ================= */
 .home-products {
   padding: 70px 6%;
+}
+
+.home-products h2{
+  margin-bottom: 14px;
+  font-size: 1.35rem;
+  font-weight: 950;
 }
 
 .horizontal-scroll {
   display: flex;
   gap: 20px;
   overflow-x: auto;
+  padding-bottom: 10px;
+  scroll-snap-type: x mandatory;
 }
 
 .home-card {
-  min-width: 220px;
+  min-width: 240px;
+  max-width: 240px;
   background: #ffefd5;
   border-radius: 20px;
   padding: 15px;
   cursor: pointer;
   transition: 0.3s;
+  scroll-snap-align: start;
+  flex: 0 0 auto;
 }
 
 .home-card:hover {
   transform: translateY(-6px);
 }
 
-.home-card img {
+/* ✅ MAIN FIX: all Most Loved images same size */
+.home-card img{
   width: 100%;
+  height: 210px;       /* change this height if you want bigger */
+  object-fit: cover;
   border-radius: 14px;
+  display: block;
+  background: rgba(255,255,255,.35);
 }
 
-/* BRAND VALUES */
+.home-card h4{
+  margin-top: 10px;
+  font-size: .95rem;
+  line-height: 1.2;
+}
+
+/* ================= BRAND VALUES ================= */
 .brand-values {
   padding: 70px 6%;
   display: grid;
@@ -418,259 +337,48 @@ body {
   text-align: center;
 }
 
-/* ================= FOOTER ================= */
-.main-footer {
-  background: #ffefd5;
-  padding: 70px 6% 30px;
-  margin-top: 80px;
-  color: #5f4b00;
+/* ================= RESPONSIVE ================= */
+@media (max-width: 900px) {
+  .featured-split {
+    grid-template-columns: 1fr;
+  }
+  .hero-slider{
+    height: 62vh;
+    min-height: 460px;
+  }
+  .hero-text{
+    margin: 0 6%;
+  }
+  .hero-glow{ display:none; }
+  #featuredImage{ height: 300px; }
 }
 
-/* TOP SECTION */
-.footer-top {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 50px;
-  align-items: flex-start;
-}
-
-/* BRAND */
-.footer-brand img {
-  width: 42px;
-  margin-bottom: 10px;
-}
-
-.footer-brand h3 {
-  font-size: 1.4rem;
-  margin-bottom: 10px;
-}
-
-.footer-brand p {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  max-width: 320px;
-}
-
-/* LINKS */
-.footer-links h4,
-.footer-social h4 {
-  font-size: 1.05rem;
-  margin-bottom: 15px;
-}
-
-.footer-links a {
-  display: block;
-  margin-bottom: 10px;
-  text-decoration: none;
-  color: #5f4b00;
-  font-size: 0.95rem;
-  transition: transform 0.25s ease, color 0.25s ease;
-}
-
-.footer-links a:hover {
-  color: #d4af37;
-  transform: translateX(4px);
-}
-
-/* SOCIAL ICONS */
-.social-icons {
-  display: flex;
-  gap: 14px;
-}
-
-.social-icons img {
-  width: 26px;
-  opacity: 0.8;
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
-.social-icons img:hover {
-  transform: translateY(-3px);
-  opacity: 1;
-}
-
-/* BOTTOM */
-.footer-bottom {
-  margin-top: 50px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(95, 75, 0, 0.2);
-  text-align: center;
-  font-size: 0.9rem;
-}
-
-/* MOBILE OPTIMIZATION */
 @media (max-width: 600px) {
-  .main-footer {
-    padding: 50px 6% 25px;
+  .hero-slider{
+    height: 58vh;
+    min-height: 420px;
   }
+  .hero-text h1{ font-size: 2.25rem; }
 
-  .footer-brand p {
-    max-width: 100%;
-  }
-
-  .social-icons {
-    justify-content: flex-start;
-  }
-}
-
-/* FEATURED TRANSITION */
-.featured img,
-.featured h3 {
-  transition: opacity 0.6s ease;
-}
-/* ================= HAMBURGER MENU ================= */
-.hamburger {
-  display: none;
-  flex-direction: column;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.hamburger span {
-  width: 26px;
-  height: 3px;
-  background: #5f4b00;
-  border-radius: 4px;
-  transition: 0.4s;
-}
-
-/* ANIMATION */
-.hamburger.active span:nth-child(1) {
-  transform: rotate(45deg) translate(6px, 6px);
-}
-
-.hamburger.active span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(6px, -6px);
-}
-
-/* MOBILE NAV */
-.mobile-nav {
-  position: fixed;
-  top: 80px;
-  left: 0;
-  width: 100%;
-  background: #ffefd5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 25px;
-  padding: 40px 0;
-  transform: translateY(-120%);
-  transition: 0.5s ease;
-  z-index: 99;
-}
-
-.mobile-nav a {
-  text-decoration: none;
-  font-weight: 600;
-  color: #5f4b00;
-  font-size: 1.1rem;
-}
-
-.mobile-nav.active {
-  transform: translateY(0);
-}
-
-/* RESPONSIVE */
-@media (max-width: 768px) {
-  .nav-links {
-    display: none;
-  }
-
-  .hamburger {
-    display: flex;
-  }
-}
-
-
-
-/* Social icons + handle styling */
-.social-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.social-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(95, 75, 0, 0.18);
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.social-handle {
-  font-weight: 800;
-  opacity: 0.85;
-}
-
-
-/* ================= UNIFORM IMAGE SIZES (FEATURED + LATEST) ================= */
-
-/* 1) Featured product image: same size always */
-.featured-left img,
-#featuredImage {
-  width: 100%;
-  height: 700px;          /* adjust if you want taller/shorter */
-  object-fit: cover;      /* crops nicely to fill the box */
-  border-radius: 20px;
-  display: block;
-}
-
-/* Make featured box consistent */
-.featured-slider {
-  width: 100%;
-}
-
-#featuredName {
-  margin-top: 12px;
-  text-align: center;
-}
-
-/* 2) Latest cards: same card height + same image box */
-.latest-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  height: 360px;          /* controls overall card size */
-  overflow: hidden;
-}
-
-/* Image in latest cards: fixed height, cover crop */
-.latest-card img {
-  width: 100%;
-  height: 320px;          /* controls image size */
-  object-fit: cover;
-  border-radius: 14px;
-  display: block;
-}
-
-/* Title area stays consistent */
-.latest-card h4 {
-  margin-top: 10px;
-  font-size: 0.95rem;
-  line-height: 1.2;
-}
-
-/* Mobile tweak */
-@media (max-width: 600px) {
-  .featured-left img,
-  #featuredImage {
-    height: 260px;
-  }
-
-  .latest-card {
+  .latest-card{
     height: 240px;
   }
-
-  .latest-card img {
+  .latest-card img{
     height: 155px;
   }
+
+  .home-card{
+    min-width: 190px;
+    max-width: 190px;
+  }
+  .home-card img{
+    height: 160px;
+  }
+}
+
+/* Click cursor on images */
+#latestProducts img,
+#homeProducts img,
+#featuredImage {
+  cursor: pointer;
 }

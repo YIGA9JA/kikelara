@@ -1,16 +1,9 @@
-/* ================= PRODUCT-DETAILS.JS (FULL UPDATED) =================
-   Fixes:
-   - Works even if header loads later (waits until header injected)
-   - No crashes when counters/menu elements are missing
-   - Graceful "No products" and "Product not found" messages
-   - Updates wishlist/cart counters correctly
-====================================================================== */
+/* ================= PRODUCT-DETAILS.JS (PREMIUM + MULTI IMAGE GALLERY + CART STATE) ================= */
 
 const PRODUCTS_KEY = "allProducts";
-const WISHLIST_KEY = "wishlist";
 const CART_KEY = "cart";
 
-/* ================= SAFE JSON ================= */
+/* SAFE JSON */
 function safeJSON(key, fallback) {
   try {
     const v = JSON.parse(localStorage.getItem(key));
@@ -20,51 +13,60 @@ function safeJSON(key, fallback) {
   }
 }
 
-/* ================= GET PRODUCT ID ================= */
 function getProductId() {
   const params = new URLSearchParams(window.location.search);
   const id = Number(params.get("id"));
   return Number.isFinite(id) ? id : NaN;
 }
 
-/* ================= ELEMENT GETTERS (SAFE) ================= */
 function el(id) {
   return document.getElementById(id);
 }
 
-/* ================= COUNTS (SAFE) ================= */
-function updateCounts(wishlist, cart) {
-  const wishlistCount = el("wishlistCount");
+/* MULTI-IMAGE SUPPORT (still supports old `image:`) */
+function getProductImages(p) {
+  if (Array.isArray(p.images) && p.images.length) return p.images;
+  if (typeof p.image === "string" && p.image.trim()) return [p.image];
+  return [];
+}
+
+/* CART */
+function loadCart() {
+  const c = safeJSON(CART_KEY, []);
+  return Array.isArray(c) ? c : [];
+}
+
+function saveCart(cart) {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+function isInCart(cart, id) {
+  return cart.some(i => Number(i.id) === Number(id));
+}
+
+function addToCartOnce(product) {
+  const cart = loadCart();
+  if (isInCart(cart, product.id)) return;
+  cart.push({ ...product, qty: 1 });
+  saveCart(cart);
+}
+
+/* HEADER COUNTS (SAFE) */
+function updateHeaderCartCount() {
   const cartCount = el("cartCount");
+  if (!cartCount) return;
 
-  const wishNum = Array.isArray(wishlist) ? wishlist.length : 0;
-  const cartNum = Array.isArray(cart)
-    ? cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
-    : 0;
+  const cart = loadCart();
+  const total = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  cartCount.textContent = total;
 
-  if (wishlistCount) wishlistCount.textContent = wishNum;
-  if (cartCount) cartCount.textContent = cartNum;
+  const wishlistCount = el("wishlistCount");
+  if (wishlistCount) wishlistCount.textContent = "0";
 }
 
-/* ================= HEADER MENU (SAFE) ================= */
-function bindHamburger() {
-  const menuToggle = el("menu-toggle");
-  const navbarLinks = el("navbarLinks");
-
-  if (!menuToggle || !navbarLinks) return;
-
-  // prevent double binding if init runs twice
-  if (menuToggle.dataset.bound === "1") return;
-  menuToggle.dataset.bound = "1";
-
-  menuToggle.addEventListener("click", () => {
-    navbarLinks.classList.toggle("show");
-  });
-}
-
-/* ================= RENDER HELPERS ================= */
+/* UI HELPERS */
 function showMessage(msg) {
-  const container = document.querySelector(".product-details");
+  const container = document.querySelector(".pd");
   if (!container) {
     document.body.innerHTML = `<h2 style="padding:50px">${msg}</h2>`;
     return;
@@ -72,51 +74,119 @@ function showMessage(msg) {
   container.innerHTML = `<h2 style="padding:30px">${msg}</h2>`;
 }
 
-function renderProduct(product, wishlist) {
-  const img = el("productImage");
-  const nameEl = el("productName");
-  const priceEl = el("productPrice");
-  const descEl = el("productDescription");
-  const featuresEl = el("productFeatures");
-  const wishlistBtn = el("wishlistBtn");
-
-  if (!img || !nameEl || !priceEl || !descEl || !featuresEl || !wishlistBtn) {
-    // If your HTML IDs changed, you’ll see this message.
-    showMessage("Page layout error: missing product detail elements.");
-    return;
-  }
-
-  img.src = product.image;
-  img.alt = product.name;
-  nameEl.textContent = product.name;
-  priceEl.textContent = `₦${Number(product.price).toLocaleString()}`;
-  descEl.textContent = product.description || "";
-
-  if (Array.isArray(product.features) && product.features.length > 0) {
-    featuresEl.innerHTML = product.features.map(f => `<li>${f}</li>`).join("");
-  } else {
-    featuresEl.innerHTML = "";
-  }
-
-  wishlistBtn.style.color = wishlist.includes(product.id) ? "red" : "black";
+/* Ingredients fallback */
+function guessIngredientsText(product) {
+  const d = (product.description || "").trim();
+  if (!d) return "—";
+  return d;
 }
 
-/* ================= MAIN INIT ================= */
+/* Benefits + How-to presets */
+function getPresetDetails(category) {
+  const c = (category || "").toLowerCase();
+
+  if (c.includes("oil")) {
+    return {
+      benefits: [
+        "Boosts glow and improves the look of dull skin",
+        "Helps lock in moisture for a softer feel",
+        "Supports an even-looking skin tone"
+      ],
+      howto: [
+        "Warm 2–4 drops between palms",
+        "Press onto slightly damp skin after bath",
+        "Use daily (morning or night) for best results"
+      ]
+    };
+  }
+
+  if (c.includes("serum") || c.includes("hair")) {
+    return {
+      benefits: [
+        "Softens and conditions for a healthy look",
+        "Helps reduce dryness and rough texture",
+        "Leaves a smooth, luxurious finish"
+      ],
+      howto: [
+        "Apply a small amount to palms",
+        "Massage into hair or targeted dry areas",
+        "Use 3–5 times weekly or as needed"
+      ]
+    };
+  }
+
+  return {
+    benefits: [
+      "Deep moisture for supple, radiant-looking skin",
+      "Rich texture that absorbs with a luxe feel",
+      "Helps smooth the look of dry, flaky areas"
+    ],
+    howto: [
+      "Apply generously to clean skin",
+      "Focus on elbows, knees, and dry patches",
+      "Use daily for best results"
+    ]
+  };
+}
+
+function renderList(listEl, items) {
+  if (!listEl) return;
+  listEl.innerHTML = "";
+  (items || []).forEach(text => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    listEl.appendChild(li);
+  });
+}
+
+/* Same cart button style behavior */
+function setCartButtonState(inCart) {
+  const btn = el("cartBtn");
+  const flag = el("productInCart");
+  const viewCart = el("viewCartLink");
+
+  if (!btn) return;
+
+  if (inCart) {
+    btn.textContent = "ADDED";
+    btn.classList.add("is-added");
+    if (flag) flag.style.display = "inline-flex";
+    if (viewCart) viewCart.style.display = "inline-flex";
+  } else {
+    btn.textContent = "ADD TO CART";
+    btn.classList.remove("is-added");
+    if (flag) flag.style.display = "none";
+    if (viewCart) viewCart.style.display = "none";
+  }
+}
+
+/* GALLERY */
+function renderGallery(images, activeIndex = 0) {
+  const mainImg = el("productImage");
+  const thumbsWrap = el("productThumbs");
+  if (!mainImg || !images || images.length === 0) return;
+
+  // main image
+  mainImg.src = images[activeIndex] || images[0];
+  mainImg.alt = "Product image";
+
+  // thumbs
+  if (!thumbsWrap) return;
+  thumbsWrap.innerHTML = "";
+
+  images.forEach((src, idx) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pd-thumb" + (idx === activeIndex ? " active" : "");
+    b.innerHTML = `<img src="${src}" alt="thumbnail ${idx + 1}" draggable="false">`;
+    b.addEventListener("click", () => renderGallery(images, idx));
+    thumbsWrap.appendChild(b);
+  });
+}
+
+/* INIT */
 function init() {
-  // Load data
   const products = safeJSON(PRODUCTS_KEY, []);
-  let wishlist = safeJSON(WISHLIST_KEY, []);
-  let cart = safeJSON(CART_KEY, []);
-
-  if (!Array.isArray(wishlist)) wishlist = [];
-  if (!Array.isArray(cart)) cart = [];
-
-  // Update counts even before product renders
-  updateCounts(wishlist, cart);
-
-  // Hamburger (if header exists)
-  bindHamburger();
-
   if (!Array.isArray(products) || products.length === 0) {
     showMessage("No products found.");
     return;
@@ -134,54 +204,58 @@ function init() {
     return;
   }
 
-  // Render product
-  renderProduct(product, wishlist);
+  // basics
+  const nameEl = el("productName");
+  const priceEl = el("productPrice");
+  const descEl = el("productDescription");
+  const catEl = el("productCategory");
 
-  // Buttons
-  const wishlistBtn = el("wishlistBtn");
-  const cartBtn = el("cartBtn");
+  if (nameEl) nameEl.textContent = product.name || "";
+  if (priceEl) priceEl.textContent = `₦${Number(product.price || 0).toLocaleString()}`;
+  if (descEl) descEl.textContent = product.description || "";
+  if (catEl) catEl.textContent = String(product.category || "Product").toUpperCase();
 
-  if (wishlistBtn) {
-    wishlistBtn.onclick = () => {
-      if (wishlist.includes(product.id)) {
-        wishlist = wishlist.filter(id => id !== product.id);
-      } else {
-        wishlist.push(product.id);
-      }
-      localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
-      wishlistBtn.style.color = wishlist.includes(product.id) ? "red" : "black";
-      updateCounts(wishlist, cart);
-    };
-  }
+  // gallery
+  const images = getProductImages(product);
 
-  if (cartBtn) {
-    cartBtn.onclick = () => {
-      const item = cart.find(c => Number(c.id) === Number(product.id));
-      if (item) item.qty = (Number(item.qty) || 0) + 1;
-      else cart.push({ ...product, qty: 1 });
+  // ✅ Ensure 4 pics even if only 1 exists (uses same one repeated)
+  const gallery = (images.length >= 4)
+    ? images.slice(0, 4)
+    : Array.from({ length: 4 }, (_, i) => images[i] || images[0] || product.image);
 
-      localStorage.setItem(CART_KEY, JSON.stringify(cart));
-      updateCounts(wishlist, cart);
-    };
+  renderGallery(gallery, 0);
+
+  // panels
+  const ingredientsEl = el("productIngredients");
+  if (ingredientsEl) ingredientsEl.textContent = product.ingredients || guessIngredientsText(product);
+
+  const preset = getPresetDetails(product.category);
+  renderList(el("productBenefits"), product.benefits || preset.benefits);
+  renderList(el("productHowToUse"), product.howToUse || preset.howto);
+
+  // cart
+  const cart = loadCart();
+  setCartButtonState(isInCart(cart, product.id));
+  updateHeaderCartCount();
+
+  const btn = el("cartBtn");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      addToCartOnce(product);
+      setCartButtonState(true);
+      updateHeaderCartCount();
+    });
   }
 }
 
-/**
- * Because header.js injects HTML, some header elements may not exist immediately.
- * We init once DOM is ready, then retry a few times to bind hamburger + counts after header injection.
- */
 document.addEventListener("DOMContentLoaded", () => {
   init();
 
-  // Re-bind header-related elements shortly after injection
+  // header inject safety
   let tries = 0;
   const t = setInterval(() => {
     tries++;
-    bindHamburger();
-    // update counts again in case header counters appeared after injection
-    const wishlist = safeJSON(WISHLIST_KEY, []);
-    const cart = safeJSON(CART_KEY, []);
-    updateCounts(Array.isArray(wishlist) ? wishlist : [], Array.isArray(cart) ? cart : []);
+    updateHeaderCartCount();
     if (tries >= 10) clearInterval(t);
   }, 150);
 });

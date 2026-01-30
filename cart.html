@@ -9,46 +9,64 @@
   <link rel="stylesheet" href="footer.css">
   <link rel="stylesheet" href="header.css">
 
+  <script src="header.js" defer></script>
+  <script src="footer.js" defer></script>
+  <script src="cart.js" defer></script>
 </head>
-  <div id="siteHeader"></div>
 
 <body>
+  <div id="siteHeader"></div>
 
-<!-- ================= CART ================= -->
-<section class="cart-page">
-  <h1>Your Cart</h1>
-  <div class="cart-container">
-    <!-- CART ITEMS -->
-    <div class="cart-items" id="cartItems"></div>
-
-    <!-- SUMMARY -->
-    <div class="cart-summary">
-      <h3>Order Summary</h3>
-      <div class="summary-row">
-        <span>Subtotal</span>
-        <span id="subtotal">₦0</span>
-      </div>
-      <div class="summary-row">
-        <span>Delivery</span>
-        <span>₦2,000</span>
-      </div>
-      <div class="summary-row total">
-        <span>Total</span>
-        <span id="total">₦0</span>
-      </div>
-      <button id="checkoutBtn" class="checkout-btn" disabled>
-        Proceed to Checkout
-      </button>
+  <section class="cart-page">
+    <div class="cart-top">
+      <h1>Your Cart</h1>
+      <p class="cart-sub">Review your items and adjust quantity before checkout.</p>
     </div>
+
+    <div class="cart-grid">
+      <!-- CART ITEMS -->
+      <div class="cart-items" id="cartItems"></div>
+
+      <!-- SUMMARY -->
+      <aside class="cart-summary">
+        <div class="sum-head">
+          <h3>Order Summary</h3>
+          <span class="sum-hint">Updated instantly</span>
+        </div>
+
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span id="subtotal">₦0</span>
+        </div>
+
+        <div class="summary-row">
+          <span>Delivery</span>
+          <span class="sum-muted">Calculated at checkout</span>
+        </div>
+
+        <div class="summary-row total">
+          <span>Total</span>
+          <span id="total">₦0</span>
+        </div>
+
+        <button id="checkoutBtn" class="checkout-btn" disabled type="button">
+          <span class="btn-label">Proceed to Checkout</span>
+          <span class="btn-total" id="checkoutBtnTotal">₦0</span>
+        </button>
+
+        <p class="sum-note">Secure checkout powered by Paystack.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ✅ MOBILE STICKY CHECKOUT BAR -->
+  <div class="mobile-checkout" id="mobileCheckout" style="display:none;">
+    <button class="mobile-checkout-btn" id="mobileCheckoutBtn" type="button" disabled>
+      <span>CHECKOUT</span>
+      <span id="mobileCheckoutTotal">₦0</span>
+    </button>
   </div>
-</section>
 
-<!-- ✅ Global footer mount -->
-<div id="siteFooter"></div>
-
-<script src="cart.js"></script>
-<script src="footer.js"></script>
-<script src="header.js"></script>
-
+  <div id="siteFooter"></div>
 </body>
 </html>
