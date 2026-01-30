@@ -54,5 +54,9 @@
   {
     "from": "images/hairOil.jpg",
     "to": "images_brown/hairOil.png"
+  },
+  {
+    "from": "images/glowElixir.jpg",
+    "to": "images_brown/glowElixir.png"
   }
 ]

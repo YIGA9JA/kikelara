@@ -77,7 +77,7 @@ const CART_KEY = "cart";
     category: "Oil",
     price: 8500,
     discount: 0,
-    image: "images_brown/bodyOil.png",
+    image: "images_brown/glowElixir.png",
     description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E."
   }
 ];
