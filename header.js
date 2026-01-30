@@ -43,7 +43,6 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="drawer-links">
         <a href="index.html" data-nav="index.html">Home</a>
         <a href="products.html" data-nav="products.html">Products</a>
-                <a href="wishlist.html" data-nav="wishlist.html">Wishlist</a>
                         <a href="cart.html" data-nav="cart.html">Cart</a>
 
         <a href="about.html" data-nav="about.html">About</a>
