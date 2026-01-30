@@ -94,7 +94,7 @@ body{background:var(--butter);color:var(--text-dark);overflow-x:hidden;}
   height: 34px;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.10);
-  background: rgba(255,255,255,0.55);
+  background: #EDCC9F;
   color: var(--text-dark);
   font-weight: 900;
   font-size: 18px;
@@ -116,7 +116,7 @@ body{background:var(--butter);color:var(--text-dark);overflow-x:hidden;}
 /* REMOVE */
 .remove{
   border: 1px solid rgba(0,0,0,0.10);
-  background: rgba(255,255,255,0.35);
+  background: #EDCC9F;
   color: rgba(120, 30, 30, .9);
   font-weight: 900;
   letter-spacing:.10em;

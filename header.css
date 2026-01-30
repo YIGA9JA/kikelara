@@ -85,7 +85,7 @@
   height: 40px;
   border-radius: 999px;
   border: 1px solid rgba(95,75,0,.14);
-  background: rgba(255,255,255,.42);
+  background: #EDCC9F;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -107,7 +107,7 @@
   height: 44px;
   border-radius: 999px;
   border: 1px solid rgba(95,75,0,.14);
-  background: rgba(255,255,255,.42);
+  background: #EDCC9F;
   box-shadow: 0 10px 20px rgba(0,0,0,.06);
   cursor:pointer;
   display:flex;
@@ -192,7 +192,7 @@
   height: 42px;
   border-radius: 999px;
   border: 1px solid rgba(95,75,0,.14);
-  background: rgba(255,255,255,.42);
+  background: #EDCC9F;
   cursor:pointer;
   font-size: 18px;
   color: var(--dark);
@@ -211,7 +211,7 @@
   padding: 12px 12px;
   border-radius: 16px;
   border: 1px solid rgba(95,75,0,.10);
-  background: rgba(255,255,255,.35);
+  background: #EDCC9F;
   transition: transform .2s ease, background .2s ease;
 }
 .drawer-links a:hover{
