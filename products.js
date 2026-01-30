@@ -15,14 +15,14 @@ const WISHLIST_KEY = "wishlist";
 const CART_KEY = "cart";
 
 /** Your default products */
-const defaultProducts = [
+  const defaultProducts = [
   {
     id: 1,
     name: "Body Butter",
     category: "Body",
     price: 10000,
     discount: 0,
-    image: "images/bodyButter.JPG",
+    image: "images_brown/bodyButter.png",
     description: "Shea Butter, Almond Oil, Mango Butter, Cocoa Butter, Glycerin."
   },
   {
@@ -31,7 +31,7 @@ const defaultProducts = [
     category: "Oil",
     price: 10000,
     discount: 0,
-    image: "images/bodyOil.JPG",
+    image: "images_brown/bodyOil.png",
     description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E."
   },
   {
@@ -40,25 +40,26 @@ const defaultProducts = [
     category: "Serum",
     price: 5500,
     discount: 0,
-    image: "images/hairButter.png",
+    image: "images_brown/hairButter.png",
     description: "Strengthens and moisturizes hair deeply."
   },
-  {
+ {
     id: 4,
     name: "Hair Oil",
     category: "Serum",
-    price: 7500,
+    price: 5500,
     discount: 0,
-    image: "images/hairOil1.JPG",
-    description: "Locks in moisture. Jojoba Oil, Castor Oil, Argan Oil, Vitamin E."
+    image: "images_brown/hairOil.png",
+    description: "Strengthens and moisturizes hair deeply."
   },
+
   {
     id: 5,
     name: "Baby Body Butter",
     category: "Body",
     price: 10000,
     discount: 0,
-    image: "images/BabyBodyButter.png",
+    image: "images_brown/BabyBodyButter.png",
     description: "Gentle care, naturally."
   },
   {
@@ -67,7 +68,7 @@ const defaultProducts = [
     category: "Body",
     price: 10000,
     discount: 0,
-    image: "images/bodyButter(Fruity).png",
+    image: "images_brown/bodyButter(Fruity).png",
     description: "Whisper of fruity freshness. Gentle care, naturally."
   },
   {
@@ -76,10 +77,11 @@ const defaultProducts = [
     category: "Oil",
     price: 8500,
     discount: 0,
-    image: "images/bodyOil.JPG",
+    image: "images_brown/bodyOil.png",
     description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E."
   }
 ];
+
 
 /**
  * Create a "signature" of defaultProducts.

@@ -1,0 +1,58 @@
+[
+  {
+    "from": "images/ad3.jpg",
+    "to": "images_brown/ad3.png"
+  },
+  {
+    "from": "images/ad4.JPG",
+    "to": "images_brown/ad4.png"
+  },
+  {
+    "from": "images/ad7.png",
+    "to": "images_brown/ad7.png"
+  },
+  {
+    "from": "images/ad8.png",
+    "to": "images_brown/ad8.png"
+  },
+  {
+    "from": "images/ad9.png",
+    "to": "images_brown/ad9.png"
+  },
+  {
+    "from": "images/BabyBodyButter.png",
+    "to": "images_brown/BabyBodyButter.png"
+  },
+  {
+    "from": "images/bodyButter(Fruity).png",
+    "to": "images_brown/bodyButter(Fruity).png"
+  },
+  {
+    "from": "images/bodyButter.JPG",
+    "to": "images_brown/bodyButter.png"
+  },
+  {
+    "from": "images/bodyOil.JPG",
+    "to": "images_brown/bodyOil.png"
+  },
+  {
+    "from": "images/bodyOil2.JPG",
+    "to": "images_brown/bodyOil2.png"
+  },
+  {
+    "from": "images/hairButter.png",
+    "to": "images_brown/hairButter.png"
+  },
+  {
+    "from": "images/hairButterfeat.JPG",
+    "to": "images_brown/hairButterfeat.png"
+  },
+  {
+    "from": "images/logo.jpg",
+    "to": "images_brown/logo.png"
+  },
+  {
+    "from": "images/hairOil.jpg",
+    "to": "images_brown/hairOil.png"
+  }
+]

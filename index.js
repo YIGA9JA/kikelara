@@ -21,10 +21,10 @@ window.addEventListener("load", () => {
 /* FEATURED SLIDER */
 /* SMART FEATURED SLIDER */
 const featuredProducts = [
-  { name: "", img: "images/ad4.JPG" },
-  { name: "", img: "images/ad7.png" },
- { name: "", img: "images/ad8.png" },
-  { name: "", img: "images/ad9.png" },
+  { name: "", img: "images_brown/ad4.png" },
+  { name: "", img: "images_brown/ad7.png" },
+  { name: "", img: "images_brown/ad8.png" },
+  { name: "", img: "images_brown/ad9.png" },
 ];
 
 let featuredIndex = 0;
@@ -69,9 +69,9 @@ setInterval(switchFeatured, 4500);
 const homeProducts = document.getElementById("homeProducts");
 
 const homepageProducts = [
-  { id: 1, name: "Body Butter", img: "images/bodyButter.JPG" },
-  { id: 4, name: "Body Oil", img: "images/bodyOil.JPG" },
-  { id: 5, name: "Hair Butter", img: "images/hairButterfeat.JPG" },
+  { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
+  { id: 4, name: "Body Oil", img: "images_brown/bodyOil.png" },
+  { id: 5, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
 ];
 
 if (homeProducts) {
@@ -93,11 +93,10 @@ if (homeProducts) {
 
 /* LATEST PRODUCTS */
 const latestProducts = [
-  { name: "Body Butter", img: "images/bodyButter.JPG" },
-    { name: "Hair Butter", img: "images/hairButterfeat.JPG" },
-  { name: "Body Oil", img: "images/bodyOil.JPG" },
-  { name: "Body Butter (Fruity)", img: "images/bodyButter(Fruity).png" },
-
+  { name: "Body Butter", img: "images_brown/bodyButter.png" },
+  { name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
+  { name: "Body Oil", img: "images_brown/bodyOil.png" },
+  { name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
 ];
 
 const latestGrid = document.getElementById("latestProducts");
@@ -113,12 +112,15 @@ if (latestGrid) {
     latestGrid.appendChild(card);
   });
 }
+
 const user = JSON.parse(localStorage.getItem("loggedInUser"));
 
 if (user) {
-  document.getElementById("userGreeting").textContent =
-    `Hi, ${user.username || "Guest"}`;
-  document.getElementById("logoutBtn").classList.remove("hidden");
+  const greet = document.getElementById("userGreeting");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  if (greet) greet.textContent = `Hi, ${user.username || "Guest"}`;
+  if (logoutBtn) logoutBtn.classList.remove("hidden");
 }
 
 

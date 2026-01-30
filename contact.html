@@ -1,68 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Us | KÍKE LÁRÁ</title>
-  <link rel="stylesheet" href="contact.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Contact | KÍKE LÁRÁ</title>
+  <meta name="description" content="Contact KÍKE LÁRÁ for orders, support, and collaborations." />
+
+  <!-- Your global colors (keep consistent) -->
+  <link rel="stylesheet" href="contact.css" />
+  <link rel="stylesheet" href="footer.css" />
   <link rel="stylesheet" href="header.css">
-  <link rel="stylesheet" href="footer.css">
 </head>
   <div id="siteHeader"></div>
 
 <body>
 
-<section class="contact-hero">
-  <h1>Contact Us</h1>
-  <p>We’d love to hear from you. Send us a message and we’ll get back to you shortly.</p>
-</section>
+ 
 
-<section class="contact-form-section">
-  <form id="contactForm">
-    <input type="text" name="name" placeholder="Your Name" required>
-    <input type="email" name="email" placeholder="Your Email" required>
-    <textarea name="message" placeholder="Your Message" rows="6" required></textarea>
-    <button type="submit">Send Message</button>
-    <p id="formStatus"></p>
-  </form>
-</section>
+  <div class="mobile-nav" id="mobileNav">
+    <a href="index.html">Home</a>
+    <a href="products.html">Products</a>
+    <a href="wishlist.html">Wishlist</a>
+    <a href="cart.html">Cart</a>
+    <a href="contact.html">Contact</a>
+  </div>
 
-<div id="siteFooter"></div>
+  <!-- ================= CONTACT HERO ================= -->
+  <main class="contact-page">
+    <section class="contact-hero">
+      <div class="hero-inner">
+        <p class="kicker">CONTACT</p>
+        <h1>We’re here to help.</h1>
+        <p class="sub">
+          Orders, product questions, collaborations — send a message and we’ll get back to you.
+        </p>
+      </div>
+    </section>
 
+    <!-- ================= CONTACT GRID ================= -->
+    <section class="contact-grid">
 
-<script>
-const toggleBtn = document.getElementById("menu-toggle");
-const nav = document.getElementById("mobileNav");
+      <!-- FORM CARD -->
+      <div class="card form-card">
+        <h2>Send us a message</h2>
+        <p class="muted">We typically reply within 24–48 hours.</p>
 
-toggleBtn.addEventListener("click", () => {
-  nav.classList.toggle("show");
-});
+        <form id="contactForm" class="contact-form" autocomplete="on">
+          <div class="row">
+            <div class="field">
+              <label for="name">Full name</label>
+              <input id="name" name="name" type="text" placeholder="Your name" required />
+            </div>
 
-const form = document.getElementById("contactForm");
-const status = document.getElementById("formStatus");
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" placeholder="you@email.com" required />
+            </div>
+          </div>
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const formData = Object.fromEntries(new FormData(form));
-  status.textContent = "Sending...";
+          <div class="row">
+            <div class="field">
+              <label for="phone">Phone (optional)</label>
+              <input id="phone" name="phone" type="tel" placeholder="+234..." />
+            </div>
 
-  const res = await fetch("/api/contact", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(formData)
-  });
+            <div class="field">
+              <label for="topic">Topic</label>
+              <select id="topic" name="topic" required>
+                <option value="">Choose one</option>
+                <option>Order issue</option>
+                <option>Product question</option>
+                <option>Wholesale / Retail</option>
+                <option>Collaboration</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
 
-  const data = await res.json();
-  if(data.success){
-    status.textContent = "Message sent successfully!";
-    form.reset();
-  } else {
-    status.textContent = "Error sending message. Try again.";
-  }
-});
-</script>
-<script src="header.js"></script>
-<script src="footer.js"></script>
+          <div class="field">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" placeholder="Tell us how we can help…" rows="6" required></textarea>
+          </div>
 
+          <button type="submit" class="submit-btn">
+            Submit
+          </button>
+
+          <div id="formStatus" class="form-status" aria-live="polite"></div>
+        </form>
+      </div>
+
+      <!-- INFO CARD -->
+      <aside class="card info-card">
+        <h2>Contact details</h2>
+
+        <div class="info-block">
+          <div class="info-title">Email</div>
+          <a class="info-link" href="mailto:hello@kikelara.com">hello@kikelara.com</a>
+          <div class="info-note">Replace with your real email.</div>
+        </div>
+
+        <div class="info-block">
+          <div class="info-title">Social</div>
+          <div class="socials">
+            <a class="social-pill" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
+              <span class="ico">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm-5 4a4 4 0 1 1 0 8a4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4a2 2 0 0 0 0-4Zm5.2-2.6a1 1 0 1 1 0 2a1 1 0 0 1 0-2Z"/>
+                </svg>
+              </span>
+              Instagram <span class="handle">@_kikelara</span>
+            </a>
+
+            <a class="social-pill" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
+              <span class="ico">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M15 3c.5 2.9 2.8 5.1 5.7 5.3v3c-2 0-3.8-.6-5.3-1.6V16c0 3.6-2.9 6.5-6.5 6.5S2.4 19.6 2.4 16S5.3 9.5 8.9 9.5c.3 0 .6 0 .9.1v3.2c-.3-.1-.6-.2-.9-.2c-1.8 0-3.3 1.5-3.3 3.3c0 1.8 1.5 3.3 3.3 3.3c1.9 0 3.4-1.5 3.4-3.4V3h2.7Z"/>
+                </svg>
+              </span>
+              TikTok <span class="handle">@_kikelara</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="info-block">
+          <div class="info-title">Hours</div>
+          <div class="info-text">Mon–Sat, 9am–6pm</div>
+          <div class="info-note">Adjust to your real hours.</div>
+        </div>
+
+        <div class="info-block">
+          <div class="info-title">Quick links</div>
+          <a class="mini-link" href="privacy.html">Privacy Policy</a>
+          <a class="mini-link" href="about.html">About Us</a>
+          <a class="mini-link" href="products.html">Shop Products</a>
+        </div>
+      </aside>
+
+    </section>
+
+    <!-- ================= FAQ (Necessaire-style) ================= -->
+    <section class="faq">
+      <div class="faq-head">
+        <h2>FAQ</h2>
+        <p class="muted">Quick answers to common questions.</p>
+      </div>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>How do I track my order?</summary>
+          <div class="faq-body">
+            If you placed an order, you can contact us with your name + phone/email and we’ll confirm delivery status.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>What if my item arrived damaged?</summary>
+          <div class="faq-body">
+            Send a message with a photo of the product and package, and we’ll fix it quickly.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Do you deliver nationwide?</summary>
+          <div class="faq-body">
+            Yes — delivery depends on your location. If you’re unsure, message us and we’ll confirm.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>How do I know what product is best for my skin?</summary>
+          <div class="faq-body">
+            Tell us your skin type and goal (glow, hydration, fading spots, etc.) and we’ll recommend.
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer mount -->
+  <div id="siteFooter"></div>
+
+  <script src="header.js"></script>
+  <script src="footer.js"></script>
+  <script src="contact.js"></script>
 </body>
 </html>
