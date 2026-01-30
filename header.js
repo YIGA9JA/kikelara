@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
       </nav>
 
       <div class="header-actions">
-        <a class="icon-link" href="wishlist.html" aria-label="Wishlist">♥</a>
         <a class="icon-link" href="cart.html" aria-label="Cart">🛒</a>
 
         <button id="menu-toggle" class="menu-btn" aria-label="Open menu" aria-expanded="false">
