@@ -1,11 +1,23 @@
-/* ================= PRODUCT-DETAILS.JS (GALLERY + CART + JUMLA-LIKE REVIEWS) ================= */
+/* ================= PRODUCT-DETAILS.JS (FULL)
+   - Gallery + cart state
+   - Jumia-like reviews
+   - Admin delete reviews (PIN)
+   - Seed reviews per product (different, mostly female)
+================================================ */
 
 const PRODUCTS_KEY = "allProducts";
 const CART_KEY = "cart";
-const REVIEWS_KEY = "productReviews_v1"; // same key you already used
-const DEVICE_ID_KEY = "reviewDeviceId_v1";
 
-/* ---------- SAFE JSON ---------- */
+/* Reviews */
+const REVIEWS_KEY = "productReviews_v1";
+const DEVICE_ID_KEY = "reviewDeviceId_v1";
+const REVIEWS_SEEDED_KEY = "productReviews_seeded_v1";
+
+/* ✅ Admin PIN for deleting reviews */
+const REVIEWS_ADMIN_PIN = "4567";
+const REVIEWS_ADMIN_AUTH_KEY = "reviews-admin-auth-v1";
+
+/* ================= HELPERS ================= */
 function safeJSON(key, fallback) {
   try {
     const v = JSON.parse(localStorage.getItem(key));
@@ -22,7 +34,30 @@ function getProductId() {
   return Number.isFinite(id) ? id : NaN;
 }
 
-/* ---------- Device id (for helpful votes) ---------- */
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function formatDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+function starsText(rating) {
+  const r = clamp(Number(rating) || 0, 0, 5);
+  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+}
+
+/* ---------- device id for helpful votes ---------- */
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
@@ -32,13 +67,6 @@ function getDeviceId() {
   return id;
 }
 
-/* ---------- Product images ---------- */
-function getProductImages(p) {
-  if (Array.isArray(p.images) && p.images.length) return p.images;
-  if (typeof p.image === "string" && p.image.trim()) return [p.image];
-  return [];
-}
-
 /* ================= CART ================= */
 function loadCart() {
   const c = safeJSON(CART_KEY, []);
@@ -46,12 +74,14 @@ function loadCart() {
 }
 function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
 function isInCart(cart, id) { return cart.some(i => Number(i.id) === Number(id)); }
+
 function addToCartOnce(product) {
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
   cart.push({ ...product, qty: 1 });
   saveCart(cart);
 }
+
 function updateHeaderCartCount() {
   const cartCount = el("cartCount");
   if (!cartCount) return;
@@ -64,7 +94,7 @@ function updateHeaderCartCount() {
   if (wishlistCount) wishlistCount.textContent = "0";
 }
 
-/* ================= UI HELPERS ================= */
+/* ================= PAGE UI HELPERS ================= */
 function showMessage(msg) {
   const container = document.querySelector(".pd");
   if (!container) {
@@ -72,6 +102,25 @@ function showMessage(msg) {
     return;
   }
   container.innerHTML = `<h2 style="padding:30px">${msg}</h2>`;
+}
+
+function setCartButtonState(inCart) {
+  const btn = el("cartBtn");
+  const flag = el("productInCart");
+  const viewCart = el("viewCartLink");
+  if (!btn) return;
+
+  if (inCart) {
+    btn.textContent = "ADDED";
+    btn.classList.add("is-added");
+    if (flag) flag.style.display = "inline-flex";
+    if (viewCart) viewCart.style.display = "inline-flex";
+  } else {
+    btn.textContent = "ADD TO CART";
+    btn.classList.remove("is-added");
+    if (flag) flag.style.display = "none";
+    if (viewCart) viewCart.style.display = "none";
+  }
 }
 
 function guessIngredientsText(product) {
@@ -136,26 +185,13 @@ function renderList(listEl, items) {
   });
 }
 
-function setCartButtonState(inCart) {
-  const btn = el("cartBtn");
-  const flag = el("productInCart");
-  const viewCart = el("viewCartLink");
-  if (!btn) return;
-
-  if (inCart) {
-    btn.textContent = "ADDED";
-    btn.classList.add("is-added");
-    if (flag) flag.style.display = "inline-flex";
-    if (viewCart) viewCart.style.display = "inline-flex";
-  } else {
-    btn.textContent = "ADD TO CART";
-    btn.classList.remove("is-added");
-    if (flag) flag.style.display = "none";
-    if (viewCart) viewCart.style.display = "none";
-  }
+/* ================= GALLERY ================= */
+function getProductImages(p) {
+  if (Array.isArray(p.images) && p.images.length) return p.images;
+  if (typeof p.image === "string" && p.image.trim()) return [p.image];
+  return [];
 }
 
-/* ================= GALLERY ================= */
 function renderGallery(images, activeIndex = 0) {
   const mainImg = el("productImage");
   const thumbsWrap = el("productThumbs");
@@ -177,7 +213,7 @@ function renderGallery(images, activeIndex = 0) {
   });
 }
 
-/* ================= REVIEWS DATA ================= */
+/* ================= REVIEWS STORAGE ================= */
 function loadAllReviews() {
   const obj = safeJSON(REVIEWS_KEY, {});
   return obj && typeof obj === "object" ? obj : {};
@@ -196,7 +232,6 @@ function saveReviewsForProduct(productId, list) {
   saveAllReviews(all);
 }
 
-/* Backward compatible normalize (old reviews -> new fields) */
 function normalizeReview(r) {
   return {
     id: r.id || `${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -212,27 +247,156 @@ function normalizeReview(r) {
   };
 }
 
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+/* ================= VERIFIED PURCHASE (simple) ================= */
+function isVerifiedPurchase(productId) {
+  const cart = loadCart();
+  if (cart.some(i => Number(i.id) === Number(productId))) return true;
 
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
-function formatDate(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return "";
+  const possibleOrderKeys = ["orders", "orders_backup", "orders_backup_v1", "orders_backup_v2", "localOrders"];
+  for (const k of possibleOrderKeys) {
+    const orders = safeJSON(k, []);
+    if (Array.isArray(orders)) {
+      const found = orders.some(o => {
+        if (Array.isArray(o?.items)) return o.items.some(it => Number(it.id) === Number(productId));
+        return Number(o?.id) === Number(productId);
+      });
+      if (found) return true;
+    }
   }
+
+  return false;
 }
 
-function starsText(rating) {
-  const r = clamp(Number(rating) || 0, 0, 5);
-  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+/* ================= ADMIN AUTH ================= */
+function isReviewAdmin() {
+  return localStorage.getItem(REVIEWS_ADMIN_AUTH_KEY) === "yes";
+}
+function setReviewAdminAuth(on) {
+  localStorage.setItem(REVIEWS_ADMIN_AUTH_KEY, on ? "yes" : "no");
+}
+
+/* ================= SEEDED REVIEWS (DIFFERENT PER PRODUCT) ================= */
+function seededAlreadyFor(productId) {
+  const seeded = safeJSON(REVIEWS_SEEDED_KEY, {});
+  return Boolean(seeded[String(productId)]);
+}
+function markSeeded(productId) {
+  const seeded = safeJSON(REVIEWS_SEEDED_KEY, {});
+  seeded[String(productId)] = true;
+  localStorage.setItem(REVIEWS_SEEDED_KEY, JSON.stringify(seeded));
+}
+
+function mulberry32(seed) {
+  return function () {
+    let t = (seed += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickUnique(rng, arr, count) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, Math.min(count, copy.length));
+}
+
+function seedReviewsIfEmpty(productId, product) {
+  const current = loadReviewsForProduct(productId);
+  if (current.length > 0) return;
+  if (seededAlreadyFor(productId)) return;
+
+  const rng = mulberry32((Number(productId) || 1) * 99991);
+
+  const femaleNames = [
+    "Amina","Hauwa","Zainab","Fatima","Rahma","Safiya","Hadiza","Maryam","Asiya","Khadija",
+    "Sade","Temilade","Damilola","Tolani","Yetunde","Funke","Bimpe","Bukola","Kemi","Tomiwa",
+    "Oluwatoyin","Ayomide","Simisola","Ireoluwa","Abisola","Omotola",
+    "Chioma","Chidinma","Adaeze","Amaka","Ifunanya","Ngozi","Nneka","Uchechi","Oluchi","Chiamaka",
+    "Blessing","Peace","Joy","Mercy","Grace","Rita","Esther","Deborah","Sarah","Mary","Jennifer","Victoria"
+  ];
+
+  const maleNames = ["Tunde","Sani","Ifeanyi","Chinedu","Musa","Abdul","Segun","Emeka","Kunle","Ibrahim"];
+
+  // mostly female
+  const namePool = [];
+  namePool.push(...pickUnique(rng, femaleNames, 16));
+  namePool.push(...pickUnique(rng, maleNames, 3));
+
+  const cat = String(product?.category || "").toLowerCase();
+
+  const templatesBody = [
+    { title: "Super soft skin", text: "My skin felt softer from the first use. It absorbs well and doesn’t feel greasy." },
+    { title: "Perfect after shower", text: "I apply it after shower and my skin stays moisturized till night. Texture is rich." },
+    { title: "Dryness reduced", text: "My elbows and knees were very dry before, now they look smoother. I’m impressed." },
+    { title: "Luxury feel", text: "It feels premium and the scent is not too loud. My skin feels pampered." },
+    { title: "Nice for harmattan", text: "This is now my go-to for harmattan season. Skin stays calm and moisturized." },
+    { title: "Good but small", text: "Quality is great and it works well, I just wish the size was bigger." }
+  ];
+
+  const templatesOil = [
+    { title: "Glowing finish", text: "Gives a clean glow without looking oily. I use it on damp skin and it seals in moisture." },
+    { title: "Lightweight and effective", text: "It’s lightweight but works well. My skin looks healthier after a few days." },
+    { title: "Smooth texture", text: "It spreads easily and absorbs fast. No stains on clothes after a few minutes." },
+    { title: "Good for dull skin", text: "My skin looked dull before, but now I see a brighter look especially on my legs." },
+    { title: "Night routine favourite", text: "The scent is classy and not overwhelming. I love using it at night." }
+  ];
+
+  const templatesHair = [
+    { title: "Hair feels softer", text: "My hair feels softer and easier to comb. A little goes a long way." },
+    { title: "Reduced dryness", text: "Helps with dry scalp and dryness on hair ends. I like the finish." },
+    { title: "Good for sealing", text: "I use it to seal moisture and my hair looks healthier. No heavy build-up." },
+    { title: "Nice shine", text: "Gives a nice shine and keeps my hair looking neat for longer." }
+  ];
+
+  let templates = templatesBody;
+  if (cat.includes("oil")) templates = templatesOil;
+  if (cat.includes("serum") || cat.includes("hair")) templates = templatesHair;
+
+  const ratingsBag = [5,5,5,5,5,5,5,4,4,4,3]; // mostly 5
+  const count = 6 + Math.floor(rng() * 4);      // 6–9
+
+  const now = Date.now();
+  const pickedNames = pickUnique(rng, namePool, count);
+  const pickedTemplates = pickUnique(rng, templates, count);
+
+  const seeded = pickedNames.map((nm, idx) => {
+    const rating = ratingsBag[Math.floor(rng() * ratingsBag.length)];
+    const t = pickedTemplates[idx] || templates[Math.floor(rng() * templates.length)];
+
+    const daysAgo = 2 + Math.floor(rng() * 28);
+    const createdAt = new Date(now - 86400000 * daysAgo).toISOString();
+
+    return normalizeReview({
+      id: `${now}_${productId}_${idx}_${Math.random().toString(16).slice(2)}`,
+      name: nm,
+      title: t.title,
+      text: t.text,
+      rating,
+      createdAt,
+      verified: false,
+      votes: { up: Math.floor(rng() * 8), down: Math.floor(rng() * 2), by: {} }
+    });
+  });
+
+  saveReviewsForProduct(productId, seeded);
+  markSeeded(productId);
+}
+
+/* ================= REVIEWS UI STATE ================= */
+let rvAll = [];
+let rvFilteredStar = 0;
+let rvSortMode = "recent";
+let rvShown = 5;
+const RV_PAGE_SIZE = 5;
+
+function helpfulScore(r) {
+  const up = Number(r?.votes?.up) || 0;
+  const down = Number(r?.votes?.down) || 0;
+  return up - down;
 }
 
 function calcAverage(list) {
@@ -249,39 +413,6 @@ function breakdownCounts(list) {
   });
   return counts;
 }
-
-/* ================= VERIFIED PURCHASE (simple local check) =================
-   If you have an orders system later, we can make this 100% accurate.
-   For now: verified if product exists in cart OR in any saved orders keys.
-*/
-function isVerifiedPurchase(productId) {
-  // cart check
-  const cart = loadCart();
-  if (cart.some(i => Number(i.id) === Number(productId))) return true;
-
-  // optional order keys (if you already store orders anywhere)
-  const possibleOrderKeys = ["orders", "orders_backup", "orders_backup_v1", "orders_backup_v2", "localOrders"];
-  for (const k of possibleOrderKeys) {
-    const orders = safeJSON(k, []);
-    if (Array.isArray(orders)) {
-      // accept both {items:[{id}]} or flat arrays
-      const found = orders.some(o => {
-        if (Array.isArray(o?.items)) return o.items.some(it => Number(it.id) === Number(productId));
-        return Number(o?.id) === Number(productId);
-      });
-      if (found) return true;
-    }
-  }
-
-  return false;
-}
-
-/* ================= REVIEWS UI STATE ================= */
-let rvAll = [];
-let rvFilteredStar = 0;     // 0 = all
-let rvSortMode = "recent";  // recent/helpful/high/low
-let rvShown = 5;            // pagination
-const RV_PAGE_SIZE = 5;
 
 function setStarUI(value) {
   const stars = document.querySelectorAll("#starInput .star");
@@ -330,12 +461,6 @@ function renderSummary(list) {
   }
 }
 
-function helpfulScore(r) {
-  const up = Number(r?.votes?.up) || 0;
-  const down = Number(r?.votes?.down) || 0;
-  return up - down;
-}
-
 function getDisplayList() {
   let list = [...rvAll];
 
@@ -356,6 +481,95 @@ function getDisplayList() {
   return list;
 }
 
+/* Admin buttons setup */
+function setupAdminButtons(productId) {
+  const adminBtn = el("rvAdminBtn");
+  const logoutBtn = el("rvAdminLogoutBtn");
+  if (!adminBtn || !logoutBtn) return;
+
+  function refreshAdminUI() {
+    const on = isReviewAdmin();
+    logoutBtn.hidden = !on;
+    adminBtn.textContent = on ? "Admin: ON" : "Admin";
+  }
+
+  adminBtn.addEventListener("click", () => {
+    if (isReviewAdmin()) {
+      refreshAdminUI();
+      return;
+    }
+    const pin = prompt("Enter admin PIN to manage reviews:");
+    if (pin === null) return;
+    if (String(pin).trim() === REVIEWS_ADMIN_PIN) {
+      setReviewAdminAuth(true);
+      refreshAdminUI();
+      renderSummary(rvAll);
+      renderListUI(productId);
+    } else {
+      alert("Wrong PIN.");
+    }
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    setReviewAdminAuth(false);
+    refreshAdminUI();
+    renderSummary(rvAll);
+    renderListUI(productId);
+  });
+
+  refreshAdminUI();
+}
+
+/* Voting */
+function voteReview(productId, reviewId, voteType) {
+  const deviceId = getDeviceId();
+  voteType = (voteType === "up" || voteType === "down") ? voteType : "up";
+
+  let list = loadReviewsForProduct(productId).map(normalizeReview);
+  const idx = list.findIndex(r => r.id === reviewId);
+  if (idx === -1) return;
+
+  const r = list[idx];
+  r.votes = r.votes || { up: 0, down: 0, by: {} };
+  r.votes.by = r.votes.by || {};
+
+  const prev = r.votes.by[deviceId];
+  if (prev === voteType) return;
+
+  if (prev === "up") r.votes.up = Math.max(0, (Number(r.votes.up) || 0) - 1);
+  if (prev === "down") r.votes.down = Math.max(0, (Number(r.votes.down) || 0) - 1);
+
+  if (voteType === "up") r.votes.up = (Number(r.votes.up) || 0) + 1;
+  if (voteType === "down") r.votes.down = (Number(r.votes.down) || 0) + 1;
+
+  r.votes.by[deviceId] = voteType;
+  list[idx] = r;
+
+  saveReviewsForProduct(productId, list);
+  rvAll = list;
+
+  renderSummary(rvAll);
+  renderListUI(productId);
+}
+
+/* Admin delete */
+function deleteReview(productId, reviewId) {
+  if (!isReviewAdmin()) return;
+
+  const ok = confirm("Delete this review permanently?");
+  if (!ok) return;
+
+  let list = loadReviewsForProduct(productId).map(normalizeReview);
+  list = list.filter(r => r.id !== reviewId);
+
+  saveReviewsForProduct(productId, list);
+  rvAll = list;
+
+  renderSummary(rvAll);
+  rvShown = Math.min(rvShown, rvAll.length || RV_PAGE_SIZE);
+  renderListUI(productId);
+}
+
 function renderListUI(productId) {
   const wrap = el("reviewsList");
   const moreBtn = el("rvMoreBtn");
@@ -369,6 +583,8 @@ function renderListUI(productId) {
     if (moreBtn) moreBtn.hidden = true;
     return;
   }
+
+  const adminOn = isReviewAdmin();
 
   wrap.innerHTML = "";
   visible.forEach(r => {
@@ -396,20 +612,20 @@ function renderListUI(productId) {
       <div class="rv-item-text">${escapeHtml(r.text || "")}</div>
 
       <div class="rv-item-actions">
-        <button type="button" class="rv-vote" data-vote="up">
-          Helpful <span class="rv-vnum">(${up})</span>
-        </button>
-        <button type="button" class="rv-vote" data-vote="down">
-          Not helpful <span class="rv-vnum">(${down})</span>
-        </button>
+        <button type="button" class="rv-vote" data-vote="up">Helpful <span class="rv-vnum">(${up})</span></button>
+        <button type="button" class="rv-vote" data-vote="down">Not helpful <span class="rv-vnum">(${down})</span></button>
+        ${adminOn ? `<button type="button" class="rv-del-btn" data-del="${r.id}">Delete</button>` : ``}
       </div>
     `;
 
     item.querySelectorAll(".rv-vote").forEach(btn => {
-      btn.addEventListener("click", () => {
-        voteReview(productId, r.id, btn.dataset.vote);
-      });
+      btn.addEventListener("click", () => voteReview(productId, r.id, btn.dataset.vote));
     });
+
+    const delBtn = item.querySelector(".rv-del-btn");
+    if (delBtn) {
+      delBtn.addEventListener("click", () => deleteReview(productId, delBtn.dataset.del));
+    }
 
     wrap.appendChild(item);
   });
@@ -419,50 +635,18 @@ function renderListUI(productId) {
   }
 }
 
-function voteReview(productId, reviewId, voteType) {
-  const deviceId = getDeviceId();
-  voteType = (voteType === "up" || voteType === "down") ? voteType : "up";
-
-  let list = loadReviewsForProduct(productId).map(normalizeReview);
-
-  const idx = list.findIndex(r => r.id === reviewId);
-  if (idx === -1) return;
-
-  const r = list[idx];
-  r.votes = r.votes || { up: 0, down: 0, by: {} };
-  r.votes.by = r.votes.by || {};
-
-  const prev = r.votes.by[deviceId];
-
-  // If same vote again, ignore
-  if (prev === voteType) return;
-
-  // If switching vote, undo previous
-  if (prev === "up") r.votes.up = Math.max(0, (Number(r.votes.up) || 0) - 1);
-  if (prev === "down") r.votes.down = Math.max(0, (Number(r.votes.down) || 0) - 1);
-
-  // Apply new vote
-  if (voteType === "up") r.votes.up = (Number(r.votes.up) || 0) + 1;
-  if (voteType === "down") r.votes.down = (Number(r.votes.down) || 0) + 1;
-
-  r.votes.by[deviceId] = voteType;
-
-  list[idx] = r;
-
-  // Save + re-render
-  saveReviewsForProduct(productId, list);
-  rvAll = list;
-  renderSummary(rvAll);
-  renderListUI(productId);
-}
-
 /* ================= REVIEWS INIT ================= */
-function initReviews(productId) {
+function initReviews(productId, product) {
+  // Seed unique reviews if empty
+  seedReviewsIfEmpty(productId, product);
+
   rvAll = loadReviewsForProduct(productId).map(normalizeReview);
 
   renderSummary(rvAll);
   rvShown = RV_PAGE_SIZE;
   renderListUI(productId);
+
+  setupAdminButtons(productId);
 
   // Toggle form
   const toggle = el("rvToggleForm");
@@ -565,15 +749,15 @@ function initReviews(productId) {
       });
 
       rvAll.unshift(review);
-      rvAll = rvAll.slice(0, 80); // keep clean
+      rvAll = rvAll.slice(0, 150);
 
+      // ✅ Store new reviews in localStorage
       saveReviewsForProduct(productId, rvAll);
 
       renderSummary(rvAll);
       rvShown = RV_PAGE_SIZE;
       renderListUI(productId);
 
-      // reset
       ratingInput.value = "0";
       setStarUI(0);
       if (nameEl) nameEl.value = "";
@@ -630,7 +814,7 @@ function init() {
   renderList(el("productBenefits"), product.benefits || preset.benefits);
   renderList(el("productHowToUse"), product.howToUse || preset.howto);
 
-  // cart state
+  // cart
   const cart = loadCart();
   setCartButtonState(isInCart(cart, product.id));
   updateHeaderCartCount();
@@ -644,8 +828,8 @@ function init() {
     });
   }
 
-  // reviews
-  initReviews(product.id);
+  // reviews (pass product so seed uses category)
+  initReviews(product.id, product);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

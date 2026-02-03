@@ -610,3 +610,33 @@ body{background:var(--butter);color:var(--text-dark);}
     grid-template-columns: 1fr;
   }
 }
+/* Admin buttons */
+.rv-summary-actions{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rv-admin-btn{
+  padding: 12px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(59,47,28,0.16);
+  background: rgba(255,255,255,0.45);
+  cursor: pointer;
+  font-weight: 950;
+  color: rgba(59,47,28,0.85);
+}
+
+.rv-admin-btn.is-logout{
+  border-color: rgba(138,46,46,0.25);
+}
+
+.rv-del-btn{
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(138,46,46,0.22);
+  background: rgba(255,255,255,0.45);
+  cursor: pointer;
+  font-weight: 950;
+  color: rgba(138,46,46,0.9);
+}

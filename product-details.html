@@ -27,6 +27,7 @@
           <img id="productImage" src="" alt="">
         </div>
 
+        <!-- Thumbnails -->
         <div class="pd-thumbs" id="productThumbs"></div>
       </div>
 
@@ -75,7 +76,14 @@
               <div class="rv-avg-stars" id="rvAvgStars">☆☆☆☆☆</div>
               <div class="rv-count" id="rvCount">0 ratings</div>
 
-              <button class="rv-write-btn" id="rvToggleForm" type="button">Write a review</button>
+              <!-- ✅ Actions -->
+              <div class="rv-summary-actions">
+                <button class="rv-write-btn" id="rvToggleForm" type="button">Write a review</button>
+
+                <!-- ✅ Admin controls -->
+                <button class="rv-admin-btn" id="rvAdminBtn" type="button">Admin</button>
+                <button class="rv-admin-btn is-logout" id="rvAdminLogoutBtn" type="button" hidden>Logout</button>
+              </div>
             </div>
 
             <div class="rv-right" id="rvBreakdown">
