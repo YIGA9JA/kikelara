@@ -1,8 +1,11 @@
-/* ================= PRODUCTS.JS (CLEAN LUXURY SHOP - SINGLE IMAGE COVER) ================= */
+/* ================= PRODUCTS.JS (CLEAN LUXURY SHOP + RATINGS ON CARDS) ================= */
 
 const PRODUCTS_KEY = "allProducts";
 const DEFAULTS_SIG_KEY = "allProducts_defaults_sig";
 const CART_KEY = "cart";
+
+/* ✅ Reviews storage (same one used by product-details.js) */
+const REVIEWS_KEY = "productReviews_v1";
 
 /** Default products (single cover image + 4pics for details gallery) */
 const defaultProducts = [
@@ -35,7 +38,16 @@ const defaultProducts = [
     description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E." }
 ];
 
-/* Helpers */
+/* ================= SAFE HELPERS ================= */
+function safeJSON(key, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function getProductImages(p) {
   if (Array.isArray(p.images) && p.images.length) return p.images;
   if (typeof p.image === "string" && p.image.trim()) return [p.image];
@@ -51,8 +63,8 @@ function makeDefaultsSignature(items) {
       category: p.category,
       price: p.price,
       discount: p.discount,
-      image: p.image,              // cover
-      images: getProductImages(p),  // gallery
+      image: p.image,
+      images: getProductImages(p),
       description: p.description
     }));
   return JSON.stringify(normalized);
@@ -79,23 +91,21 @@ function syncProductsWithDefaults() {
 let products = syncProductsWithDefaults();
 let currentList = products;
 
-/* CART */
+/* ================= CART ================= */
 function loadCart() {
-  try {
-    const c = JSON.parse(localStorage.getItem(CART_KEY));
-    return Array.isArray(c) ? c : [];
-  } catch {
-    return [];
-  }
+  const c = safeJSON(CART_KEY, []);
+  return Array.isArray(c) ? c : [];
 }
 function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
 function isInCart(cart, id) { return cart.some(i => Number(i.id) === Number(id)); }
+
 function addToCartOnce(product) {
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
   cart.push({ ...product, qty: 1 });
   saveCart(cart);
 }
+
 function updateCartCount() {
   const cartCountEl = document.getElementById("cartCount");
   if (!cartCountEl) return;
@@ -103,7 +113,45 @@ function updateCartCount() {
   cartCountEl.textContent = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 }
 
-/* Filters */
+/* ================= REVIEWS (FOR CARD RATINGS) ================= */
+function loadAllReviews() {
+  const obj = safeJSON(REVIEWS_KEY, {});
+  return obj && typeof obj === "object" ? obj : {};
+}
+
+function getReviewsForProduct(productId) {
+  const all = loadAllReviews();
+  const list = all[String(productId)];
+  return Array.isArray(list) ? list : [];
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function calcAverage(list) {
+  if (!list.length) return 0;
+  const sum = list.reduce((a, r) => a + (Number(r.rating) || 0), 0);
+  return sum / list.length;
+}
+
+function starsTextFromAverage(avg) {
+  const rounded = clamp(Math.round(avg), 0, 5);
+  return "★★★★★".slice(0, rounded) + "☆☆☆☆☆".slice(0, 5 - rounded);
+}
+
+function ratingLineHTML(productId) {
+  const list = getReviewsForProduct(productId);
+  if (!list.length) {
+    return `<div class="p-rating is-empty">No reviews yet</div>`;
+  }
+  const avg = calcAverage(list);
+  const avg1 = Math.round(avg * 10) / 10;
+  const stars = starsTextFromAverage(avg);
+  return `<div class="p-rating">${stars} <span class="p-rate-num">${avg1}</span> <span class="p-rate-count">(${list.length})</span></div>`;
+}
+
+/* ================= FILTERS ================= */
 function populateCategories() {
   const sel = document.getElementById("categorySelect");
   if (!sel) return;
@@ -146,7 +194,7 @@ function bindFilters() {
   }
 }
 
-/* Render (USES ONLY p.image as cover) */
+/* ================= RENDER (USES ONLY p.image as cover) ================= */
 function renderProducts(list = products) {
   const grid = document.getElementById("productsGrid");
   if (!grid) return;
@@ -175,6 +223,9 @@ function renderProducts(list = products) {
 
         <div class="p-name">${p.name}</div>
         <div class="p-price">₦${Number(p.price).toLocaleString()}</div>
+
+        <!-- ✅ Rating line -->
+        ${ratingLineHTML(p.id)}
       </div>
 
       <button class="p-btn ${inCart ? "is-added" : ""}" type="button">
@@ -182,6 +233,7 @@ function renderProducts(list = products) {
       </button>
     `;
 
+    // Click image -> details
     const img = card.querySelector(".p-img");
     if (img) {
       img.addEventListener("click", () => {
@@ -189,12 +241,22 @@ function renderProducts(list = products) {
       });
     }
 
+    // Click name/info -> details (optional, feels premium)
+    const info = card.querySelector(".p-info");
+    if (info) {
+      info.style.cursor = "pointer";
+      info.addEventListener("click", () => {
+        window.location.href = `product-details.html?id=${p.id}`;
+      });
+    }
+
+    // Button -> add to cart
     const btn = card.querySelector(".p-btn");
     if (btn) {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         addToCartOnce(p);
-        renderProducts(currentList);
+        renderProducts(currentList); // re-render so “IN CART” updates
         updateCartCount();
       });
     }

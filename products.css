@@ -172,3 +172,21 @@ body{background:var(--butter);color:var(--text-dark);}
   .products-grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;}
   .filters-section{padding:16px 5%;}
 }
+/* Rating line on cards */
+.p-rating{
+  margin-top: 8px;
+  font-weight: 850;
+  font-size: .92rem;
+  color: rgba(95,75,0,.85);
+  letter-spacing: 1px;
+}
+.p-rating .p-rate-num,
+.p-rating .p-rate-count{
+  letter-spacing: 0;
+  margin-left: 6px;
+  font-weight: 900;
+}
+.p-rating.is-empty{
+  letter-spacing: 0;
+  opacity: .7;
+}

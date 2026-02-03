@@ -9,14 +9,14 @@
   <link rel="stylesheet" href="footer.css">
   <link rel="stylesheet" href="header.css">
 
-  <!-- ✅ IMPORTANT: defer keeps scripts from running before HTML is ready -->
+  <!-- Defer so DOM is ready -->
   <script src="header.js" defer></script>
   <script src="products.js" defer></script>
   <script src="footer.js" defer></script>
 </head>
 
 <body>
-  <!-- ✅ Header mount must be inside BODY -->
+  <!-- Header mount -->
   <div id="siteHeader"></div>
 
   <!-- ================= FILTERS ================= -->
@@ -44,7 +44,7 @@
     <div class="products-grid" id="productsGrid"></div>
   </section>
 
-  <!-- ✅ Footer mount -->
+  <!-- Footer mount -->
   <div id="siteFooter"></div>
 </body>
 </html>

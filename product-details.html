@@ -27,7 +27,6 @@
           <img id="productImage" src="" alt="">
         </div>
 
-        <!-- ✅ Thumbnails for multiple images -->
         <div class="pd-thumbs" id="productThumbs"></div>
       </div>
 
@@ -51,7 +50,6 @@
 
         <!-- DETAILS -->
         <div class="pd-panels">
-
           <div class="pd-panel">
             <div class="pd-panel-title">WHY YOU’LL LOVE IT</div>
             <ul class="pd-list" id="productBenefits"></ul>
@@ -66,8 +64,80 @@
             <div class="pd-panel-title">INGREDIENTS</div>
             <div class="pd-ingredients" id="productIngredients"></div>
           </div>
-
         </div>
+
+        <!-- ================= JUMLA-LIKE REVIEWS ================= -->
+        <section class="rv" id="reviewsSection">
+          <!-- SUMMARY -->
+          <div class="rv-summary-card">
+            <div class="rv-left">
+              <div class="rv-avg" id="rvAvg">0.0</div>
+              <div class="rv-avg-stars" id="rvAvgStars">☆☆☆☆☆</div>
+              <div class="rv-count" id="rvCount">0 ratings</div>
+
+              <button class="rv-write-btn" id="rvToggleForm" type="button">Write a review</button>
+            </div>
+
+            <div class="rv-right" id="rvBreakdown">
+              <!-- JS fills star bars -->
+            </div>
+          </div>
+
+          <!-- WRITE REVIEW (collapsible) -->
+          <div class="rv-form-wrap" id="rvFormWrap" hidden>
+            <form class="rv-form" id="reviewForm" autocomplete="off">
+              <div class="rv-form-row">
+                <input id="reviewName" type="text" placeholder="Your name (optional)" maxlength="30" />
+                <input id="reviewTitle" type="text" placeholder="Review title (e.g. “Great product!”)" maxlength="60" />
+              </div>
+
+              <div class="rv-form-row">
+                <div class="rv-stars" id="starInput" aria-label="Rate this product">
+                  <button type="button" class="star" data-value="1" aria-label="1 star">★</button>
+                  <button type="button" class="star" data-value="2" aria-label="2 stars">★</button>
+                  <button type="button" class="star" data-value="3" aria-label="3 stars">★</button>
+                  <button type="button" class="star" data-value="4" aria-label="4 stars">★</button>
+                  <button type="button" class="star" data-value="5" aria-label="5 stars">★</button>
+                </div>
+
+                <input type="hidden" id="reviewRating" value="0" />
+                <div class="rv-hint" id="rvHint">Select a rating</div>
+              </div>
+
+              <textarea id="reviewText" placeholder="Write your review (what did you like / dislike?)" maxlength="500"></textarea>
+
+              <div class="rv-actions">
+                <button type="submit" class="rv-btn">Post review</button>
+                <div class="rv-error" id="reviewError"></div>
+              </div>
+            </form>
+          </div>
+
+          <!-- CONTROLS -->
+          <div class="rv-controls">
+            <div class="rv-filters" id="rvStarFilters">
+              <button type="button" class="rv-filter is-active" data-star="0">All</button>
+              <button type="button" class="rv-filter" data-star="5">5★</button>
+              <button type="button" class="rv-filter" data-star="4">4★</button>
+              <button type="button" class="rv-filter" data-star="3">3★</button>
+              <button type="button" class="rv-filter" data-star="2">2★</button>
+              <button type="button" class="rv-filter" data-star="1">1★</button>
+            </div>
+
+            <select class="rv-sort" id="rvSort">
+              <option value="recent">Most recent</option>
+              <option value="helpful">Most helpful</option>
+              <option value="high">Highest rating</option>
+              <option value="low">Lowest rating</option>
+            </select>
+          </div>
+
+          <!-- LIST -->
+          <div class="rv-list" id="reviewsList"></div>
+
+          <!-- PAGINATION -->
+          <button class="rv-more" id="rvMoreBtn" type="button" hidden>Show more</button>
+        </section>
 
         <div class="pd-note">
           <span>NOTE</span>
