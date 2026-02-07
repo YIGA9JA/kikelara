@@ -1,5 +1,6 @@
-// server.js (LIVE BACKEND - PRODUCTION READY)
-// Works with your frontend + admin-delivery.js + checkout.js
+// server.js (MERGED - PRODUCTION READY + PRODUCTS UPLOADS)
+// Render backend: https://kikelara.onrender.com
+// Vercel frontend: https://kikelara.vercel.app
 
 const express = require("express");
 const cors = require("cors");
@@ -9,6 +10,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const helmet = require("helmet");
 const compression = require("compression");
+const multer = require("multer");
 
 try { require("dotenv").config(); } catch {}
 
@@ -37,48 +39,49 @@ const ALLOW_ORIGINS = [
 ];
 
 /* ===================== MIDDLEWARE ===================== */
-app.set("trust proxy", 1); // important on Render/Railway/proxies
+app.set("trust proxy", 1);
 
-app.use(helmet({
-  crossOriginResourcePolicy: false
-}));
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(compression());
 
 app.use(cors({
   origin: function (origin, cb) {
-    // allow curl/postman (no origin)
     if (!origin) return cb(null, true);
-
-    // allow listed origins
     if (ALLOW_ORIGINS.includes(origin)) return cb(null, true);
-
     return cb(new Error("Not allowed by CORS: " + origin));
   },
   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization"]
 }));
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-/* ===================== DATA FILES ===================== */
+/* ===================== PATHS ===================== */
 const dataDir = path.join(__dirname, "data");
+const uploadsDir = path.join(__dirname, "uploads");
+
 const ordersFile = path.join(dataDir, "orders.json");
 const pricingFile = path.join(dataDir, "deliveryPricing.json");
 const messagesFile = path.join(dataDir, "messages.json");
+const productsFile = path.join(dataDir, "products.json");
 
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.use("/uploads", express.static(uploadsDir)); // ✅ serve uploaded files
 
 ensureJsonFile(ordersFile, []);
 ensureJsonFile(messagesFile, []);
 ensureJsonFile(pricingFile, buildDefaultNigeriaPricing(5000));
+ensureJsonFile(productsFile, []);
 
+/* ===================== FILE HELPERS ===================== */
 function ensureJsonFile(filePath, defaultValue) {
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), "utf-8");
   }
 }
-
 function readJson(filePath, fallback) {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
@@ -87,11 +90,13 @@ function readJson(filePath, fallback) {
     return fallback;
   }
 }
-
 function writeJsonAtomic(filePath, data) {
   const tmp = filePath + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
   fs.renameSync(tmp, filePath);
+}
+function nextId(list) {
+  return list.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
 }
 
 /* ===================== ADMIN AUTH (TOKEN) ===================== */
@@ -102,12 +107,10 @@ function base64url(input) {
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
 }
-
 function unbase64url(input) {
   const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
   return Buffer.from(b64, "base64").toString("utf-8");
 }
-
 function sign(payloadB64) {
   return crypto
     .createHmac("sha256", ADMIN_SECRET)
@@ -117,14 +120,12 @@ function sign(payloadB64) {
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
 }
-
 function createToken(payloadObj) {
   const payloadStr = JSON.stringify(payloadObj);
   const payloadB64 = base64url(payloadStr);
   const signature = sign(payloadB64);
   return `${payloadB64}.${signature}`;
 }
-
 function verifyToken(token) {
   if (!token || typeof token !== "string") return null;
 
@@ -143,7 +144,6 @@ function verifyToken(token) {
     return null;
   }
 }
-
 function requireAdmin(req, res, next) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -152,7 +152,6 @@ function requireAdmin(req, res, next) {
   if (!payload || payload.role !== "admin") {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
-
   req.admin = payload;
   next();
 }
@@ -163,7 +162,6 @@ app.get("/health", (req, res) => res.json({ ok: true, uptime: process.uptime() }
 /* ===================== ADMIN LOGIN ===================== */
 app.post("/admin/login", (req, res) => {
   const code = String(req.body?.code || "").trim();
-
   if (!code) return res.status(400).json({ success: false, message: "Missing code" });
   if (code !== ADMIN_CODE) return res.status(401).json({ success: false, message: "Invalid code" });
 
@@ -175,66 +173,39 @@ app.post("/admin/login", (req, res) => {
 
   res.json({ success: true, token });
 });
-
 app.get("/admin/me", requireAdmin, (req, res) => {
   res.json({ success: true, admin: req.admin });
 });
 
 /* ===================== DELIVERY PRICING ===================== */
-/**
- * Format:
- * {
- *   defaultFee: 5000,
- *   updatedAt: "2026-01-27T...",
- *   states: [
- *     { name:"Lagos", cities:[{name:"Ikeja", fee:5000}, ...] },
- *     ...
- *   ]
- * }
- */
-
-// Public (checkout reads this)
 app.get("/delivery-pricing", (req, res) => {
   const pricing = readJson(pricingFile, buildDefaultNigeriaPricing(5000));
   res.json(pricing);
 });
-
-// Admin: get current pricing
 app.get("/admin/delivery-pricing", requireAdmin, (req, res) => {
   const pricing = readJson(pricingFile, buildDefaultNigeriaPricing(5000));
   res.json({ success: true, pricing });
 });
-
-// Admin: replace pricing
 app.put("/admin/delivery-pricing", requireAdmin, (req, res) => {
   const body = req.body;
-
   if (!body || typeof body !== "object") {
     return res.status(400).json({ success: false, message: "Invalid payload" });
   }
-
   const cleaned = sanitizePricing(body);
-  cleaned.updatedAt = new Date().toISOString(); // always refresh timestamp
-
+  cleaned.updatedAt = new Date().toISOString();
   writeJsonAtomic(pricingFile, cleaned);
   res.json({ success: true, pricing: cleaned });
 });
-
-// Admin: seed convenience
 app.post("/admin/delivery-pricing/seed", requireAdmin, (req, res) => {
   const fee = Number(req.body?.fee);
   const seedFee = Number.isFinite(fee) && fee >= 0 ? Math.round(fee) : 5000;
-
   const seeded = buildDefaultNigeriaPricing(seedFee);
   seeded.updatedAt = new Date().toISOString();
   writeJsonAtomic(pricingFile, seeded);
-
   res.json({ success: true, pricing: seeded });
 });
-
 function sanitizePricing(input) {
   const out = { defaultFee: 5000, updatedAt: new Date().toISOString(), states: [] };
-
   const def = Number(input.defaultFee);
   out.defaultFee = Number.isFinite(def) && def >= 0 ? Math.round(def) : 5000;
 
@@ -243,26 +214,22 @@ function sanitizePricing(input) {
     .map(s => {
       const name = String(s?.name || "").trim();
       const citiesIn = Array.isArray(s?.cities) ? s.cities : [];
-
       const cities = citiesIn
         .map(c => ({
           name: String(c?.name || "").trim(),
           fee: Math.round(Number(c?.fee))
         }))
         .filter(c => c.name && Number.isFinite(c.fee) && c.fee >= 0);
-
       return { name, cities };
     })
     .filter(s => s.name);
 
   out.states.sort((a, b) => a.name.localeCompare(b.name));
   out.states.forEach(s => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
-
   return out;
 }
 
 /* ===================== ORDERS ===================== */
-// Public: checkout sends orders here
 app.post("/orders", (req, res) => {
   try {
     const orders = readJson(ordersFile, []);
@@ -288,14 +255,8 @@ app.post("/orders", (req, res) => {
     res.status(500).json({ success: false, message: "Failed to save order" });
   }
 });
+app.post("/order", (req, res) => { req.url = "/orders"; app._router.handle(req, res); });
 
-// Old endpoint support
-app.post("/order", (req, res) => {
-  req.url = "/orders";
-  app._router.handle(req, res);
-});
-
-// Admin: view orders
 app.get("/orders", requireAdmin, (req, res) => {
   try {
     const orders = readJson(ordersFile, []);
@@ -303,7 +264,6 @@ app.get("/orders", requireAdmin, (req, res) => {
     const q = String(req.query.q || "").trim().toLowerCase();
 
     let out = Array.isArray(orders) ? orders : [];
-
     if (status) out = out.filter(o => String(o.status || "") === status);
 
     if (q) {
@@ -322,8 +282,6 @@ app.get("/orders", requireAdmin, (req, res) => {
     res.status(500).json([]);
   }
 });
-
-// Admin: update order status
 app.patch("/orders/:id/status", requireAdmin, (req, res) => {
   try {
     const orderId = Number(req.params.id);
@@ -335,7 +293,6 @@ app.patch("/orders/:id/status", requireAdmin, (req, res) => {
 
     const orders = readJson(ordersFile, []);
     const idx = orders.findIndex(o => Number(o.id) === orderId);
-
     if (idx === -1) return res.status(404).json({ success: false, message: "Order not found" });
 
     orders[idx].status = status;
@@ -351,8 +308,6 @@ app.patch("/orders/:id/status", requireAdmin, (req, res) => {
 /* ===================== CONTACT (EMAIL + SAVE) ===================== */
 const GMAIL_USER = process.env.GMAIL_USER || "";
 const GMAIL_APP_PASS = process.env.GMAIL_APP_PASS || "";
-
-// Only create transporter if creds exist
 const transporter = (GMAIL_USER && GMAIL_APP_PASS)
   ? nodemailer.createTransport({
       service: "gmail",
@@ -367,13 +322,11 @@ app.post("/api/contact", async (req, res) => {
       return res.status(400).json({ success: false, msg: "All fields required" });
     }
 
-    // Save message
     const messages = readJson(messagesFile, []);
     const newMsg = { id: Date.now(), name, email, message, date: new Date().toISOString() };
     messages.push(newMsg);
     writeJsonAtomic(messagesFile, messages);
 
-    // Send email if configured
     if (transporter) {
       await transporter.sendMail({
         from: GMAIL_USER,
@@ -396,13 +349,11 @@ app.get("/admin/messages", requireAdmin, (req, res) => {
   const messages = readJson(messagesFile, []);
   res.json(Array.isArray(messages) ? messages : []);
 });
-
 app.delete("/admin/messages/:id", requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     return res.status(400).json({ success: false, message: "Invalid id" });
   }
-
   const messages = readJson(messagesFile, []);
   const before = messages.length;
   const next = messages.filter(m => Number(m.id) !== id);
@@ -415,10 +366,168 @@ app.delete("/admin/messages/:id", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+/* ===================== PRODUCTS + UPLOADS (MULTER) ===================== */
+
+// Multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const safeBase = path
+      .basename(file.originalname || "file", ext)
+      .replace(/[^a-z0-9_-]/gi, "_")
+      .slice(0, 40);
+
+    cb(null, `${Date.now()}_${safeBase}${ext || ".jpg"}`);
+  }
+});
+
+// Accept only images
+function imageOnly(req, file, cb) {
+  const ok = /^image\//.test(file.mimetype || "");
+  cb(ok ? null : new Error("Only image files allowed"), ok);
+}
+
+const upload = multer({
+  storage,
+  fileFilter: imageOnly,
+  limits: { fileSize: 8 * 1024 * 1024 } // 8MB
+});
+
+// Public: get products
+app.get("/api/products", (req, res) => {
+  const list = readJson(productsFile, []);
+  res.json(Array.isArray(list) ? list : []);
+});
+
+// Admin: create product (multipart)
+app.post(
+  "/api/products",
+  requireAdmin,
+  upload.fields([
+    { name: "image", maxCount: 1 },    // cover
+    { name: "images", maxCount: 10 }   // gallery
+  ]),
+  (req, res) => {
+    const list = readJson(productsFile, []);
+    const body = req.body || {};
+
+    const name = String(body.name || "").trim();
+    const category = String(body.category || "").trim();
+    const price = Number(body.price);
+    const discount = Number(body.discount || 0) || 0;
+    const description = String(body.description || "").trim();
+
+    const coverFile = req.files?.image?.[0] || null;
+    const galleryFiles = Array.isArray(req.files?.images) ? req.files.images : [];
+
+    if (!name || !category || !Number.isFinite(price)) {
+      return res.status(400).json({ success: false, message: "name, category, price are required" });
+    }
+    if (!coverFile) {
+      return res.status(400).json({ success: false, message: "cover image (image) is required" });
+    }
+
+    const coverUrl = `/uploads/${coverFile.filename}`;
+    const galleryUrls = galleryFiles.map(f => `/uploads/${f.filename}`);
+
+    const newP = {
+      id: nextId(list),
+      name,
+      category,
+      price: Math.round(price),
+      discount: Math.max(0, Math.round(discount)),
+      image: coverUrl,
+      images: galleryUrls.length ? [coverUrl, ...galleryUrls] : [coverUrl],
+      description
+    };
+
+    list.push(newP);
+    writeJsonAtomic(productsFile, list);
+    res.json({ success: true, product: newP });
+  }
+);
+
+// Admin: update product (multipart optional)
+app.put(
+  "/api/products/:id",
+  requireAdmin,
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "images", maxCount: 10 }
+  ]),
+  (req, res) => {
+    const list = readJson(productsFile, []);
+    const id = Number(req.params.id);
+    const idx = list.findIndex(p => Number(p.id) === id);
+    if (idx < 0) return res.status(404).json({ success: false, message: "Not found" });
+
+    const body = req.body || {};
+    const name = body.name != null ? String(body.name).trim() : list[idx].name;
+    const category = body.category != null ? String(body.category).trim() : list[idx].category;
+    const price = body.price != null ? Math.round(Number(body.price) || 0) : list[idx].price;
+    const discount = body.discount != null ? Math.max(0, Math.round(Number(body.discount) || 0)) : list[idx].discount;
+    const description = body.description != null ? String(body.description).trim() : list[idx].description;
+
+    const coverFile = req.files?.image?.[0] || null;
+    const galleryFiles = Array.isArray(req.files?.images) ? req.files.images : [];
+
+    let image = list[idx].image;
+    let images = Array.isArray(list[idx].images) ? [...list[idx].images] : (image ? [image] : []);
+
+    // Replace cover if uploaded
+    if (coverFile) {
+      image = `/uploads/${coverFile.filename}`;
+      // also ensure it's first in gallery
+      images = images.filter(u => u !== list[idx].image);
+      images.unshift(image);
+    }
+
+    // Append new gallery uploads if provided
+    if (galleryFiles.length) {
+      const newOnes = galleryFiles.map(f => `/uploads/${f.filename}`);
+      images.push(...newOnes);
+    }
+
+    // Safety: ensure at least one image
+    if (!image && images.length) image = images[0];
+    if (!image) return res.status(400).json({ success: false, message: "Product must have an image" });
+
+    const updated = {
+      ...list[idx],
+      name,
+      category,
+      price,
+      discount,
+      description,
+      image,
+      images: images.length ? images : [image]
+    };
+
+    list[idx] = updated;
+    writeJsonAtomic(productsFile, list);
+    res.json({ success: true, product: updated });
+  }
+);
+
+// Admin: delete product
+app.delete("/api/products/:id", requireAdmin, (req, res) => {
+  const list = readJson(productsFile, []);
+  const id = Number(req.params.id);
+
+  if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+
+  const exists = list.some(p => Number(p.id) === id);
+  if (!exists) return res.status(404).json({ success: false, message: "Not found" });
+
+  const next = list.filter(p => Number(p.id) !== id);
+  writeJsonAtomic(productsFile, next);
+  res.json({ success: true });
+});
+
 /* ===================== NIGERIA DEFAULT PRICING (SEED) ===================== */
 function buildDefaultNigeriaPricing(fee = 5000) {
   const FEE = Math.max(0, Math.round(Number(fee) || 0));
-
   const statesAndCapitals = [
     { name: "Abia", city: "Umuahia" },
     { name: "Adamawa", city: "Yola" },
@@ -458,7 +567,6 @@ function buildDefaultNigeriaPricing(fee = 5000) {
     { name: "Yobe", city: "Damaturu" },
     { name: "Zamfara", city: "Gusau" }
   ];
-
   return {
     defaultFee: FEE,
     updatedAt: new Date().toISOString(),

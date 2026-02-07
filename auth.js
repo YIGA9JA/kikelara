@@ -1,12 +1,16 @@
-// auth.js (shared by all admin pages)
+// auth.js
+const API_BASE = window.API_BASE;
+const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin-token";
 
-const API_BASE = "http://localhost:4000";
-const TOKEN_KEY = "admin-token";
+function adminLogout() {
+  localStorage.removeItem(TOKEN_KEY);
+  location.replace("admin-login.html");
+}
 
 async function checkAuth() {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
-    window.location.href = "admin-login.html";
+    location.replace("admin-login.html");
     return false;
   }
 
@@ -15,21 +19,11 @@ async function checkAuth() {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    if (!res.ok) {
-      localStorage.removeItem(TOKEN_KEY);
-      window.location.href = "admin-login.html";
-      return false;
-    }
-
+    if (!res.ok) throw new Error("Not ok");
     return true;
   } catch {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = "admin-login.html";
+    location.replace("admin-login.html");
     return false;
   }
-}
-
-function adminLogout() {
-  localStorage.removeItem(TOKEN_KEY);
-  window.location.href = "admin-login.html";
 }

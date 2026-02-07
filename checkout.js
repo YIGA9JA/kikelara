@@ -1,7 +1,7 @@
 /* ===================== CHECKOUT.JS (NECESSAIRE-STYLE UI + YOUR COLORS + YOUR LOGIC) ===================== */
 
 /* ================= API (BACKEND) ================= */
-const API_BASE = "http://localhost:4000"; // change when deployed (Render URL)
+const API_BASE = "https://kikelara.onrender.com"; // ✅ your Render backend
 
 /* ================= NIGERIA STATES + LGAs (FALLBACK SOURCE) ================= */
 const NIGERIA_LGA_SOURCE =
@@ -98,7 +98,7 @@ function savePricingBackup(p) {
   try { localStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p)); } catch {}
 }
 
-/* Nigeria dataset fallback */
+/* Nigeria dataset fallback -> build pricing format */
 function buildPricingFromNigeriaDataset(data, defaultFee) {
   const fee = Number.isFinite(Number(defaultFee))
     ? Math.max(0, Math.round(Number(defaultFee)))
@@ -199,8 +199,9 @@ function setBtnLoading(isLoading) {
 function updateShippingIndicator() {
   if (!shipSegment || !segIndicator) return;
   const type = getSelectedShippingType();
-  // left = pickup, right = delivery
-  segIndicator.style.transform = type === "delivery" ? "translateX(calc(100% + 10px))" : "translateX(0)";
+  segIndicator.style.transform = type === "delivery"
+    ? "translateX(calc(100% + 10px))"
+    : "translateX(0)";
 }
 
 /* ================= UI: SHIPPING SHOW/HIDE ================= */
@@ -493,7 +494,7 @@ payNowBtn?.addEventListener("click", (e) => {
 /* ================= INIT ================= */
 (async function init() {
   renderSummaryItems();
-  updateShippingUI(); // also positions segment indicator
+  updateShippingUI();
 
   // pricing fallback chain
   try {

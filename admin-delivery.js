@@ -1,15 +1,12 @@
-// admin-delivery.js (FULL - backend storage)
+// admin-delivery.js (FULL - backend storage + seed ALL Nigeria LGAs)
 
 (async () => {
   const ok = await checkAuth();
   if (!ok) return;
 
-  const API_BASE = "http://localhost:4000";
+  const API_BASE = "https://kikelara.onrender.com"; // ✅ your Render backend
   const TOKEN_KEY = "admin-token";
-  const SEED_FEE = 5000;
-
-  const NIGERIA_LGA_SOURCE =
-    "https://gist.githubusercontent.com/chrisidakwo/4ba3a4f03afc442305021be4ca67738e/raw/a8276ee3a756ae47ee853c4be5a82a11d6c8a313/nigerian-states.json";
+  const DEFAULT_SEED_FEE = 5000;
 
   /* ================= ELEMENTS ================= */
   const stateList = document.getElementById("stateList");
@@ -31,10 +28,24 @@
   const exportBtn = document.getElementById("exportBtn");
   const importInput = document.getElementById("importInput");
 
-  /* ================= HELPERS ================= */
+  /* ================= AUTH + FETCH ================= */
   function authHeaders() {
     const token = localStorage.getItem(TOKEN_KEY);
     return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  async function fetchWithAuth(url, options = {}) {
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...(options.headers || {}), ...authHeaders() }
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.href = "admin-login.html";
+      return null;
+    }
+    return res;
   }
 
   function escapeHtml(str) {
@@ -78,40 +89,49 @@
 
     out.states.sort((a, b) => a.name.localeCompare(b.name));
     out.states.forEach(s => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
-
     return out;
   }
 
   async function apiGetPricing() {
-    const res = await fetch(`${API_BASE}/admin/delivery-pricing`, {
-      headers: { ...authHeaders() },
-      cache: "no-store"
-    });
+    const res = await fetchWithAuth(`${API_BASE}/admin/delivery-pricing`, { cache: "no-store" });
+    if (!res) return null;
     if (!res.ok) throw new Error("Failed to load pricing");
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!data?.success || !data.pricing) throw new Error("Bad pricing response");
     return normalizePricing(data.pricing);
   }
 
   async function apiSavePricing(pricingObj) {
-    const res = await fetch(`${API_BASE}/admin/delivery-pricing`, {
+    const res = await fetchWithAuth(`${API_BASE}/admin/delivery-pricing`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders()
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pricingObj)
     });
+    if (!res) return null;
     if (!res.ok) throw new Error("Failed to save pricing");
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!data?.success || !data.pricing) throw new Error("Bad save response");
+    return normalizePricing(data.pricing);
+  }
+
+  // ✅ NEW: Seed ALL Nigeria states + LGAs on the server
+  async function apiSeedNigeria(fee = 5000) {
+    const res = await fetchWithAuth(`${API_BASE}/admin/delivery-pricing/seed-nigeria`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fee })
+    });
+    if (!res) return null;
+    if (!res.ok) throw new Error("Seed Nigeria failed");
+    const data = await res.json().catch(() => ({}));
+    if (!data?.success || !data.pricing) throw new Error("Bad seed response");
     return normalizePricing(data.pricing);
   }
 
   /* ================= STATE ================= */
   let pricing = normalizePricing(null);
 
-  /* ================= INIT ================= */
+  /* ================= EVENTS ================= */
   logoutBtn?.addEventListener("click", adminLogout);
 
   collapseAllBtn?.addEventListener("click", () => {
@@ -197,41 +217,29 @@
     }
   });
 
+  // ✅ Seed all LGAs
   seedNigeriaBtn?.addEventListener("click", async () => {
     const ok = confirm(
-      "This will REPLACE server pricing with ALL Nigeria states + LGAs, and set every fee to ₦5000.\n\nContinue?"
+      `This will REPLACE server pricing with ALL Nigeria states + LGAs and set every fee.\n\nContinue?`
     );
     if (!ok) return;
+
+    const input = prompt("Set fee for ALL LGAs (₦):", String(DEFAULT_SEED_FEE));
+    const fee = Number(input);
+    if (!Number.isFinite(fee) || fee < 0) return alert("Enter a valid fee");
 
     seedNigeriaBtn.disabled = true;
     seedNigeriaBtn.textContent = "Seeding...";
 
     try {
-      const res = await fetch(NIGERIA_LGA_SOURCE, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch dataset");
-      const data = await res.json();
-
-      const states = Object.keys(data || {}).map(stateName => {
-        const lgas = Array.isArray(data[stateName]) ? data[stateName] : [];
-        return {
-          name: String(stateName || "").trim(),
-          cities: lgas
-            .map(lga => ({ name: String(lga || "").trim(), fee: SEED_FEE }))
-            .filter(c => c.name)
-        };
-      });
-
-      const next = normalizePricing({ defaultFee: SEED_FEE, states });
-
-      pricing = await apiSavePricing(next);
+      pricing = await apiSeedNigeria(fee);
       if (defaultFeeEl) defaultFeeEl.value = pricing.defaultFee;
-
       setLastUpdate(pricing.updatedAt);
       renderStates();
-      alert("✅ Nigeria seeded and saved to SERVER (works for all users)");
+      alert("✅ Seeded ALL LGAs and saved to SERVER (works for all users)");
     } catch (e) {
       console.error(e);
-      alert("❌ Seeding failed. Check internet or dataset URL.");
+      alert("❌ Seeding failed. Check backend logs.");
     } finally {
       seedNigeriaBtn.disabled = false;
       seedNigeriaBtn.textContent = "Seed Nigeria (₦5000)";
@@ -275,7 +283,7 @@
         <div class="state-head" data-toggle="${sIndex}">
           <div class="state-title">
             <span class="name">${escapeHtml(state.name)}</span>
-            <span class="state-badge">${cityCount} city${cityCount === 1 ? "" : "ies"}</span>
+            <span class="state-badge">${cityCount} LGA${cityCount === 1 ? "" : "s"}</span>
           </div>
           <div class="state-actions">
             <button class="icon-btn" data-del-state="${sIndex}" title="Delete state" type="button">✕</button>
@@ -287,15 +295,15 @@
           <div class="inner">
             <div class="state-tools">
               <button class="small-btn" data-set-all="${sIndex}" type="button">Set all fees</button>
-              <button class="small-btn danger" data-clear-cities="${sIndex}" type="button">Clear cities</button>
+              <button class="small-btn danger" data-clear-cities="${sIndex}" type="button">Clear LGAs</button>
             </div>
 
             <div class="city-list" id="cityList-${sIndex}"></div>
 
             <div class="add-city">
-              <input type="text" id="newCity-${sIndex}" placeholder="City/LGA name (e.g. Lekki)">
+              <input type="text" id="newCity-${sIndex}" placeholder="LGA name (e.g. Ikeja)">
               <input type="number" id="newFee-${sIndex}" placeholder="Fee (₦)" min="0">
-              <button class="small-btn" data-add-city="${sIndex}" type="button">Add City</button>
+              <button class="small-btn" data-add-city="${sIndex}" type="button">Add LGA</button>
             </div>
           </div>
         </div>
@@ -314,7 +322,7 @@
     container.innerHTML = "";
 
     if (!cities.length) {
-      container.innerHTML = `<p style="opacity:.85;">No cities yet.</p>`;
+      container.innerHTML = `<p style="opacity:.85;">No LGAs yet.</p>`;
       return;
     }
 
@@ -343,7 +351,7 @@
     });
   }
 
-  /* ================= EVENTS ================= */
+  /* ================= CLICK EVENTS ================= */
   document.addEventListener("click", async (e) => {
     const toggle = e.target.closest("[data-toggle], [data-togglebtn]");
     if (toggle) {
@@ -357,15 +365,15 @@
     if (delStateBtn) {
       const idx = Number(delStateBtn.getAttribute("data-del-state"));
       const name = pricing.states[idx]?.name || "this state";
-      if (!confirm(`Delete ${name} and all its cities?`)) return;
+      if (!confirm(`Delete ${name} and all its LGAs?`)) return;
 
       try {
         pricing.states.splice(idx, 1);
         pricing = await apiSavePricing(pricing);
         setLastUpdate(pricing.updatedAt);
         renderStates();
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save to server");
       }
       return;
@@ -380,12 +388,12 @@
       const cityName = (cityNameEl?.value || "").trim();
       const fee = Number(feeEl?.value);
 
-      if (!cityName) return alert("Enter city name");
+      if (!cityName) return alert("Enter LGA name");
       if (!Number.isFinite(fee) || fee < 0) return alert("Enter a valid fee");
 
       const cities = pricing.states[sIndex].cities || (pricing.states[sIndex].cities = []);
       if (cities.some(c => c.name.toLowerCase() === cityName.toLowerCase())) {
-        return alert("City already exists in this state");
+        return alert("LGA already exists in this state");
       }
 
       try {
@@ -398,8 +406,8 @@
         renderCities(sIndex);
         if (cityNameEl) cityNameEl.value = "";
         if (feeEl) feeEl.value = "";
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save to server");
       }
       return;
@@ -419,8 +427,8 @@
         pricing = await apiSavePricing(pricing);
         setLastUpdate(pricing.updatedAt);
         renderCities(sIndex);
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save to server");
       }
       return;
@@ -432,7 +440,7 @@
       const st = pricing.states[sIndex];
       if (!st) return;
 
-      const input = prompt(`Set one fee for ALL cities in ${st.name} (₦):`, String(SEED_FEE));
+      const input = prompt(`Set one fee for ALL LGAs in ${st.name} (₦):`, String(DEFAULT_SEED_FEE));
       const fee = Number(input);
       if (!Number.isFinite(fee) || fee < 0) return alert("Enter a valid fee");
 
@@ -442,8 +450,8 @@
         setLastUpdate(pricing.updatedAt);
         renderCities(sIndex);
         alert(`✅ Updated all fees in ${st.name} (server)`);
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save to server");
       }
       return;
@@ -455,22 +463,22 @@
       const st = pricing.states[sIndex];
       if (!st) return;
 
-      if (!confirm(`Remove ALL cities in ${st.name}?`)) return;
+      if (!confirm(`Remove ALL LGAs in ${st.name}?`)) return;
 
       try {
         st.cities = [];
         pricing = await apiSavePricing(pricing);
         setLastUpdate(pricing.updatedAt);
         renderStates();
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save to server");
       }
       return;
     }
   });
 
-  // Inline fee editing: debounce + save to server
+  // Inline fee editing: debounce + save
   let feeSaveTimer = null;
   document.addEventListener("input", (e) => {
     const feeInput = e.target.closest("[data-fee][data-city]");
@@ -491,22 +499,24 @@
       try {
         pricing = await apiSavePricing(pricing);
         setLastUpdate(pricing.updatedAt);
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("❌ Failed to save fee to server");
       }
-    }, 400);
+    }, 450);
   });
 
   /* ================= LOAD FIRST ================= */
   try {
-    stateList.innerHTML = `<p style="opacity:.85;">Loading pricing from server...</p>`;
-    pricing = await apiGetPricing();
+    if (stateList) stateList.innerHTML = `<p style="opacity:.85;">Loading pricing from server...</p>`;
+    const loaded = await apiGetPricing();
+    if (!loaded) throw new Error("No pricing");
+    pricing = loaded;
     if (defaultFeeEl) defaultFeeEl.value = pricing.defaultFee;
     setLastUpdate(pricing.updatedAt);
     renderStates();
-  } catch (e) {
-    console.error(e);
-    stateList.innerHTML = `<p style="opacity:.85;">❌ Failed to load delivery pricing. Check backend + admin login.</p>`;
+  } catch (err) {
+    console.error(err);
+    if (stateList) stateList.innerHTML = `<p style="opacity:.85;">❌ Failed to load delivery pricing. Check backend + admin login.</p>`;
   }
 })();
