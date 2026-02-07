@@ -1,39 +1,30 @@
-// admin-messages.js (WORKS WITH YOUR CURRENT server.js)
-(() => {
-  const API_BASE = (window.API_BASE || "https://kikelara.onrender.com").replace(/\/$/, "");
-  const TOKEN_KEY = "admin-token";
-  const DELETE_PIN = window.ADMIN_DELETE_PIN || "1234";
+(async () => {
+  const ok = await checkAuth();
+  if (!ok) return;
 
-  const apiLabel = document.getElementById("apiLabel");
-  const refreshBtn = document.getElementById("refreshBtn");
+  const API_BASE = window.API_BASE;
+  const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin-token";
+
+  const ordersContainer = document.getElementById("ordersContainer");
   const logoutBtn = document.getElementById("logoutBtn");
-  const exportBtn = document.getElementById("exportBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const apiLabel = document.getElementById("apiLabel");
+
+  const statusTabs = document.getElementById("statusTabs");
   const searchBox = document.getElementById("searchBox");
   const statsRow = document.getElementById("statsRow");
-  const countLabel = document.getElementById("countLabel");
-  const tbody = document.getElementById("tbody");
   const toastEl = document.getElementById("toast");
 
-  // Modal (optional if your HTML has it)
-  const modal = document.getElementById("modal");
-  const closeModalBtn = document.getElementById("closeModalBtn");
-  const modalMeta = document.getElementById("modalMeta");
-  const mName = document.getElementById("mName");
-  const mEmailLink = document.getElementById("mEmailLink");
-  const copyEmailBtn = document.getElementById("copyEmailBtn");
-  const mMessage = document.getElementById("mMessage");
-  const deleteBtn = document.getElementById("deleteBtn");
-
   if (apiLabel) apiLabel.textContent = API_BASE;
+  logoutBtn?.addEventListener("click", adminLogout);
 
-  let allMessages = [];
-  let activeMessage = null;
+  let currentStatusFilter = "all";
+  let currentSearch = "";
+  let allOrdersCache = [];
+  let isInteracting = false;
 
-  function getToken() {
-    return localStorage.getItem(TOKEN_KEY);
-  }
   function authHeaders() {
-    const token = getToken();
+    const token = localStorage.getItem(TOKEN_KEY);
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
@@ -45,21 +36,26 @@
 
     if (res.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
-      location.replace("admin-login.html");
+      location.href = "admin-login.html";
       return null;
     }
+
     return res;
   }
 
   function toast(msg) {
-    if (!toastEl) return alert(msg);
+    if (!toastEl) return;
     toastEl.textContent = msg;
     toastEl.classList.add("show");
-    setTimeout(() => toastEl.classList.remove("show"), 1800);
+    setTimeout(() => toastEl.classList.remove("show"), 1600);
   }
 
+  function money(n) { return Number(n || 0).toLocaleString(); }
+
+  function safeText(v) { return String(v ?? "").trim() || "-"; }
+
   function escapeHtml(str) {
-    return String(str ?? "")
+    return String(str || "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
@@ -67,257 +63,263 @@
       .replaceAll("'", "&#039;");
   }
 
-  function formatDate(ts) {
-    if (!ts) return "—";
-    try { return new Date(ts).toLocaleString(); } catch { return "—"; }
+  function domSafeId(v) {
+    return String(v ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
   }
 
-  function getId(m) { return m?.id ?? m?._id ?? ""; }
-  function getName(m) { return String(m?.name || "Unknown").trim(); }
-  function getEmail(m) { return String(m?.email || "").trim(); }
-  function getMsg(m) { return String(m?.message || "").trim(); }
-  function getDate(m) { return m?.createdAt || m?.date || m?.time || ""; }
-
-  function makePreview(text, n = 110) {
-    if (!text) return "—";
-    return text.length > n ? text.slice(0, n) + "…" : text;
+  function getItems(order) {
+    if (Array.isArray(order.cart)) return order.cart;
+    if (Array.isArray(order.items)) return order.items;
+    return [];
   }
 
-  async function apiLoadMessages() {
-    const res = await fetchWithAuth(`${API_BASE}/admin/messages`, { cache: "no-store" });
+  function lineTotal(item) {
+    const price = Number(item.price || 0);
+    const qty = Number(item.qty || 0);
+    const computed = price * qty;
+    const raw = item.total ?? computed;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function subtotal(items) {
+    return items.reduce((sum, i) => sum + lineTotal(i), 0);
+  }
+
+  async function fetchOrders() {
+    const res = await fetchWithAuth(`${API_BASE}/orders`, { cache: "no-store" });
     if (!res) return [];
-    if (!res.ok) throw new Error("Failed to load messages");
-    const data = await res.json().catch(() => ([]));
-    return Array.isArray(data) ? data : [];
+    if (!res.ok) throw new Error("Failed to load orders");
+    const orders = await res.json();
+    return Array.isArray(orders) ? orders : [];
   }
 
-  async function apiDeleteMessage(id) {
-    const res = await fetchWithAuth(`${API_BASE}/admin/messages/${encodeURIComponent(id)}`, {
-      method: "DELETE"
-    });
+  async function patchStatus(orderIdOrRef, status) {
+    const res = await fetchWithAuth(
+      `${API_BASE}/orders/${encodeURIComponent(orderIdOrRef)}/status`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      }
+    );
     if (!res) return null;
-    if (!res.ok) throw new Error("Delete failed");
-    return res.json().catch(() => ({}));
+    if (!res.ok) throw new Error("Failed to update");
+    return res.json();
   }
 
-  function filteredMessages() {
-    const q = String(searchBox?.value || "").trim().toLowerCase();
-    let arr = [...allMessages];
-
-    if (q) {
-      arr = arr.filter(m => {
-        const blob = `${getName(m)} ${getEmail(m)} ${getMsg(m)}`.toLowerCase();
-        return blob.includes(q);
-      });
-    }
-
-    arr.sort((a, b) => new Date(getDate(b) || 0) - new Date(getDate(a) || 0));
-    return arr;
-  }
-
-  function renderStats() {
+  function renderStats(orders) {
     if (!statsRow) return;
-    const total = allMessages.length;
+
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const pending = orders.filter(o => (o.status || "Pending") === "Pending").length;
+    const delivered = orders.filter(o => (o.status || "Pending") === "Delivered").length;
+
     statsRow.innerHTML = `
-      <div class="stat">
-        <div class="k">Total Messages</div>
-        <div class="v">${total}</div>
-      </div>
+      <div class="stat"><div class="k">Orders</div><div class="v">${money(totalOrders)}</div></div>
+      <div class="stat"><div class="k">Revenue</div><div class="v">₦${money(totalRevenue)}</div></div>
+      <div class="stat"><div class="k">Pending</div><div class="v">${money(pending)}</div></div>
+      <div class="stat"><div class="k">Delivered</div><div class="v">${money(delivered)}</div></div>
     `;
   }
 
-  function renderTable() {
-    if (!tbody) return;
+  function applyFilters(orders) {
+    let out = [...orders];
 
-    const list = filteredMessages();
-    if (countLabel) countLabel.textContent = `${list.length} message${list.length === 1 ? "" : "s"}`;
+    if (currentStatusFilter !== "all") {
+      out = out.filter(o => String(o.status || "Pending") === currentStatusFilter);
+    }
 
-    if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty">No messages found.</td></tr>`;
+    if (currentSearch) {
+      const q = currentSearch.toLowerCase();
+      out = out.filter(o => {
+        const ref = String(o.reference || o.id || o._id || "").toLowerCase();
+        const name = String(o.name || o.customer?.name || "").toLowerCase();
+        const phone = String(o.phone || o.customer?.phone || "").toLowerCase();
+        const email = String(o.email || o.customer?.email || "").toLowerCase();
+        return ref.includes(q) || name.includes(q) || phone.includes(q) || email.includes(q);
+      });
+    }
+
+    out.sort((a, b) => {
+      const da = new Date(a.createdAt || a.created_at || 0).getTime();
+      const db = new Date(b.createdAt || b.created_at || 0).getTime();
+      return db - da;
+    });
+
+    return out;
+  }
+
+  function renderOrders(orders) {
+    if (!ordersContainer) return;
+
+    const openSet = new Set(
+      Array.from(document.querySelectorAll(".order-body.open"))
+        .map(el => el.id.replace("body-", ""))
+    );
+
+    if (!orders.length) {
+      ordersContainer.innerHTML = `<p style="opacity:.85;">No orders found.</p>`;
       return;
     }
 
-    tbody.innerHTML = list.map(m => {
-      const id = getId(m);
-      const name = escapeHtml(getName(m));
-      const email = escapeHtml(getEmail(m) || "—");
-      const msg = escapeHtml(makePreview(getMsg(m), 140));
-      const date = escapeHtml(formatDate(getDate(m)));
+    ordersContainer.innerHTML = "";
 
-      return `
-        <tr data-id="${escapeHtml(id)}">
-          <td><b>${name}</b></td>
-          <td class="email">${email}</td>
-          <td><div class="preview">${msg}</div></td>
-          <td class="date">${date}</td>
-          <td>
-            <div class="actions">
-              <button class="btn" data-action="view" data-id="${escapeHtml(id)}">View</button>
-              <button class="danger-btn" data-action="delete" data-id="${escapeHtml(id)}">Delete</button>
+    orders.forEach(order => {
+      const rawKey = String(order.id ?? order.reference ?? order._id ?? "");
+      const domId = domSafeId(rawKey);
+      const items = getItems(order);
+      const sub = subtotal(items);
+      const status = safeText(order.status || "Pending");
+
+      const shippingText = (order.shippingType === "pickup")
+        ? "Pickup"
+        : `${safeText(order.state)}, ${safeText(order.city)}`;
+
+      const created = order.createdAt || order.created_at || "";
+      const createdNice = created ? new Date(created).toLocaleString() : "-";
+
+      const card = document.createElement("div");
+      card.className = "order-card";
+
+      card.innerHTML = `
+        <div class="order-head" data-toggle="${escapeHtml(domId)}">
+          <div class="order-left">
+            <div class="order-title">Order #${escapeHtml(safeText(order.reference || order.id || order._id))}</div>
+            <div class="order-sub">${escapeHtml(safeText(order.name || order.customer?.name))} • ${escapeHtml(safeText(order.phone || order.customer?.phone))} • ${escapeHtml(shippingText)}</div>
+          </div>
+
+          <div class="badges">
+            <span class="badge status-${escapeHtml(status)}">${escapeHtml(status)}</span>
+            <span class="badge">₦${money(order.total)}</span>
+            <span class="badge">${escapeHtml(createdNice)}</span>
+          </div>
+        </div>
+
+        <div class="order-body ${openSet.has(domId) ? "open" : ""}" id="body-${escapeHtml(domId)}">
+          <div class="grid">
+            <div class="kv"><div class="k">Name</div><div class="v">${escapeHtml(safeText(order.name))}</div></div>
+            <div class="kv"><div class="k">Email</div><div class="v">${escapeHtml(safeText(order.email))}</div></div>
+            <div class="kv"><div class="k">Phone</div><div class="v">${escapeHtml(safeText(order.phone))}</div></div>
+            <div class="kv"><div class="k">Shipping</div><div class="v">${escapeHtml(shippingText)}</div></div>
+            <div class="kv" style="grid-column:1/-1;"><div class="k">Address</div><div class="v">${escapeHtml(safeText(order.address))}</div></div>
+          </div>
+
+          <div class="items">
+            ${items.map(i => `
+              <div class="row">
+                <div>
+                  <div class="name">${escapeHtml(safeText(i.name))} × ${escapeHtml(safeText(i.qty))}</div>
+                  <div class="meta">₦${money(i.price)} each</div>
+                </div>
+                <div class="total">₦${money(lineTotal(i))}</div>
+              </div>
+            `).join("")}
+          </div>
+
+          <div class="grid">
+            <div class="kv"><div class="k">Subtotal</div><div class="v">₦${money(sub)}</div></div>
+            <div class="kv"><div class="k">Delivery Fee</div><div class="v">₦${money(order.deliveryFee)}</div></div>
+            <div class="kv"><div class="k">Total</div><div class="v">₦${money(order.total)}</div></div>
+            <div class="kv"><div class="k">Reference</div><div class="v">${escapeHtml(safeText(order.reference))}</div></div>
+          </div>
+
+          <div class="actions">
+            <div>
+              <label style="font-weight:900; opacity:.85; font-size:.9rem;">Status</label><br/>
+              <select id="status-${escapeHtml(domId)}" data-lookup="${escapeHtml(order.id ?? order.reference)}">
+                ${["Pending","Confirmed","Shipped","Delivered"].map(s =>
+                  `<option value="${s}" ${s===status ? "selected":""}>${s}</option>`
+                ).join("")}
+              </select>
             </div>
-          </td>
-        </tr>
+
+            <button class="btn" type="button" data-update="${escapeHtml(domId)}">Update Status</button>
+          </div>
+        </div>
       `;
-    }).join("");
+
+      ordersContainer.appendChild(card);
+    });
   }
 
-  function openModal(m) {
-    activeMessage = m;
+  function rerenderFromCache() {
+    renderStats(allOrdersCache);
+    renderOrders(applyFilters(allOrdersCache));
+  }
 
-    if (mName) mName.textContent = getName(m) || "—";
-
-    const email = getEmail(m);
-    if (mEmailLink) {
-      mEmailLink.textContent = email || "—";
-      if (email) {
-        mEmailLink.href = `mailto:${email}`;
-        mEmailLink.style.pointerEvents = "auto";
-        mEmailLink.style.opacity = "1";
-      } else {
-        mEmailLink.href = "#";
-        mEmailLink.style.pointerEvents = "none";
-        mEmailLink.style.opacity = ".75";
-      }
-    }
-
-    if (mMessage) mMessage.textContent = getMsg(m) || "—";
-    if (modalMeta) modalMeta.textContent = formatDate(getDate(m));
-
-    if (modal) {
-      modal.classList.add("show");
-      modal.setAttribute("aria-hidden", "false");
+  async function refreshFromServer() {
+    ordersContainer.innerHTML = `<p style="opacity:.85;">Loading orders...</p>`;
+    try {
+      allOrdersCache = await fetchOrders();
+      rerenderFromCache();
+    } catch (err) {
+      console.error(err);
+      ordersContainer.innerHTML =
+        `<p style="opacity:.85;">Failed to load orders from ${escapeHtml(API_BASE)}.</p>`;
     }
   }
 
-  function closeModal() {
-    activeMessage = null;
-    if (modal) {
-      modal.classList.remove("show");
-      modal.setAttribute("aria-hidden", "true");
-    }
-  }
+  async function updateStatus(domId) {
+    const select = document.getElementById(`status-${domId}`);
+    if (!select) return;
 
-  async function handleDelete(id) {
-    const pin = prompt("Enter delete PIN:");
-    if (pin !== DELETE_PIN) return toast("❌ Wrong PIN");
-
-    const ok = confirm("Delete this message permanently?");
-    if (!ok) return;
+    const newStatus = select.value;
+    const lookup = select.getAttribute("data-lookup") || domId;
 
     try {
-      await apiDeleteMessage(id);
-      allMessages = allMessages.filter(m => String(getId(m)) !== String(id));
-      renderStats();
-      renderTable();
-      closeModal();
-      toast("✅ Message deleted");
-    } catch (e) {
-      console.error(e);
-      toast("❌ Delete failed (check backend)");
+      await patchStatus(lookup, newStatus);
+      toast(`✅ Status updated: ${newStatus}`);
+      await refreshFromServer();
+    } catch (err) {
+      console.error(err);
+      toast("❌ Failed to update status");
     }
   }
 
-  function exportCSV() {
-    const rows = filteredMessages().map(m => ({
-      name: getName(m),
-      email: getEmail(m),
-      message: getMsg(m),
-      date: formatDate(getDate(m))
-    }));
+  refreshBtn?.addEventListener("click", refreshFromServer);
 
-    const headers = ["name", "email", "message", "date"];
-    const csv = [
-      headers.join(","),
-      ...rows.map(r => headers.map(h => `"${String(r[h] ?? "").replaceAll('"', '""')}"`).join(","))
-    ].join("\n");
+  statusTabs?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tab");
+    if (!btn) return;
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `messages_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    toast("✅ Exported CSV");
-  }
-
-  async function reload() {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty">Loading…</td></tr>`;
-
-    try {
-      const arr = await apiLoadMessages();
-      allMessages = Array.isArray(arr) ? arr : [];
-      renderStats();
-      renderTable();
-    } catch (e) {
-      console.error(e);
-      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty">❌ Failed to load messages.</td></tr>`;
-      toast("❌ Failed to load messages");
-    }
-  }
-
-  // Events
-  refreshBtn?.addEventListener("click", reload);
-
-  logoutBtn?.addEventListener("click", () => {
-    localStorage.removeItem(TOKEN_KEY);
-    location.replace("admin-login.html");
+    currentStatusFilter = btn.dataset.status || "all";
+    rerenderFromCache();
   });
 
-  exportBtn?.addEventListener("click", exportCSV);
-
-  searchBox?.addEventListener("input", renderTable);
-
-  closeModalBtn?.addEventListener("click", closeModal);
-
-  modal?.addEventListener("click", (e) => {
-    if (e.target === modal) closeModal();
+  let searchTimer = null;
+  searchBox?.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      currentSearch = String(searchBox.value || "").trim();
+      rerenderFromCache();
+    }, 180);
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
+  document.addEventListener("focusin", (e) => {
+    if (e.target.closest("select, input, textarea, button")) isInteracting = true;
   });
-
-  copyEmailBtn?.addEventListener("click", async () => {
-    if (!activeMessage) return;
-    const email = getEmail(activeMessage);
-    if (!email) return toast("No email to copy");
-    try {
-      await navigator.clipboard.writeText(email);
-      toast("✅ Email copied");
-    } catch {
-      toast("❌ Copy failed");
-    }
-  });
-
-  deleteBtn?.addEventListener("click", () => {
-    if (!activeMessage) return;
-    handleDelete(getId(activeMessage));
+  document.addEventListener("focusout", () => {
+    setTimeout(() => (isInteracting = false), 150);
   });
 
   document.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-action]");
-    if (!btn) return;
+    const head = e.target.closest(".order-head");
+    if (head) {
+      const id = head.getAttribute("data-toggle");
+      const body = document.getElementById(`body-${id}`);
+      if (body) body.classList.toggle("open");
+      return;
+    }
 
-    const action = btn.getAttribute("data-action");
-    const id = btn.getAttribute("data-id");
-
-    const msg = allMessages.find(m => String(getId(m)) === String(id));
-    if (!msg) return toast("Message not found");
-
-    if (action === "view") openModal(msg);
-    if (action === "delete") handleDelete(id);
+    const upd = e.target.closest("[data-update]");
+    if (upd) updateStatus(upd.getAttribute("data-update"));
   });
 
-  // Boot
-  if (!getToken()) {
-    location.replace("admin-login.html");
-    return;
-  }
-
-  reload();
+  await refreshFromServer();
+  setInterval(() => { if (!isInteracting) refreshFromServer(); }, 30000);
 })();
