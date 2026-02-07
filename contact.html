@@ -6,16 +6,14 @@
   <title>Contact | KÍKE LÁRÁ</title>
   <meta name="description" content="Contact KÍKE LÁRÁ for orders, support, and collaborations." />
 
-  <!-- Your global colors (keep consistent) -->
   <link rel="stylesheet" href="contact.css" />
   <link rel="stylesheet" href="footer.css" />
-  <link rel="stylesheet" href="header.css">
+  <link rel="stylesheet" href="header.css" />
 </head>
-  <div id="siteHeader"></div>
 
 <body>
-
- 
+  <!-- Header mount -->
+  <div id="siteHeader"></div>
 
   <div class="mobile-nav" id="mobileNav">
     <a href="index.html">Home</a>
@@ -25,7 +23,6 @@
     <a href="contact.html">Contact</a>
   </div>
 
-  <!-- ================= CONTACT HERO ================= -->
   <main class="contact-page">
     <section class="contact-hero">
       <div class="hero-inner">
@@ -37,9 +34,7 @@
       </div>
     </section>
 
-    <!-- ================= CONTACT GRID ================= -->
     <section class="contact-grid">
-
       <!-- FORM CARD -->
       <div class="card form-card">
         <h2>Send us a message</h2>
@@ -68,11 +63,11 @@
               <label for="topic">Topic</label>
               <select id="topic" name="topic" required>
                 <option value="">Choose one</option>
-                <option>Order issue</option>
-                <option>Product question</option>
-                <option>Wholesale / Retail</option>
-                <option>Collaboration</option>
-                <option>Other</option>
+                <option value="Order issue">Order issue</option>
+                <option value="Product question">Product question</option>
+                <option value="Wholesale / Retail">Wholesale / Retail</option>
+                <option value="Collaboration">Collaboration</option>
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>
@@ -82,7 +77,7 @@
             <textarea id="message" name="message" placeholder="Tell us how we can help…" rows="6" required></textarea>
           </div>
 
-          <button type="submit" class="submit-btn">
+          <button id="submitBtn" type="submit" class="submit-btn">
             Submit
           </button>
 
@@ -103,7 +98,7 @@
         <div class="info-block">
           <div class="info-title">Social</div>
           <div class="socials">
-            <a class="social-pill" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
+            <a class="social-pill" href="https://instagram.com/_kikelara" target="_blank" rel="noopener">
               <span class="ico">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm-5 4a4 4 0 1 1 0 8a4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4a2 2 0 0 0 0-4Zm5.2-2.6a1 1 0 1 1 0 2a1 1 0 0 1 0-2Z"/>
@@ -112,7 +107,7 @@
               Instagram <span class="handle">@_kikelara</span>
             </a>
 
-            <a class="social-pill" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
+            <a class="social-pill" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener">
               <span class="ico">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="currentColor" d="M15 3c.5 2.9 2.8 5.1 5.7 5.3v3c-2 0-3.8-.6-5.3-1.6V16c0 3.6-2.9 6.5-6.5 6.5S2.4 19.6 2.4 16S5.3 9.5 8.9 9.5c.3 0 .6 0 .9.1v3.2c-.3-.1-.6-.2-.9-.2c-1.8 0-3.3 1.5-3.3 3.3c0 1.8 1.5 3.3 3.3 3.3c1.9 0 3.4-1.5 3.4-3.4V3h2.7Z"/>
@@ -126,7 +121,6 @@
         <div class="info-block">
           <div class="info-title">Hours</div>
           <div class="info-text">Mon–Sat, 9am–6pm</div>
-          <div class="info-note">Adjust to your real hours.</div>
         </div>
 
         <div class="info-block">
@@ -136,53 +130,14 @@
           <a class="mini-link" href="products.html">Shop Products</a>
         </div>
       </aside>
-
-    </section>
-
-    <!-- ================= FAQ (Necessaire-style) ================= -->
-    <section class="faq">
-      <div class="faq-head">
-        <h2>FAQ</h2>
-        <p class="muted">Quick answers to common questions.</p>
-      </div>
-
-      <div class="faq-list">
-        <details class="faq-item">
-          <summary>How do I track my order?</summary>
-          <div class="faq-body">
-            If you placed an order, you can contact us with your name + phone/email and we’ll confirm delivery status.
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary>What if my item arrived damaged?</summary>
-          <div class="faq-body">
-            Send a message with a photo of the product and package, and we’ll fix it quickly.
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary>Do you deliver nationwide?</summary>
-          <div class="faq-body">
-            Yes — delivery depends on your location. If you’re unsure, message us and we’ll confirm.
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary>How do I know what product is best for my skin?</summary>
-          <div class="faq-body">
-            Tell us your skin type and goal (glow, hydration, fading spots, etc.) and we’ll recommend.
-          </div>
-        </details>
-      </div>
     </section>
   </main>
 
-  <!-- Footer mount -->
   <div id="siteFooter"></div>
 
   <script src="header.js"></script>
   <script src="footer.js"></script>
+  <script src="config.js"></script>
   <script src="contact.js"></script>
 </body>
 </html>

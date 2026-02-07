@@ -1,4 +1,4 @@
-// config.js
+// config.js (KEEP ONLY THIS)
 (() => {
   const isLocal =
     location.hostname === "localhost" ||
@@ -9,9 +9,5 @@
 
   window.API_BASE = isLocal ? LOCAL_API : PROD_API;
   window.ADMIN_TOKEN_KEY = "admin-token";
+  window.ADMIN_DELETE_PIN = "1234"; // if you still use it
 })();
-window.API_BASE = "https://kikelara.onrender.com";
-window.ADMIN_DELETE_PIN = "1234";
-// config.js
-window.API_BASE = "https://kikelara.onrender.com";
-window.ADMIN_TOKEN_KEY = "admin-token";
