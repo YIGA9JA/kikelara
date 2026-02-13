@@ -1,0 +1,192 @@
+:root{
+  --butter:#ffefd5;
+  --butter-soft:#fff4da;
+  --butter-dark:#f0dcb2;
+  --text-dark:#3b2f1c;
+
+  /* brown button */
+  --brown:#EDCC9F;
+  --brown-dark:#4d3523;
+
+  --line: rgba(59,47,28,0.14);
+  --shadow: rgba(0,0,0,0.08);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Segoe UI",system-ui,sans-serif;}
+
+body{background:var(--butter);color:var(--text-dark);}
+
+/* filters area looks clean */
+.filters-section{
+  display:flex;
+  gap:18px;
+  padding:18px 6%;
+  flex-wrap:wrap;
+  background:var(--butter-soft);
+  border-bottom:1px solid var(--butter-dark);
+}
+
+.filter-group{display:flex;flex-direction:column;gap:6px;}
+.filter-group label{
+  font-size:12px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-weight:700;
+  opacity:.85;
+}
+.filter-group select{
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid var(--butter-dark);
+  background:#EDCC9F;
+  outline:none;
+}
+
+/* grid like a premium shop */
+.products-page{padding:26px 6%;}
+.products-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:26px;
+}
+
+/* ================= CARD (Nécessaire-inspired) ================= */
+.p-card{
+  background:transparent;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+/* square / consistent image sizes */
+.p-media{
+  width:100%;
+  aspect-ratio:1/1;
+  border-radius:16px;
+  overflow:hidden;
+  background:rgba(255,255,255,0.35);
+  border:1px solid var(--line);
+  box-shadow:0 10px 22px var(--shadow);
+}
+
+.p-img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  cursor:pointer;
+  user-select:none;
+  -webkit-user-drag:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* info: minimal, uppercase category */
+.p-info{display:flex;flex-direction:column;gap:6px;}
+
+.p-topline{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+
+.p-cat{
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:800;
+  opacity:.85;
+}
+
+.p-flag{
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:900;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid #EDCC9F;
+  background:#EDCC9F;
+}
+
+/* product name + price clean */
+.p-name{
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.02em;
+}
+
+.p-price{
+  font-size:13px;
+  font-weight:800;
+  opacity:.92;
+}
+
+/* button like premium shop */
+.p-btn{
+  width:100%;
+  margin-top:2px;
+  padding:12px 14px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.10);
+
+  background:var(--brown);
+  color:#4d3523;
+
+  font-size:12px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:900;
+
+  cursor:pointer;
+  box-shadow:0 12px 20px rgba(0,0,0,0.10);
+  transition: transform .12s ease, filter .12s ease, background .12s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.p-btn:active{transform:scale(0.99);}
+
+.p-btn:hover{filter:brightness(0.98);}
+
+.p-btn.is-added{
+  background:transparent;
+  color:var(--brown-dark);
+  border-color: rgba(106,74,47,0.40);
+  box-shadow:none;
+}
+
+/* ================= STOP “MOBILE SHAKE” =================
+   No hover transforms at all. Keep it clean.
+*/
+@media (hover:none) and (pointer:coarse){
+  .p-btn:hover{filter:none;}
+}
+
+/* responsive like a shop */
+@media (max-width: 980px){
+  .products-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}
+}
+
+@media (max-width: 560px){
+  .products-page{padding:18px 5%;}
+  .products-grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;}
+  .filters-section{padding:16px 5%;}
+}
+/* Rating line on cards */
+.p-rating{
+  margin-top: 8px;
+  font-weight: 850;
+  font-size: .92rem;
+  color: rgba(95,75,0,.85);
+  letter-spacing: 1px;
+}
+.p-rating .p-rate-num,
+.p-rating .p-rate-count{
+  letter-spacing: 0;
+  margin-left: 6px;
+  font-weight: 900;
+}
+.p-rating.is-empty{
+  letter-spacing: 0;
+  opacity: .7;
+}

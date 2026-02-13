@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Order Successful | KÍKÉ LÁRÁ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="order-success.css" />
+</head>
+
+<body>
+  <!-- SUCCESS HERO -->
+  <section class="success-container">
+    <div class="success-box">
+      <div class="checkmark">✓</div>
+
+      <h1>Payment Successful</h1>
+      <p>Thank you for shopping with <strong>KÍKÉ LÁRÁ</strong>.</p>
+
+      <div class="details">
+        <p>Your order has been received.</p>
+        <p>A receipt can be downloaded below.</p>
+        <p>Our team will contact you shortly via WhatsApp.</p>
+      </div>
+
+      <a href="products.html" class="btn">Continue Shopping</a>
+    </div>
+  </section>
+
+  <!-- RECEIPT -->
+  <section class="receipt-wrap">
+    <div class="receipt-card" id="receiptCard">
+      <div class="receipt-head">
+        <div>
+          <div class="brand">KÍKÉ LÁRÁ</div>
+          <div class="muted">Receipt / Invoice</div>
+          <div class="muted" id="receiptDate">—</div>
+        </div>
+
+        <div class="receipt-head-right">
+          <div class="pill" id="receiptStatus">PAID</div>
+          <div class="muted">Reference: <span id="receiptRef">—</span></div>
+        </div>
+      </div>
+
+      <div class="receipt-grid">
+        <!-- ITEMS -->
+        <div class="receipt-col">
+          <h3 class="section-title">Items</h3>
+
+          <div class="table-wrap">
+            <table class="receipt-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th class="right">Qty</th>
+                  <th class="right">Price</th>
+                  <th class="right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="receiptItems"></tbody>
+            </table>
+          </div>
+
+          <div class="totals">
+            <div class="row"><span class="muted">Subtotal</span> <span id="rSubtotal">—</span></div>
+            <div class="row"><span class="muted">Delivery</span> <span id="rDelivery">—</span></div>
+            <div class="row total"><strong>Total Paid</strong> <strong id="rTotal">—</strong></div>
+          </div>
+        </div>
+
+        <!-- CUSTOMER -->
+        <div class="receipt-col">
+          <h3 class="section-title">Customer & Delivery</h3>
+
+          <div class="info">
+            <div><strong>Name:</strong> <span id="rName">—</span></div>
+            <div><strong>Email:</strong> <span id="rEmail">—</span></div>
+            <div><strong>Phone:</strong> <span id="rPhone">—</span></div>
+
+            <hr class="hr">
+
+            <div><strong>Shipping:</strong> <span id="rShipType">—</span></div>
+            <div><strong>State:</strong> <span id="rState">—</span></div>
+            <div><strong>LGA/City:</strong> <span id="rCity">—</span></div>
+            <div><strong>Address:</strong> <span id="rAddress">—</span></div>
+          </div>
+
+          <div class="actions">
+            <button class="btn2 primary" id="printBtn" type="button">Print / Save as PDF</button>
+            <button class="btn2" id="downloadBtn" type="button">Download Invoice (HTML)</button>
+          </div>
+
+          <div class="warn" id="noReceiptBox" style="display:none">
+            No receipt data found on this device.<br>
+            If you just paid, go back to checkout and try again.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="order-success.js" defer></script>
+</body>
+</html>
