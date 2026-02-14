@@ -237,3 +237,8 @@ h1 {
   .receipt-card { box-shadow: none; border: none; border-radius: 0; }
   .actions, .warn { display: none !important; }
 }
+/* Status pill tones */
+.pill--paid { background: #e8f7ee; color: #116b34; }
+.pill--pending { background: #fff7e6; color: #8a5a00; }
+.pill--verifying { background: #e7f1ff; color: #124a9c; }
+.pill--warning { background: #ffecec; color: #9b1c1c; }

@@ -1,4 +1,4 @@
-/* ===================== CHECKOUT.JS (FULL UPDATED) ===================== */
+/* ===================== CHECKOUT.JS (BEST - PAYSTACK SERVER VERIFY + SAVE ORDER) ===================== */
 
 /* ================= API (BACKEND) ================= */
 const API_BASE = window.API_BASE;
@@ -11,7 +11,7 @@ const NIGERIA_LGA_SOURCE =
 const CART_KEY = "cart";
 const PRICING_BACKUP_KEY = "deliveryPricing_backup_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
-const LAST_ORDER_KEY = "kikelara_last_order_v1"; // ✅ for receipt page
+const LAST_ORDER_KEY = "kikelara_last_order_v1";
 
 /* ================= SETTINGS ================= */
 const PICKUP_FEE = 0;
@@ -75,7 +75,6 @@ function normalizePricing(raw) {
 
   out.states.sort((a, b) => a.name.localeCompare(b.name));
   out.states.forEach(s => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
-
   return out;
 }
 
@@ -99,7 +98,6 @@ function savePricingBackup(p) {
   try { localStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p)); } catch {}
 }
 
-/* Nigeria dataset fallback -> build pricing format */
 function buildPricingFromNigeriaDataset(data, defaultFee) {
   const fee = Number.isFinite(Number(defaultFee))
     ? Math.max(0, Math.round(Number(defaultFee)))
@@ -110,9 +108,7 @@ function buildPricingFromNigeriaDataset(data, defaultFee) {
       const lgas = Array.isArray(data[stateName]) ? data[stateName] : [];
       return {
         name: String(stateName || "").trim(),
-        cities: lgas
-          .map(lga => ({ name: String(lga || "").trim(), fee }))
-          .filter(c => c.name)
+        cities: lgas.map(lga => ({ name: String(lga || "").trim(), fee })).filter(c => c.name)
       };
     })
     .filter(s => s.name);
@@ -128,10 +124,8 @@ async function fetchNigeriaStatesLgasPricingFallback() {
   const res = await fetch(NIGERIA_LGA_SOURCE, { cache: "no-store" });
   if (!res.ok) throw new Error(`Nigeria LGA dataset fetch failed: ${res.status}`);
   const data = await res.json();
-
   const def = Number(pricing?.defaultFee);
   const fee = Number.isFinite(def) ? def : FALLBACK_DEFAULT_DELIVERY_FEE;
-
   return buildPricingFromNigeriaDataset(data, fee);
 }
 
@@ -175,6 +169,10 @@ function getDeliveryFee() {
   return Number.isFinite(def) ? def : FALLBACK_DEFAULT_DELIVERY_FEE;
 }
 
+function getGrandTotal() {
+  return calcSubtotal() + getDeliveryFee();
+}
+
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -193,18 +191,14 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-function setBtnLoading(isLoading) {
+function setBtnLoading(isLoading, label) {
   if (!payNowBtn) return;
-
   payNowBtn.disabled = isLoading;
   payNowBtn.style.opacity = isLoading ? "0.6" : "1";
   payNowBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
 
-  if (isLoading) {
-    payNowBtn.textContent = "PROCESSING…";
-  } else {
-    payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira(getGrandTotal())}</span>`;
-  }
+  if (isLoading) payNowBtn.textContent = label || "PROCESSING…";
+  else payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira(getGrandTotal())}</span>`;
 }
 
 /* ✅ Segment indicator */
@@ -216,10 +210,9 @@ function updateShippingIndicator() {
     : "translateX(0)";
 }
 
-/* ================= UI: SHIPPING SHOW/HIDE ================= */
+/* ================= UI ================= */
 function updateShippingUI() {
   const type = getSelectedShippingType();
-
   updateShippingIndicator();
 
   if (type === "delivery") {
@@ -233,25 +226,38 @@ function updateShippingUI() {
   updateTotals();
 }
 
-/* ================= POPULATE STATES/LGAs (✅ FIXED) ================= */
+function updateTotals() {
+  const fee = getDeliveryFee();
+  const total = getGrandTotal();
+
+  if (deliveryFeeEl) deliveryFeeEl.textContent = formatNaira(fee);
+  if (deliveryFeeChipEl) deliveryFeeChipEl.textContent = formatNaira(fee);
+  if (totalAmountEl) totalAmountEl.textContent = formatNaira(total);
+
+  const paySpan = document.getElementById("payBtnAmount");
+  if (paySpan) paySpan.textContent = formatNaira(total);
+
+  if (payNowBtn) {
+    const disabled = cart.length === 0;
+    payNowBtn.disabled = disabled;
+    payNowBtn.style.opacity = disabled ? "0.6" : "1";
+    payNowBtn.style.cursor = disabled ? "not-allowed" : "pointer";
+  }
+}
+
+/* ================= POPULATE STATES/LGAs ================= */
 function populateStates() {
   if (!stateEl) return;
 
-  const states = (pricing.states || [])
-    .map(s => s.name)
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
-
+  const states = (pricing.states || []).map(s => s.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
   const current = stateEl.value || "";
 
   stateEl.innerHTML =
     `<option value="">Select State</option>` +
     states.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
 
-  // keep selection if still exists
   if (current && states.includes(current)) stateEl.value = current;
 
-  // reset LGA select
   if (cityEl) {
     cityEl.innerHTML = `<option value="">Select LGA</option>`;
     cityEl.disabled = true;
@@ -262,11 +268,7 @@ function populateCitiesForState(stateName) {
   if (!cityEl) return;
 
   const st = findState(stateName);
-  const cities = (st?.cities || [])
-    .map(c => c.name)
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
-
+  const cities = (st?.cities || []).map(c => c.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
   const current = cityEl.value || "";
 
   cityEl.innerHTML =
@@ -277,7 +279,7 @@ function populateCitiesForState(stateName) {
   cityEl.disabled = cities.length === 0;
 }
 
-/* ================= SUMMARY RENDER ================= */
+/* ================= SUMMARY ================= */
 function renderSummaryItems() {
   if (!summaryItemsEl) return;
 
@@ -302,30 +304,6 @@ function renderSummaryItems() {
       </div>
     `;
   }).join("");
-}
-
-/* ================= TOTALS ================= */
-function getGrandTotal() {
-  return calcSubtotal() + getDeliveryFee();
-}
-
-function updateTotals() {
-  const fee = getDeliveryFee();
-  const total = getGrandTotal();
-
-  if (deliveryFeeEl) deliveryFeeEl.textContent = formatNaira(fee);
-  if (deliveryFeeChipEl) deliveryFeeChipEl.textContent = formatNaira(fee);
-  if (totalAmountEl) totalAmountEl.textContent = formatNaira(total);
-
-  const paySpan = document.getElementById("payBtnAmount");
-  if (paySpan) paySpan.textContent = formatNaira(total);
-
-  if (payNowBtn) {
-    const disabled = cart.length === 0;
-    payNowBtn.disabled = disabled;
-    payNowBtn.style.opacity = disabled ? "0.6" : "1";
-    payNowBtn.style.cursor = disabled ? "not-allowed" : "pointer";
-  }
 }
 
 /* ================= VALIDATION ================= */
@@ -353,8 +331,8 @@ function validateCheckout() {
   return { ok: true };
 }
 
-/* ================= ORDER SHAPE ================= */
-function buildBackendOrder(paystackRef) {
+/* ================= ORDER DRAFT ================= */
+function buildBackendOrderDraft() {
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
   const phone = phoneEl.value.trim();
@@ -368,8 +346,6 @@ function buildBackendOrder(paystackRef) {
   const deliveryFee = getDeliveryFee();
   const total = subtotal + deliveryFee;
 
-  const reference = "KIKELARA_" + Date.now();
-
   const cartRows = cart.map(i => ({
     id: i.id,
     name: i.name,
@@ -380,7 +356,7 @@ function buildBackendOrder(paystackRef) {
   }));
 
   return {
-    reference,
+    reference: "",
     name,
     email,
     phone,
@@ -393,7 +369,7 @@ function buildBackendOrder(paystackRef) {
     deliveryFee,
     total,
     status: "Pending",
-    paystackRef: paystackRef || "",
+    paystackRef: "",
     createdAt: new Date().toISOString()
   };
 }
@@ -407,23 +383,20 @@ function saveOrderFallbackLocal(order) {
 }
 
 function saveLastOrderForReceipt(order) {
-  try {
-    localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order));
-  } catch (e) {
-    console.warn("Failed to save last order receipt:", e);
-  }
+  try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
 }
 
-async function sendOrderToBackend(order) {
-  const res = await fetch(`${API_BASE}/orders`, {
+/* ================= BACKEND VERIFY + SAVE ================= */
+async function verifyPaystackAndSave(reference, draftOrder) {
+  const res = await fetch(`${API_BASE}/orders/verify-paystack`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(order)
+    body: JSON.stringify({ reference, order: draftOrder })
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Backend error: ${res.status} ${txt}`);
+    throw new Error(`Verify failed: ${res.status} ${txt}`);
   }
 
   return res.json().catch(() => ({}));
@@ -434,54 +407,75 @@ const PAYSTACK_PUBLIC_KEY = "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
 
 function payWithPaystack() {
   const check = validateCheckout();
-  if (!check.ok) {
-    alert(check.msg);
-    return;
-  }
+  if (!check.ok) return alert(check.msg);
 
   const email = emailEl.value.trim();
   const total = getGrandTotal();
-  const reference = "KIKELARA_" + Date.now();
+  const reference = "KIKELARA_" + Date.now(); // unique reference per attempt
 
-  setBtnLoading(true);
+  setBtnLoading(true, "OPENING PAYSTACK…");
 
   const handler = PaystackPop.setup({
     key: PAYSTACK_PUBLIC_KEY,
-    email: email,
+    email,
     amount: Math.round(total * 100),
     currency: "NGN",
     ref: reference,
 
     callback: function (response) {
       (async () => {
+        const payRef = response?.reference || reference;
+
+        setBtnLoading(true, "VERIFYING PAYMENT…");
+
+        const draft = buildBackendOrderDraft();
+        draft.reference = payRef;
+        draft.paystackRef = payRef;
+
+        // local “pending verification” receipt (good UX)
+        saveLastOrderForReceipt({
+          ...draft,
+          status: "Payment Received (Verifying)"
+        });
+
         try {
-          const order = buildBackendOrder(response.reference);
+          const out = await verifyPaystackAndSave(payRef, draft);
 
-          // ✅ mark as paid + time + amount paid
-          order.status = "Paid";
-          order.paidAt = new Date().toISOString();
-          order.amountPaid = order.total;
-          order.reference = response.reference || order.reference;
+          // backend returns DB row with payload
+          const dbRow = out?.order || null;
+          const receipt = (dbRow && dbRow.payload) ? dbRow.payload : {
+            ...draft,
+            status: "Paid",
+            paidAt: new Date().toISOString(),
+            amountPaid: draft.total
+          };
 
-          // ✅ Save receipt order locally for order-success page
-          saveLastOrderForReceipt(order);
+          receipt.reference = payRef;
 
-          // ✅ Save to backend (if backend fails, still keep local receipt)
-          try {
-            await sendOrderToBackend(order);
-          } catch (err) {
-            console.warn("Backend failed, saving local backup:", err);
-            saveOrderFallbackLocal(order);
-          }
+          // Save receipt locally for success page
+          saveLastOrderForReceipt(receipt);
 
-          // ✅ Clear cart after successful payment
+          // Clear cart after server confirms payment
           localStorage.removeItem(CART_KEY);
 
-          // ✅ Redirect to success page (with reference)
-          window.location.href = `order-success.html?ref=${encodeURIComponent(order.reference)}`;
+          // Redirect
+          window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
         } catch (err) {
           console.error(err);
-          alert("Payment succeeded, but saving the order failed. Contact support with reference: " + reference);
+
+          // Keep local backup so you can reconcile later
+          const localBackup = {
+            ...draft,
+            status: "Payment Received (Verify Failed)",
+            paidAt: new Date().toISOString(),
+            amountPaid: draft.total
+          };
+          saveOrderFallbackLocal(localBackup);
+          saveLastOrderForReceipt(localBackup);
+
+          alert("Payment received. We are confirming your order. Reference: " + payRef);
+          localStorage.removeItem(CART_KEY);
+          window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
         } finally {
           setBtnLoading(false);
         }
@@ -518,7 +512,6 @@ payNowBtn?.addEventListener("click", (e) => {
   renderSummaryItems();
   updateShippingUI();
 
-  // pricing fallback chain
   try {
     pricing = await fetchPricingFromServer();
     savePricingBackup(pricing);
@@ -529,7 +522,6 @@ payNowBtn?.addEventListener("click", (e) => {
     if (backup?.states?.length) {
       pricing = backup;
     } else {
-      console.warn("No usable backup pricing, fetching Nigeria LGA dataset...");
       try {
         pricing = await fetchNigeriaStatesLgasPricingFallback();
         savePricingBackup(pricing);
@@ -540,9 +532,7 @@ payNowBtn?.addEventListener("click", (e) => {
     }
   }
 
-  // ✅ now it will actually populate
   populateStates();
   populateCitiesForState(stateEl?.value || "");
-
   updateTotals();
 })();
