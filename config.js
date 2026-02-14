@@ -12,7 +12,7 @@
   const LOCAL_API = "http://localhost:4000";
 
   // ✅ Production backend (Render)
-  const PROD_API = "https://kikelara.onrender.com";
+  const PROD_API = "https://kikelara1.onrender.com";
 
   // Set API base for every frontend page to use
   window.API_BASE = isLocal ? LOCAL_API : PROD_API;
