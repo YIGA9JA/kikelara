@@ -113,7 +113,7 @@
         </div>
 
         <div class="footer-bottom">
-          <span>© ${year} KÍKE LÁRÁ Skincare. All Rights Reserved.</span>
+          <span>© ${year} KÍKÉLÁRÁ Skincare. All Rights Reserved.</span>
         </div>
 
       </div>
