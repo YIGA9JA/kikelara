@@ -1,5 +1,3 @@
-/* ================== ORDER SUCCESS PAGE ================== */
-
 :root{
   --bg: #fff8e6;
   --card: #ffffff;
@@ -10,7 +8,7 @@
   --shadow2: 0 10px 30px rgba(0,0,0,0.06);
 }
 
-/* ✅ IMPORTANT: allow scrolling */
+/* ✅ allow scrolling */
 body {
   margin: 0;
   background: var(--bg);
@@ -237,6 +235,7 @@ h1 {
   .receipt-card { box-shadow: none; border: none; border-radius: 0; }
   .actions, .warn { display: none !important; }
 }
+
 /* Status pill tones */
 .pill--paid { background: #e8f7ee; color: #116b34; }
 .pill--pending { background: #fff7e6; color: #8a5a00; }

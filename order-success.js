@@ -1,15 +1,15 @@
-/* ===================== ORDER-SUCCESS.JS (UPDATED - SUPPORTS VERIFYING / VERIFY FAILED + OPTIONAL SERVER FETCH) ===================== */
+/* ===================== ORDER-SUCCESS.JS (FULL UPDATED) ===================== */
 
-const API_BASE = window.API_BASE; // uses config.js
+const API_BASE = window.API_BASE || ""; // from config.js
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
-const LOCAL_ORDERS_KEY = "orders_backup"; // fallback
+const LOCAL_ORDERS_KEY = "orders_backup";
 
 function formatNaira(n) {
   return "₦" + Number(n || 0).toLocaleString();
 }
 
 function escapeHtml(str) {
-  return String(str || "")
+  return String(str ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -36,7 +36,6 @@ function findOrderByRefInBackup(ref) {
   const arr = safeJSON(LOCAL_ORDERS_KEY, []);
   if (!Array.isArray(arr)) return null;
 
-  // newest first
   for (let i = arr.length - 1; i >= 0; i--) {
     const o = arr[i];
     if (o && String(o.reference || "") === String(ref)) return o;
@@ -45,23 +44,22 @@ function findOrderByRefInBackup(ref) {
 }
 
 function safeGetReceiptOrder() {
-  // 1) preferred: last order saved by checkout.js
   const last = safeJSON(LAST_ORDER_KEY, null);
-  if (last && last.cart && Array.isArray(last.cart)) return last;
+  if (last && Array.isArray(last.cart)) return last;
 
-  // 2) fallback: match ref querystring from orders_backup
   const ref = getRefFromURL();
   const found = findOrderByRefInBackup(ref);
-  if (found && found.cart && Array.isArray(found.cart)) return found;
+  if (found && Array.isArray(found.cart)) return found;
 
   return null;
 }
 
-/* Optional: try to fetch canonical paid order from backend (recommended).
-   Requires backend endpoint: GET /orders/public/:reference  (returns { ok:true, order:{...payload} })
+/* Optional backend fetch:
+   Requires endpoint: GET /orders/public/:reference
+   response: { ok:true, order:{...} }
 */
 async function fetchReceiptFromBackend(ref) {
-  if (!ref) return null;
+  if (!API_BASE || !ref) return null;
 
   try {
     const res = await fetch(`${API_BASE}/orders/public/${encodeURIComponent(ref)}`, {
@@ -69,9 +67,11 @@ async function fetchReceiptFromBackend(ref) {
       cache: "no-store"
     });
     if (!res.ok) return null;
+
     const data = await res.json().catch(() => null);
     const order = data?.order || null;
-    if (order && order.cart && Array.isArray(order.cart)) return order;
+
+    if (order && Array.isArray(order.cart)) return order;
     return null;
   } catch {
     return null;
@@ -86,23 +86,13 @@ function setText(id, value) {
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
-  // default
-  let label = (statusRaw || "PAID").toString().toUpperCase();
+  let label = String(statusRaw || "PAID").toUpperCase();
   let tone = "paid";
 
-  if (s.includes("verif")) {
-    label = "VERIFYING";
-    tone = "verifying";
-  } else if (s.includes("failed")) {
-    label = "PENDING CONFIRMATION";
-    tone = "warning";
-  } else if (s.includes("pending")) {
-    label = "PENDING";
-    tone = "pending";
-  } else if (s.includes("paid")) {
-    label = "PAID";
-    tone = "paid";
-  }
+  if (s.includes("verif")) { label = "VERIFYING"; tone = "verifying"; }
+  else if (s.includes("failed")) { label = "PENDING CONFIRMATION"; tone = "warning"; }
+  else if (s.includes("pending")) { label = "PENDING"; tone = "pending"; }
+  else if (s.includes("paid")) { label = "PAID"; tone = "paid"; }
 
   return { label, tone };
 }
@@ -111,7 +101,6 @@ function applyPillTone(tone) {
   const el = document.getElementById("receiptStatus");
   if (!el) return;
 
-  // keep your CSS class "pill" in HTML
   el.classList.remove("pill--paid", "pill--pending", "pill--verifying", "pill--warning");
   el.classList.add(
     tone === "verifying" ? "pill--verifying"
@@ -123,14 +112,13 @@ function applyPillTone(tone) {
 
 function renderReceipt(order) {
   const noBox = document.getElementById("noReceiptBox");
-  if (!order || !order.cart || !Array.isArray(order.cart)) {
+
+  if (!order || !Array.isArray(order.cart)) {
     if (noBox) noBox.style.display = "block";
     return;
   }
-
   if (noBox) noBox.style.display = "none";
 
-  // Header
   setText("receiptRef", order.reference || "—");
 
   const pill = statusToPill(order.status);
@@ -141,7 +129,6 @@ function renderReceipt(order) {
   const prefix = pill.tone === "verifying" ? "Received at: " : "Paid at: ";
   setText("receiptDate", prefix + new Date(when).toLocaleString());
 
-  // Customer/delivery
   setText("rName", order.name || "—");
   setText("rEmail", order.email || "—");
   setText("rPhone", order.phone || "—");
@@ -151,12 +138,11 @@ function renderReceipt(order) {
   setText("rCity", order.city || "—");
   setText("rAddress", order.address || "—");
 
-  // Items
   const tbody = document.getElementById("receiptItems");
   if (tbody) {
     tbody.innerHTML = "";
 
-    order.cart.forEach(it => {
+    order.cart.forEach((it) => {
       const qty = Number(it.qty || 0);
       const price = Number(it.price || 0);
       const line = price * qty;
@@ -172,17 +158,17 @@ function renderReceipt(order) {
     });
   }
 
-  // Totals
   setText("rSubtotal", formatNaira(order.subtotal));
   setText("rDelivery", formatNaira(order.deliveryFee));
   setText("rTotal", formatNaira(order.total));
 }
 
 function buildInvoiceHTML(order) {
-  const rows = (order.cart || []).map(it => {
+  const rows = (order.cart || []).map((it) => {
     const qty = Number(it.qty || 0);
     const price = Number(it.price || 0);
     const line = qty * price;
+
     return `
       <tr>
         <td style="padding:10px;border-bottom:1px solid #eee;">${escapeHtml(it.name)}</td>
@@ -209,7 +195,9 @@ function buildInvoiceHTML(order) {
     <div>
       <h2 style="margin:0;">KÍKÉ LÁRÁ</h2>
       <div style="opacity:.75;">Receipt / Invoice</div>
-      <div style="opacity:.75;margin-top:6px;">${pill.tone === "verifying" ? "Received at:" : "Paid at:"} ${new Date(when).toLocaleString()}</div>
+      <div style="opacity:.75;margin-top:6px;">
+        ${pill.tone === "verifying" ? "Received at:" : "Paid at:"} ${new Date(when).toLocaleString()}
+      </div>
     </div>
     <div style="text-align:right;">
       <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f2f2f2;font-size:12px;font-weight:800;">
@@ -240,20 +228,20 @@ function buildInvoiceHTML(order) {
       <span style="opacity:.75;">Delivery</span><span>${formatNaira(order.deliveryFee)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:800;">
-      <span>Total</span><span>${formatNaira(order.total)}</span>
+      <span>Total Paid</span><span>${formatNaira(order.total)}</span>
     </div>
   </div>
 
   <h3 style="margin:18px 0 8px;">Customer & Delivery</h3>
   <div style="line-height:1.7;opacity:.9;">
-    <div><b>Name:</b> ${escapeHtml(order.name)}</div>
-    <div><b>Email:</b> ${escapeHtml(order.email)}</div>
-    <div><b>Phone:</b> ${escapeHtml(order.phone)}</div>
+    <div><b>Name:</b> ${escapeHtml(order.name || "")}</div>
+    <div><b>Email:</b> ${escapeHtml(order.email || "")}</div>
+    <div><b>Phone:</b> ${escapeHtml(order.phone || "")}</div>
     <hr style="border:none;border-top:1px solid #eee;margin:12px 0;">
-    <div><b>Shipping:</b> ${escapeHtml(order.shippingType)}</div>
-    <div><b>State:</b> ${escapeHtml(order.state)}</div>
-    <div><b>LGA/City:</b> ${escapeHtml(order.city)}</div>
-    <div><b>Address:</b> ${escapeHtml(order.address)}</div>
+    <div><b>Shipping:</b> ${escapeHtml(order.shippingType || "")}</div>
+    <div><b>State:</b> ${escapeHtml(order.state || "")}</div>
+    <div><b>LGA/City:</b> ${escapeHtml(order.city || "")}</div>
+    <div><b>Address:</b> ${escapeHtml(order.address || "")}</div>
   </div>
 </body>
 </html>
@@ -275,28 +263,22 @@ function downloadTextFile(filename, content, mime = "text/html") {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1) render from local immediately (fast UX)
   let order = safeGetReceiptOrder();
   renderReceipt(order);
 
-  // 2) optional: try backend fetch by ref (canonical receipt)
   const ref = getRefFromURL() || order?.reference || "";
   if (ref) {
     const fresh = await fetchReceiptFromBackend(ref);
     if (fresh) {
       order = fresh;
-      // keep local updated so next refresh shows correct status
       try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
       renderReceipt(fresh);
     }
   }
 
-  const printBtn = document.getElementById("printBtn");
-  const downloadBtn = document.getElementById("downloadBtn");
+  document.getElementById("printBtn")?.addEventListener("click", () => window.print());
 
-  printBtn?.addEventListener("click", () => window.print());
-
-  downloadBtn?.addEventListener("click", () => {
+  document.getElementById("downloadBtn")?.addEventListener("click", () => {
     const o = safeGetReceiptOrder();
     if (!o) return;
 
