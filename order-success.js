@@ -1,4 +1,4 @@
-/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + ROBUST CONFIRM) ===================== */
+/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + WAIT FOR WEBHOOK CONFIRM) ===================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/$/, ""); // from config.js
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
@@ -6,7 +6,7 @@ const LOCAL_ORDERS_KEY = "orders_backup";
 
 /* ===================== SETTINGS ===================== */
 const POLL_INTERVAL_MS = 2500;     // how often we re-check backend
-const POLL_TIMEOUT_MS  = 120_000;  // stop polling after 120s
+const POLL_TIMEOUT_MS  = 90_000;   // stop polling after 90s
 
 /* ===================== HELPERS ===================== */
 function formatNaira(n) {
@@ -69,8 +69,25 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
+/* ===================== LOCK BOX (INVOICE LOCKED) ===================== */
+/**
+ * ✅ Your HTML lock card MUST have:
+ *    id="invoiceLocked"
+ * OR data-invoice-lock="1"
+ */
+function getInvoiceLockEl() {
+  return (
+    document.getElementById("invoiceLocked") ||
+    document.getElementById("lockedBox") ||
+    document.getElementById("lockBox") ||
+    document.querySelector("[data-invoice-lock]")
+  );
+}
+
+function setInvoiceLockedVisible(show) {
+  const el = getInvoiceLockEl();
+  if (!el) return;
+  el.style.display = show ? "block" : "none";
 }
 
 /* ===================== HERO STATE (CONFIRMING -> CONFIRMED) ===================== */
@@ -105,6 +122,9 @@ function setHeroState(state, ref) {
 
     setHeroActionsVisible(true);
     setInvoiceVisible(true);
+
+    // ✅ hide lock box once confirmed
+    setInvoiceLockedVisible(false);
     return;
   }
 
@@ -118,12 +138,16 @@ function setHeroState(state, ref) {
 
   setHeroActionsVisible(false);
   setInvoiceVisible(false);
+
+  // ✅ show lock box while confirming
+  setInvoiceLockedVisible(true);
 }
 
 /* ===================== STATUS PILL (INVOICE) ===================== */
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
+  // default to pending unless confirmed
   let label = "CONFIRMING";
   let tone = "verifying";
 
@@ -147,14 +171,9 @@ function applyPillTone(tone) {
   );
 }
 
-/* ===================== BACKEND FETCH (PUBLIC ORDER) =====================
-   Expected endpoint:
-   GET /orders/public/:reference
-   - 200 + { ok:true, order:{...} } => returns normalized payload
-   - 404 => treat as "Pending" (order not created yet or webhook delayed)
-*/
+/* ===================== BACKEND FETCH (PUBLIC ORDER) ===================== */
 async function fetchReceiptFromBackend(ref) {
-  if (!API_BASE || !ref) return { kind: "error", order: null };
+  if (!API_BASE || !ref) return null;
 
   try {
     const res = await fetch(`${API_BASE}/orders/public/${encodeURIComponent(ref)}`, {
@@ -162,61 +181,22 @@ async function fetchReceiptFromBackend(ref) {
       cache: "no-store"
     });
 
-    // ✅ IMPORTANT: 404 is NOT a fatal error here — it just means "not created yet"
-    if (res.status === 404) {
-      return { kind: "pending", order: { reference: ref, status: "Pending" } };
-    }
-
-    if (!res.ok) {
-      return { kind: "error", order: null };
-    }
+    if (!res.ok) return null;
 
     const data = await res.json().catch(() => null);
-    if (!data) return { kind: "error", order: null };
+    if (!data) return null;
 
     const ord = data.order || data?.data?.order || null;
-    if (!ord) return { kind: "error", order: null };
+    if (!ord) return null;
 
+    // Your /orders/public returns: { ok:true, order: safeFields }
+    // But we also support other shapes.
     const payload = (ord.payload && typeof ord.payload === "object") ? ord.payload : ord;
 
-    // Ensure reference exists
-    payload.reference = payload.reference || ref;
-
-    return { kind: "ok", order: payload };
+    if (payload && Array.isArray(payload.cart)) return payload;
+    return null;
   } catch {
-    return { kind: "error", order: null };
-  }
-}
-
-/* ===================== OPTIONAL FALLBACK VERIFY =====================
-   If webhook is slow/blocked, we can try verify endpoint (if your backend has it):
-   POST /payments/paystack/verify { reference }
-   - If it returns Paid, your backend should mark order Paid.
-*/
-async function tryFallbackVerify(ref) {
-  if (!API_BASE || !ref) return false;
-
-  try {
-    const res = await fetch(`${API_BASE}/payments/paystack/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({ reference: ref })
-    });
-
-    if (!res.ok) return false;
-    const data = await res.json().catch(() => null);
-
-    // If backend returns { success:true, verified:true, order:{...} }
-    const ord = data?.order?.payload || data?.order || null;
-    if (ord && isPaidStatus(ord.status || data?.order?.status)) return true;
-
-    // If backend returns some other shape but verified is true
-    if (data?.verified === true || data?.success === true) return true;
-
-    return false;
-  } catch {
-    return false;
+    return null;
   }
 }
 
@@ -229,6 +209,11 @@ function renderReceipt(order) {
     return;
   }
   if (noBox) noBox.style.display = "none";
+
+  // ✅ If we are rendering receipt and status is paid, invoice is NOT locked
+  if (isPaidStatus(order.status)) {
+    setInvoiceLockedVisible(false);
+  }
 
   setText("receiptRef", order.reference || "—");
 
@@ -372,28 +357,19 @@ function downloadTextFile(filename, content, mime = "text/html") {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/* ===================== POLL UNTIL CONFIRMED ===================== */
+/* ===================== POLL UNTIL WEBHOOK CONFIRMS ===================== */
 async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
   const start = Date.now();
-  let tries = 0;
 
   while (Date.now() - start < timeoutMs) {
-    tries++;
+    const fresh = await fetchReceiptFromBackend(ref);
 
-    const { kind, order } = await fetchReceiptFromBackend(ref);
-
-    if (order && isPaidStatus(order.status)) {
-      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
-      return order;
+    if (fresh && isPaidStatus(fresh.status)) {
+      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
+      return fresh;
     }
 
-    // ✅ After a few tries, attempt fallback verify once in a while
-    // This helps when webhook is not coming through.
-    if (tries === 4 || tries === 10 || tries === 18) {
-      await tryFallbackVerify(ref);
-    }
-
-    await sleep(POLL_INTERVAL_MS);
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
 
   return null;
@@ -409,6 +385,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Hide invoice/buttons until confirmed
   setInvoiceVisible(false);
   setHeroActionsVisible(false);
+
+  // ✅ ensure lock is shown on load (until confirmed)
+  setInvoiceLockedVisible(true);
 
   // Attach buttons (but they won't be visible until confirmed)
   document.getElementById("printBtn")?.addEventListener("click", () => window.print());
@@ -428,24 +407,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     setText("receiptRef", local.reference);
   }
 
-  // ✅ Poll backend until "Paid"
+  // ✅ Poll backend until webhook sets Paid
   if (ref) {
     const confirmed = await pollUntilConfirmed(ref);
 
     if (confirmed) {
       setHeroState("confirmed", confirmed.reference);
       renderReceipt(confirmed);
+
+      // ✅ hard-hide lock box on confirmed
+      setInvoiceLockedVisible(false);
       return;
     }
   }
 
-  // Not confirmed after timeout:
+  // If not confirmed after timeout:
   const heroNote = document.getElementById("heroNote");
   if (heroNote) {
     heroNote.textContent =
       "Still confirming payment. If this persists, please contact support with your reference.";
   }
 
-  // stay in confirming mode; invoice/actions remain hidden
   setHeroState("confirming", ref);
 });

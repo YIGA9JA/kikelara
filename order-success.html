@@ -47,11 +47,11 @@
               <div class="progress__bar" id="progressBar"></div>
             </div>
 
-        <div class="heroActions" id="heroActions" style="display:none">
-  <a href="products.html" class="btn btn--ghost">Continue Shopping</a>
-  <a href="index.html" class="btn btn--primary">Back Home</a>
-</div>
-
+            <!-- ✅ Hero actions (ONLY when confirmed) -->
+            <div class="heroActions" id="heroActions" style="display:none">
+              <a href="products.html" class="btn btn--ghost">Continue Shopping</a>
+              <a href="index.html" class="btn btn--primary">Back Home</a>
+            </div>
 
             <div class="heroNote" id="heroNote">
               If confirmation takes longer, it may be a network delay — we’ll update automatically.
@@ -122,8 +122,8 @@
               <div><strong>Address:</strong> <span id="rAddress">—</span></div>
             </div>
 
-            <!-- Locked until paid -->
-            <div class="locked" id="notConfirmedBox">
+            <!-- ✅ Locked until paid (JS will hide this when PAID) -->
+            <div class="locked" id="invoiceLocked" data-invoice-lock="1">
               <div class="lockedIcon">🔒</div>
               <div>
                 <div class="lockedTitle">Invoice locked</div>
@@ -133,7 +133,7 @@
               </div>
             </div>
 
-            <!-- Actions appear only when confirmed -->
+            <!-- ✅ Actions appear only when confirmed -->
             <div class="actions" id="actionsBox" style="display:none">
               <button class="btn2 primary" id="printBtn" type="button">Print / Save as PDF</button>
               <button class="btn2" id="downloadBtn" type="button">Download Invoice (HTML)</button>
