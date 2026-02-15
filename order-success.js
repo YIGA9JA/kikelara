@@ -1,12 +1,14 @@
-/* ===================== ORDER-SUCCESS.JS (SHOW INVOICE ONLY WHEN CONFIRMED) ===================== */
+/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + WAIT FOR WEBHOOK CONFIRM) ===================== */
 
-const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
+const API_BASE = window.API_BASE || ""; // from config.js
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
 
-const POLL_INTERVAL_MS = 2500;
-const POLL_MAX_TRIES = 30;
+/* ===================== SETTINGS ===================== */
+const POLL_INTERVAL_MS = 2500;     // how often we re-check backend
+const POLL_TIMEOUT_MS  = 90_000;   // stop polling after 90s
 
+/* ===================== HELPERS ===================== */
 function formatNaira(n) {
   return "₦" + Number(n || 0).toLocaleString();
 }
@@ -46,41 +48,15 @@ function findOrderByRefInBackup(ref) {
   return null;
 }
 
-function safeGetReceiptOrder() {
-  const ref = getRefFromURL();
-
+function safeGetLocalReceiptOrder() {
   const last = safeJSON(LAST_ORDER_KEY, null);
-  if (last && Array.isArray(last.cart) && (!ref || String(last.reference || "") === String(ref))) return last;
+  if (last && Array.isArray(last.cart)) return last;
 
+  const ref = getRefFromURL();
   const found = findOrderByRefInBackup(ref);
   if (found && Array.isArray(found.cart)) return found;
 
-  if (last && Array.isArray(last.cart)) return last;
   return null;
-}
-
-async function fetchReceiptFromBackend(ref) {
-  if (!API_BASE || !ref) return null;
-
-  try {
-    const res = await fetch(`${API_BASE}/orders/public/${encodeURIComponent(ref)}`, {
-      method: "GET",
-      cache: "no-store"
-    });
-    if (!res.ok) return null;
-
-    const data = await res.json().catch(() => null);
-    const order = data?.order || null;
-    if (order && Array.isArray(order.cart)) return order;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
 }
 
 function isPaidStatus(statusRaw) {
@@ -88,43 +64,67 @@ function isPaidStatus(statusRaw) {
   return s === "paid" || s.includes("paid");
 }
 
-function toggleInvoiceActions(canShow) {
-  const actions = document.getElementById("actionsBox");
-  const warn = document.getElementById("notConfirmedBox");
-
-  if (actions) actions.style.display = canShow ? "flex" : "none";
-  if (warn) warn.style.display = canShow ? "none" : "block";
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
 }
 
-function setHero(ref, statusRaw) {
+/* ===================== HERO STATE (CONFIRMING -> CONFIRMED) ===================== */
+function setHeroActionsVisible(show) {
+  const box = document.getElementById("heroActions");
+  if (!box) return;
+  box.style.display = show ? "flex" : "none";
+}
+
+function setInvoiceVisible(show) {
+  const wrap = document.getElementById("receiptWrap");
+  if (!wrap) return;
+  wrap.style.display = show ? "block" : "none";
+}
+
+function setHeroState(state, ref) {
+  const confirmText = document.getElementById("confirmText");
+  const heroTitle = document.getElementById("heroTitle");
   const heroRef = document.getElementById("heroRef");
+  const progressBar = document.getElementById("progressBar");
+  const orbIcon = document.getElementById("orbIcon");
+  const heroNote = document.getElementById("heroNote");
+
   if (heroRef) heroRef.textContent = ref || "—";
 
-  const heroTitle = document.getElementById("heroTitle");
-  const confirmText = document.getElementById("confirmText");
-  const progress = document.getElementById("progressBar");
-
-  const paid = isPaidStatus(statusRaw);
-
-  if (paid) {
+  if (state === "confirmed") {
+    if (confirmText) confirmText.textContent = "Payment confirmed";
     if (heroTitle) heroTitle.textContent = "Payment confirmed";
-    if (confirmText) confirmText.textContent = "Confirmed ✅";
-    if (progress) progress.style.width = "100%";
-  } else {
-    if (heroTitle) heroTitle.textContent = "Payment received";
-    if (confirmText) confirmText.textContent = "Confirming payment…";
-    if (progress && !progress.style.width) progress.style.width = "55%";
+    if (progressBar) progressBar.style.width = "100%";
+    if (orbIcon) orbIcon.textContent = "✓";
+    if (heroNote) heroNote.textContent = "Your payment is confirmed. Your invoice is now available below.";
+
+    setHeroActionsVisible(true);
+    setInvoiceVisible(true);
+    return;
   }
+
+  // confirming
+  if (confirmText) confirmText.textContent = "Confirming payment…";
+  if (heroTitle) heroTitle.textContent = "Confirming payment…";
+  if (progressBar) progressBar.style.width = "55%";
+  if (orbIcon) orbIcon.textContent = "⏳";
+  if (heroNote) heroNote.textContent =
+    "We’re waiting for confirmation from Paystack. This usually takes a few seconds.";
+
+  setHeroActionsVisible(false);
+  setInvoiceVisible(false);
 }
 
+/* ===================== STATUS PILL (INVOICE) ===================== */
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
+  // default to pending unless confirmed
   let label = "CONFIRMING";
-  let tone = "pending";
+  let tone = "verifying";
 
   if (s.includes("failed")) { label = "PENDING CONFIRMATION"; tone = "warning"; }
-  else if (s.includes("verif")) { label = "VERIFYING"; tone = "verifying"; }
   else if (s.includes("pending")) { label = "PENDING"; tone = "pending"; }
   else if (s.includes("paid")) { label = "PAID"; tone = "paid"; }
 
@@ -144,30 +144,60 @@ function applyPillTone(tone) {
   );
 }
 
+/* ===================== BACKEND FETCH (PUBLIC ORDER) =====================
+   Requires endpoint:
+   GET /orders/public/:reference
+   response: { ok:true, order:{ payload or row } }
+   If your backend returns { order: { payload: {...} } }, we normalize below.
+*/
+async function fetchReceiptFromBackend(ref) {
+  if (!API_BASE || !ref) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/orders/public/${encodeURIComponent(ref)}`, {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json().catch(() => null);
+    if (!data) return null;
+
+    // Normalize possible shapes:
+    // 1) { ok:true, order: { ...payloadFields } }
+    // 2) { success:true, order: { payload: {...} } }
+    // 3) { order: { payload: {...} } }
+    const ord = data.order || data?.data?.order || null;
+    if (!ord) return null;
+
+    const payload = (ord.payload && typeof ord.payload === "object") ? ord.payload : ord;
+
+    if (payload && Array.isArray(payload.cart)) return payload;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/* ===================== RENDER RECEIPT (ONLY WHEN CONFIRMED) ===================== */
 function renderReceipt(order) {
   const noBox = document.getElementById("noReceiptBox");
 
   if (!order || !Array.isArray(order.cart)) {
     if (noBox) noBox.style.display = "block";
-    toggleInvoiceActions(false);
     return;
   }
   if (noBox) noBox.style.display = "none";
 
-  const ref = order.reference || order.paystackRef || "—";
-  setText("receiptRef", ref);
+  setText("receiptRef", order.reference || "—");
 
   const pill = statusToPill(order.status);
   setText("receiptStatus", pill.label);
   applyPillTone(pill.tone);
 
-  setHero(ref, order.status);
-
-  // ✅ only show print/download when truly PAID
-  toggleInvoiceActions(isPaidStatus(order.status));
-
   const when = order.paidAt || order.createdAt || new Date().toISOString();
-  const prefix = isPaidStatus(order.status) ? "Paid at: " : "Updated at: ";
+  const prefix = isPaidStatus(order.status) ? "Paid at: " : "Received at: ";
   setText("receiptDate", prefix + new Date(when).toLocaleString());
 
   setText("rName", order.name || "—");
@@ -204,6 +234,7 @@ function renderReceipt(order) {
   setText("rTotal", formatNaira(order.total));
 }
 
+/* ===================== INVOICE BUILDER (DOWNLOAD) ===================== */
 function buildInvoiceHTML(order) {
   const rows = (order.cart || []).map((it) => {
     const qty = Number(it.qty || 0);
@@ -212,15 +243,16 @@ function buildInvoiceHTML(order) {
 
     return `
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #eee;">${escapeHtml(it.name)}</td>
-        <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${qty}</td>
-        <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(price)}</td>
-        <td style="padding:10px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(line)}</td>
+        <td style="padding:12px;border-bottom:1px solid #eee;">${escapeHtml(it.name)}</td>
+        <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${qty}</td>
+        <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(price)}</td>
+        <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(line)}</td>
       </tr>
     `;
   }).join("");
 
   const when = order.paidAt || order.createdAt || new Date().toISOString();
+  const statusLabel = isPaidStatus(order.status) ? "PAID" : "CONFIRMING";
 
   return `
 <!DOCTYPE html>
@@ -230,16 +262,16 @@ function buildInvoiceHTML(order) {
   <title>Invoice - ${escapeHtml(order.reference || "KIKELARA")}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family:Arial,sans-serif;color:#111;max-width:900px;margin:24px auto;padding:0 14px;">
-  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+<body style="font-family:Arial,sans-serif;color:#111;max-width:920px;margin:24px auto;padding:0 14px;">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;">
     <div>
       <h2 style="margin:0;">KÍKÉ LÁRÁ</h2>
       <div style="opacity:.75;">Receipt / Invoice</div>
       <div style="opacity:.75;margin-top:6px;">Paid at: ${new Date(when).toLocaleString()}</div>
     </div>
     <div style="text-align:right;">
-      <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f7ee;color:#116b34;font-size:12px;font-weight:800;">
-        PAID
+      <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f2f2f2;font-size:12px;font-weight:800;">
+        ${escapeHtml(statusLabel)}
       </div>
       <div style="opacity:.75;margin-top:6px;">Reference: <b>${escapeHtml(order.reference || "—")}</b></div>
     </div>
@@ -249,10 +281,10 @@ function buildInvoiceHTML(order) {
   <table style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        <th style="text-align:left;padding:10px;border-bottom:1px solid #eee;">Item</th>
-        <th style="text-align:right;padding:10px;border-bottom:1px solid #eee;">Qty</th>
-        <th style="text-align:right;padding:10px;border-bottom:1px solid #eee;">Price</th>
-        <th style="text-align:right;padding:10px;border-bottom:1px solid #eee;">Total</th>
+        <th style="text-align:left;padding:12px;border-bottom:1px solid #eee;">Item</th>
+        <th style="text-align:right;padding:12px;border-bottom:1px solid #eee;">Qty</th>
+        <th style="text-align:right;padding:12px;border-bottom:1px solid #eee;">Price</th>
+        <th style="text-align:right;padding:12px;border-bottom:1px solid #eee;">Total</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -266,7 +298,7 @@ function buildInvoiceHTML(order) {
       <span style="opacity:.75;">Delivery</span><span>${formatNaira(order.deliveryFee)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:800;">
-      <span>Total</span><span>${formatNaira(order.total)}</span>
+      <span>Total Paid</span><span>${formatNaira(order.total)}</span>
     </div>
   </div>
 
@@ -300,68 +332,74 @@ function downloadTextFile(filename, content, mime = "text/html") {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-async function pollUntilPaid(ref) {
-  if (!ref) return;
-  if (!API_BASE) return; // cannot poll without backend
+/* ===================== POLL UNTIL WEBHOOK CONFIRMS ===================== */
+async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
+  const start = Date.now();
 
-  for (let i = 0; i < POLL_MAX_TRIES; i++) {
+  while (Date.now() - start < timeoutMs) {
     const fresh = await fetchReceiptFromBackend(ref);
-    if (fresh) {
-      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
-      renderReceipt(fresh);
 
-      if (isPaidStatus(fresh.status)) return;
+    if (fresh && isPaidStatus(fresh.status)) {
+      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
+      return fresh;
     }
+
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
+
+  return null;
 }
 
+/* ===================== INIT ===================== */
 document.addEventListener("DOMContentLoaded", async () => {
-  // Hide invoice actions initially (until paid)
-  toggleInvoiceActions(false);
+  const ref = getRefFromURL();
 
-  // First paint from local storage
-  let order = safeGetReceiptOrder();
-  renderReceipt(order);
+  // Default UI: confirming
+  setHeroState("confirming", ref);
 
-  const ref = getRefFromURL() || order?.reference || order?.paystackRef || "";
-  setHero(ref, order?.status);
+  // Hide invoice/buttons until confirmed
+  setInvoiceVisible(false);
+  setHeroActionsVisible(false);
 
-  // Copy ref
-  document.getElementById("copyRefBtn")?.addEventListener("click", async () => {
-    const r = getRefFromURL() || safeGetReceiptOrder()?.reference || "";
-    if (!r) return alert("No reference to copy.");
-    try {
-      await navigator.clipboard.writeText(r);
-      alert("Reference copied ✅");
-    } catch {
-      alert("Copy failed. You can manually copy the reference.");
-    }
-  });
+  // Attach buttons (but they won't be visible until confirmed)
+  document.getElementById("printBtn")?.addEventListener("click", () => window.print());
 
-  // Print (guard: only allow if paid)
-  document.getElementById("printBtn")?.addEventListener("click", () => {
-    const o = safeGetReceiptOrder();
-    if (!o || !isPaidStatus(o.status)) {
-      alert("Invoice will be available after payment is confirmed.");
-      return;
-    }
-    window.print();
-  });
-
-  // Download invoice (guard: only allow if paid)
   document.getElementById("downloadBtn")?.addEventListener("click", () => {
-    const o = safeGetReceiptOrder();
-    if (!o || !isPaidStatus(o.status)) {
-      alert("Invoice will be available after payment is confirmed.");
-      return;
-    }
+    const o = safeJSON(LAST_ORDER_KEY, null);
+    if (!o || !isPaidStatus(o.status)) return;
 
     const html = buildInvoiceHTML(o);
     const refSafe = (o.reference || "KIKELARA").replace(/[^a-z0-9_-]/gi, "_");
     downloadTextFile(`KIKELARA-INVOICE-${refSafe}.html`, html, "text/html");
   });
 
-  // Poll server until webhook marks Paid
-  await pollUntilPaid(ref);
+  // If we have local data, keep it, but DO NOT show invoice/buttons until confirmed
+  const local = safeGetLocalReceiptOrder();
+  if (local && local.reference) {
+    // keep reference on UI
+    setText("receiptRef", local.reference);
+  }
+
+  // ✅ Poll backend until webhook sets Paid
+  if (ref) {
+    const confirmed = await pollUntilConfirmed(ref);
+
+    if (confirmed) {
+      // show confirmed hero + show invoice/actions
+      setHeroState("confirmed", confirmed.reference);
+      renderReceipt(confirmed);
+      return;
+    }
+  }
+
+  // If not confirmed after timeout:
+  // keep user on confirming page; invoice stays hidden.
+  const heroNote = document.getElementById("heroNote");
+  if (heroNote) {
+    heroNote.textContent =
+      "Still confirming payment. If this persists, please contact support with your reference.";
+  }
+
+  // keep it in confirming state
+  setHeroState("confirming", ref);
 });

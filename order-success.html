@@ -2,105 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Order Successful | KÍKÉ LÁRÁ</title>
+  <title>Order Status | KÍKÉ LÁRÁ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <link rel="stylesheet" href="order-success.css" />
 </head>
 
 <body>
-  <!-- PREMIUM HERO -->
-  <header class="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-inner">
-      <div class="hero-card">
-        <div class="hero-top">
-          <div class="brandmark">
-            <div class="logo-dot"></div>
-            <div class="brandname">KÍKÉ LÁRÁ</div>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero__bg"></div>
+
+    <div class="hero__wrap">
+      <div class="heroCard">
+        <div class="heroTop">
+          <div class="brandMark">
+            <div class="brandDot"></div>
+            <div class="brandText">KÍKÉ LÁRÁ</div>
           </div>
 
-          <div class="mini-status">
-            <span class="mini-dot"></span>
-            <span id="confirmText">Confirming payment…</span>
-          </div>
+          <div class="miniStatus" id="confirmText">Confirming payment…</div>
         </div>
 
-        <div class="hero-main">
-          <div class="tick-wrap">
-            <div class="tick">
-              <span>✓</span>
+        <div class="heroMain">
+          <div class="orb">
+            <div class="orb__ring"></div>
+            <div class="orb__core">
+              <span class="orbIcon" id="orbIcon">⏳</span>
             </div>
           </div>
 
-          <h1 id="heroTitle">Payment received</h1>
-          <p class="hero-sub">
-            Thank you for shopping with <strong>KÍKÉ LÁRÁ</strong>. Your order is being confirmed.
-          </p>
+          <div class="heroCopy">
+            <h1 id="heroTitle">Confirming payment…</h1>
+            <p class="heroSub">
+              Please don’t close this page. We’re confirming your payment securely.
+            </p>
 
-          <div class="hero-meta">
-            <div class="meta-item">
-              <div class="meta-label">Reference</div>
-              <div class="meta-value">
-                <span id="heroRef">—</span>
-                <button class="copy-btn" id="copyRefBtn" type="button" aria-label="Copy reference">
-                  Copy
-                </button>
-              </div>
+            <div class="refRow">
+              <span class="refLabel">Reference</span>
+              <span class="refValue" id="heroRef">—</span>
+              <button class="refBtn" id="copyRefBtn" type="button">Copy</button>
             </div>
 
-            <div class="meta-item">
-              <div class="meta-label">What happens next?</div>
-              <div class="meta-value small">
-                Once confirmed, your invoice will unlock here. Our team will contact you via WhatsApp.
-              </div>
+            <div class="progress">
+              <div class="progress__bar" id="progressBar"></div>
             </div>
-          </div>
 
-          <div class="progress">
-            <div class="progress-track">
-              <div class="progress-bar" id="progressBar"></div>
+        <div class="heroActions" id="heroActions" style="display:none">
+  <a href="products.html" class="btn btn--ghost">Continue Shopping</a>
+  <a href="index.html" class="btn btn--primary">Back Home</a>
+</div>
+
+
+            <div class="heroNote" id="heroNote">
+              If confirmation takes longer, it may be a network delay — we’ll update automatically.
             </div>
-            <div class="progress-hint">Confirmation can take a moment…</div>
-          </div>
-
-          <div class="hero-actions">
-            <a class="btn primary" href="products.html">Continue Shopping</a>
-            <a class="btn ghost" href="index.html">Back Home</a>
           </div>
         </div>
       </div>
     </div>
-  </header>
+  </section>
 
   <!-- RECEIPT -->
-  <main class="wrap">
-    <section class="receipt-shell">
-      <div class="receipt-card" id="receiptCard">
-        <!-- RECEIPT HEADER -->
-        <div class="receipt-head">
-          <div class="receipt-head-left">
-            <div class="receipt-brand">KÍKÉ LÁRÁ</div>
-            <div class="receipt-muted">Receipt / Invoice</div>
-            <div class="receipt-muted" id="receiptDate">—</div>
+  <section class="receiptSection">
+    <div class="receiptShell">
+      <div class="receiptCard" id="receiptCard">
+        <div class="receiptHead">
+          <div>
+            <div class="receiptBrand">KÍKÉ LÁRÁ</div>
+            <div class="muted">Receipt / Invoice</div>
+            <div class="muted" id="receiptDate">—</div>
           </div>
 
-          <div class="receipt-head-right">
-            <div class="pill pill--paid" id="receiptStatus">CONFIRMING</div>
-            <div class="receipt-muted">
-              Reference: <span class="mono" id="receiptRef">—</span>
-            </div>
+          <div class="receiptHeadRight">
+            <div class="pill pill--verifying" id="receiptStatus">CONFIRMING</div>
+            <div class="muted">Reference: <span id="receiptRef">—</span></div>
           </div>
         </div>
 
-        <!-- RECEIPT GRID -->
-        <div class="receipt-grid">
+        <div class="receiptGrid">
           <!-- ITEMS -->
-          <div class="receipt-col">
-            <h3 class="section-title">Items</h3>
+          <div class="receiptCol">
+            <h3 class="sectionTitle">Items</h3>
 
-            <div class="table-wrap">
-              <table class="receipt-table">
+            <div class="tableWrap">
+              <table class="receiptTable">
                 <thead>
                   <tr>
                     <th>Item</th>
@@ -118,77 +103,62 @@
               <div class="row"><span class="muted">Delivery</span> <span id="rDelivery">—</span></div>
               <div class="row total"><strong>Total</strong> <strong id="rTotal">—</strong></div>
             </div>
-
-            <div class="note-line">
-              <span class="note-dot"></span>
-              <span>Invoice buttons will appear after confirmation.</span>
-            </div>
           </div>
 
           <!-- CUSTOMER -->
-          <div class="receipt-col">
-            <h3 class="section-title">Customer & Delivery</h3>
+          <div class="receiptCol">
+            <h3 class="sectionTitle">Customer & Delivery</h3>
 
             <div class="info">
-              <div class="info-row"><strong>Name:</strong> <span id="rName">—</span></div>
-              <div class="info-row"><strong>Email:</strong> <span id="rEmail">—</span></div>
-              <div class="info-row"><strong>Phone:</strong> <span id="rPhone">—</span></div>
+              <div><strong>Name:</strong> <span id="rName">—</span></div>
+              <div><strong>Email:</strong> <span id="rEmail">—</span></div>
+              <div><strong>Phone:</strong> <span id="rPhone">—</span></div>
 
               <hr class="hr">
 
-              <div class="info-row"><strong>Shipping:</strong> <span id="rShipType">—</span></div>
-              <div class="info-row"><strong>State:</strong> <span id="rState">—</span></div>
-              <div class="info-row"><strong>LGA/City:</strong> <span id="rCity">—</span></div>
-              <div class="info-row"><strong>Address:</strong> <span id="rAddress">—</span></div>
+              <div><strong>Shipping:</strong> <span id="rShipType">—</span></div>
+              <div><strong>State:</strong> <span id="rState">—</span></div>
+              <div><strong>LGA/City:</strong> <span id="rCity">—</span></div>
+              <div><strong>Address:</strong> <span id="rAddress">—</span></div>
             </div>
 
-            <!-- ACTIONS (hidden until Paid by JS) -->
+            <!-- Locked until paid -->
+            <div class="locked" id="notConfirmedBox">
+              <div class="lockedIcon">🔒</div>
+              <div>
+                <div class="lockedTitle">Invoice locked</div>
+                <div class="lockedSub">
+                  Your invoice will be available once payment is confirmed.
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions appear only when confirmed -->
             <div class="actions" id="actionsBox" style="display:none">
               <button class="btn2 primary" id="printBtn" type="button">Print / Save as PDF</button>
               <button class="btn2" id="downloadBtn" type="button">Download Invoice (HTML)</button>
             </div>
 
-            <!-- NOT CONFIRMED BOX -->
-            <div class="warn" id="notConfirmedBox" style="display:none">
-              <div class="warn-title">Confirming your payment…</div>
-              <div class="warn-text">
-                Your invoice will appear here automatically once your payment is confirmed.
-                <span class="warn-sub">Please don’t refresh repeatedly.</span>
-              </div>
+            <div class="warn" id="noReceiptBox" style="display:none">
+              No receipt data found on this device.<br>
+              If you just paid, go back to checkout and try again.
             </div>
-
-            <div class="warn warn-soft" id="noReceiptBox" style="display:none">
-              <div class="warn-title">No receipt found on this device</div>
-              <div class="warn-text">
-                If you just paid, go back to checkout and try again.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- FOOTER -->
-        <div class="receipt-foot">
-          <div class="foot-left">
-            <span class="dot"></span>
-            <span>Need help? Contact us on WhatsApp with your reference.</span>
-          </div>
-          <div class="foot-right mono">
-            © <span id="yearNow"></span> KÍKÉ LÁRÁ
           </div>
         </div>
       </div>
-    </section>
-  </main>
 
-  <!-- IMPORTANT: config.js must load BEFORE order-success.js -->
-  <script>
-    // year
-    document.addEventListener("DOMContentLoaded", () => {
-      const y = document.getElementById("yearNow");
-      if (y) y.textContent = new Date().getFullYear();
-    });
-  </script>
+      <footer class="footer">
+        <div class="footerLine"></div>
+        <div class="footerText">© <span id="year"></span> KÍKÉ LÁRÁ Skincare</div>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ✅ IMPORTANT: config.js must load BEFORE order-success.js -->
   <script src="config.js"></script>
   <script src="order-success.js" defer></script>
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
