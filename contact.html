@@ -77,6 +77,12 @@
             <textarea id="message" name="message" placeholder="Tell us how we can help…" rows="6" required></textarea>
           </div>
 
+          <!-- ✅ hCaptcha -->
+          <div class="captcha-wrap">
+            <div id="hcaptchaWidget" class="h-captcha"></div>
+            <div class="captcha-note">Please complete the captcha before submitting.</div>
+          </div>
+
           <button id="submitBtn" type="submit" class="submit-btn">
             Submit
           </button>
@@ -137,7 +143,13 @@
 
   <script src="header.js"></script>
   <script src="footer.js"></script>
+
+  <!-- ✅ must come before contact.js -->
   <script src="config.js"></script>
+
+  <!-- ✅ hCaptcha script (explicit render) -->
+  <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
+
   <script src="contact.js"></script>
 </body>
 </html>

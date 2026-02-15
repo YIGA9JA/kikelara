@@ -1,7 +1,19 @@
-/* ===================== CHECKOUT.JS (BEST - PAYSTACK SERVER VERIFY + SAVE ORDER) ===================== */
+/* ===================== CHECKOUT.JS (WEBHOOK CREATES/UPDATES PAID ORDERS ✅) ===================== */
+/**
+ * ✅ Uses your existing backend exactly:
+ *   GET  /delivery-pricing
+ *   POST /orders        (idempotent pending upsert)
+ *   POST /order         (alias)
+ *   (NO client verify)
+ *
+ * ✅ Paystack webhook on backend is the source of truth:
+ *   POST /payments/paystack/webhook
+ *
+ * ✅ No "PIN delete" / no pin logic here at all.
+ */
 
 /* ================= API (BACKEND) ================= */
-const API_BASE = window.API_BASE;
+const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 
 /* ================= NIGERIA STATES + LGAs (FALLBACK SOURCE) ================= */
 const NIGERIA_LGA_SOURCE =
@@ -39,6 +51,11 @@ const payNowBtn = document.getElementById("payNowBtn");
 /* Segment indicator */
 const shipSegment = document.querySelector("[data-ship]");
 const segIndicator = shipSegment ? shipSegment.querySelector(".seg-indicator") : null;
+
+/* ================= PAYSTACK ================= */
+const PAYSTACK_PUBLIC_KEY =
+  window.PAYSTACK_PUBLIC_KEY ||
+  "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
 
 /* ================= LOAD CART ================= */
 let cart = [];
@@ -79,6 +96,7 @@ function normalizePricing(raw) {
 }
 
 async function fetchPricingFromServer() {
+  if (!API_BASE) throw new Error("API_BASE missing");
   const res = await fetch(`${API_BASE}/delivery-pricing`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Pricing fetch failed: ${res.status}`);
   const data = await res.json();
@@ -328,11 +346,14 @@ function validateCheckout() {
     if (!address) return { ok: false, msg: "Please enter your delivery address." };
   }
 
+  if (!API_BASE) return { ok: false, msg: "Checkout not configured (API_BASE missing)." };
+  if (!PAYSTACK_PUBLIC_KEY) return { ok: false, msg: "Checkout not configured (Paystack key missing)." };
+
   return { ok: true };
 }
 
 /* ================= ORDER DRAFT ================= */
-function buildBackendOrderDraft() {
+function buildBackendOrderDraft(reference) {
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
   const phone = phoneEl.value.trim();
@@ -356,7 +377,7 @@ function buildBackendOrderDraft() {
   }));
 
   return {
-    reference: "",
+    reference: reference || "",
     name,
     email,
     phone,
@@ -369,7 +390,7 @@ function buildBackendOrderDraft() {
     deliveryFee,
     total,
     status: "Pending",
-    paystackRef: "",
+    paystackRef: reference || "",
     createdAt: new Date().toISOString()
   };
 }
@@ -386,109 +407,93 @@ function saveLastOrderForReceipt(order) {
   try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
 }
 
-/* ================= BACKEND VERIFY + SAVE ================= */
-async function verifyPaystackAndSave(reference, draftOrder) {
-  const res = await fetch(`${API_BASE}/orders/verify-paystack`, {
+/* ================= BACKEND: SAVE PENDING ORDER (IDEMPOTENT) ================= */
+async function savePendingOrderToServer(draftOrder) {
+  const res = await fetch(`${API_BASE}/orders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reference, order: draftOrder })
+    body: JSON.stringify(draftOrder)
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Verify failed: ${res.status} ${txt}`);
+    throw new Error(`Save pending failed: ${res.status} ${txt}`);
   }
 
   return res.json().catch(() => ({}));
 }
 
-/* ================= PAYSTACK ================= */
-const PAYSTACK_PUBLIC_KEY = "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
-
+/* ================= PAYSTACK FLOW ================= */
 function payWithPaystack() {
   const check = validateCheckout();
   if (!check.ok) return alert(check.msg);
 
   const email = emailEl.value.trim();
   const total = getGrandTotal();
-  const reference = "KIKELARA_" + Date.now(); // unique reference per attempt
 
-  setBtnLoading(true, "OPENING PAYSTACK…");
+  // ✅ Use a strong unique reference (matches backend max 200)
+  const reference = `KIKELARA_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
-  const handler = PaystackPop.setup({
-    key: PAYSTACK_PUBLIC_KEY,
-    email,
-    amount: Math.round(total * 100),
-    currency: "NGN",
-    ref: reference,
+  setBtnLoading(true, "SAVING ORDER…");
 
-    callback: function (response) {
-      (async () => {
+  const draft = buildBackendOrderDraft(reference);
+
+  // local receipt immediately
+  saveLastOrderForReceipt({ ...draft, status: "Pending (Awaiting Payment)" });
+
+  // ✅ Save pending order FIRST so webhook can update it to Paid
+  (async () => {
+    try {
+      await savePendingOrderToServer(draft);
+    } catch (err) {
+      console.warn(err);
+
+      // Not fatal: webhook can still create Paid order even if this failed,
+      // but we keep a local backup so you can reconcile.
+      saveOrderFallbackLocal({ ...draft, status: "Pending (Server Save Failed)" });
+    }
+
+    setBtnLoading(true, "OPENING PAYSTACK…");
+
+    const handler = PaystackPop.setup({
+      key: PAYSTACK_PUBLIC_KEY,
+      email,
+      amount: Math.round(total * 100),
+      currency: "NGN",
+      ref: reference,
+
+      callback: function (response) {
         const payRef = response?.reference || reference;
 
-        setBtnLoading(true, "VERIFYING PAYMENT…");
-
-        const draft = buildBackendOrderDraft();
-        draft.reference = payRef;
-        draft.paystackRef = payRef;
-
-        // local “pending verification” receipt (good UX)
-        saveLastOrderForReceipt({
+        // ✅ Do NOT call /payments/paystack/verify here.
+        // Webhook will verify + mark Paid.
+        const receipt = {
           ...draft,
-          status: "Payment Received (Verifying)"
-        });
+          reference: payRef,
+          paystackRef: payRef,
+          status: "Payment Received (Awaiting Confirmation)"
+        };
 
-        try {
-          const out = await verifyPaystackAndSave(payRef, draft);
+        saveLastOrderForReceipt(receipt);
 
-          // backend returns DB row with payload
-          const dbRow = out?.order || null;
-          const receipt = (dbRow && dbRow.payload) ? dbRow.payload : {
-            ...draft,
-            status: "Paid",
-            paidAt: new Date().toISOString(),
-            amountPaid: draft.total
-          };
+        // clear cart so user doesn't pay twice
+        localStorage.removeItem(CART_KEY);
 
-          receipt.reference = payRef;
+        window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
+      },
 
-          // Save receipt locally for success page
-          saveLastOrderForReceipt(receipt);
+      onClose: function () {
+        setBtnLoading(false);
+        alert("Payment cancelled.");
+      }
+    });
 
-          // Clear cart after server confirms payment
-          localStorage.removeItem(CART_KEY);
-
-          // Redirect
-          window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
-        } catch (err) {
-          console.error(err);
-
-          // Keep local backup so you can reconcile later
-          const localBackup = {
-            ...draft,
-            status: "Payment Received (Verify Failed)",
-            paidAt: new Date().toISOString(),
-            amountPaid: draft.total
-          };
-          saveOrderFallbackLocal(localBackup);
-          saveLastOrderForReceipt(localBackup);
-
-          alert("Payment received. We are confirming your order. Reference: " + payRef);
-          localStorage.removeItem(CART_KEY);
-          window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
-        } finally {
-          setBtnLoading(false);
-        }
-      })();
-    },
-
-    onClose: function () {
-      setBtnLoading(false);
-      alert("Payment cancelled.");
-    }
+    handler.openIframe();
+  })().catch((e) => {
+    console.error(e);
+    setBtnLoading(false);
+    alert("Could not start checkout. Please try again.");
   });
-
-  handler.openIframe();
 }
 
 /* ================= EVENTS ================= */

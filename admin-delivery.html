@@ -9,10 +9,12 @@
 <body>
 
 <header class="main-header">
-  <div class="brand">
-    <!-- ✅ remove leading / -->
+  <div class="brand" aria-label="Kíke Lárá Admin">
     <img src="images/logo.jpg" alt="Kíke Lárá">
-    <span>KÍKE LÁRÁ Admin</span>
+    <div class="brand-text">
+      <b>KÍKE LÁRÁ</b>
+      <span>Delivery Admin</span>
+    </div>
   </div>
 
   <div class="header-actions">
@@ -31,9 +33,12 @@
   <div class="page-head">
     <div>
       <h1>Delivery Pricing</h1>
-      <p class="muted">Manage delivery fees by <b>State</b> & <b>City/LGA</b>. Changes apply instantly at checkout.</p>
+      <p class="muted">
+        Manage delivery fees by <b>State</b> & <b>City/LGA</b>. Changes apply instantly at checkout.
+      </p>
     </div>
-    <div class="chips">
+
+    <div class="chips" aria-label="Metadata">
       <span class="chip">Storage: <b>deliveryPricing_v1</b></span>
       <span class="chip">Currency: <b>NGN</b></span>
       <span class="chip">Last update: <b id="lastUpdate">—</b></span>
@@ -43,12 +48,12 @@
   <div class="admin-container">
 
     <!-- LEFT -->
-    <aside class="admin-box sticky">
+    <aside class="admin-box sticky" aria-label="Controls">
       <h3>Default Delivery Fee</h3>
       <p class="muted small">Used when no city fee is selected/found.</p>
 
       <div class="row">
-        <input type="number" id="defaultFee" placeholder="Default fee (₦)" min="0">
+        <input type="number" id="defaultFee" placeholder="Default fee (₦)" min="0" inputmode="numeric">
         <button id="saveDefaultFeeBtn" class="btn primary" type="button">Save</button>
       </div>
 
@@ -56,7 +61,7 @@
 
       <h3>Quick Setup</h3>
       <p class="muted small">
-        Seed all Nigerian States + LGAs and set every city fee to <b>₦5000</b>. You can edit later.
+        Seed all Nigerian States + LGAs and set every LGA fee to <b>₦5000</b>. You can edit later.
       </p>
 
       <button id="seedNigeriaBtn" class="btn gold" type="button">Seed Nigeria (₦5000)</button>
@@ -65,7 +70,7 @@
 
       <h3>Add State</h3>
       <div class="row">
-        <input type="text" id="newStateName" placeholder="State name">
+        <input type="text" id="newStateName" placeholder="State name" autocomplete="off">
         <button id="addStateBtn" class="btn primary" type="button">Add</button>
       </div>
 
@@ -73,29 +78,75 @@
 
       <h3>Search</h3>
       <div class="search-wrap">
-        <input id="searchBox" type="text" placeholder="Search state or city...">
+        <input id="searchBox" type="text" placeholder="Search state or city..." autocomplete="off">
       </div>
 
       <p class="muted small tip">
-        Tip: Open a state → you can edit fees inline.
+        Tip: Use checkboxes to bulk-edit LGAs. Autosaves when you apply changes.
       </p>
     </aside>
 
     <!-- RIGHT -->
-    <main class="admin-box">
+    <main class="admin-box" aria-label="States and cities">
       <div class="list-head">
-        <h3>States & Cities</h3>
+        <div>
+          <h3>States & Cities</h3>
+          <p class="muted small" style="margin-top:6px;">
+            Bulk Mode: select multiple LGAs → apply one fee or delete in one save.
+          </p>
+        </div>
         <div class="list-actions">
           <button id="collapseAllBtn" class="btn ghost" type="button">Collapse all</button>
           <button id="expandAllBtn" class="btn ghost" type="button">Expand all</button>
         </div>
       </div>
 
-      <div id="stateList"></div>
+      <!-- Sticky Summary -->
+      <div id="summaryBar" class="summary-bar" aria-label="Summary">
+        <div class="summary-left">
+          <span class="pill">States: <b id="sumStates">—</b></span>
+          <span class="pill">LGAs: <b id="sumLgas">—</b></span>
+          <span class="pill">Selected: <b id="sumSelected">0</b></span>
+        </div>
+        <div class="summary-right">
+          <button id="bulkFeeBtn" class="btn gold" type="button">Set fee (Selected)</button>
+          <button id="bulkDeleteBtn" class="btn ghost" type="button">Delete (Selected)</button>
+          <button id="bulkClearBtn" class="btn ghost" type="button">Clear selection</button>
+        </div>
+      </div>
+
+      <div id="stateList">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
     </main>
 
   </div>
 </section>
+
+<!-- Toasts -->
+<div id="toastWrap" class="toast-wrap" aria-live="polite" aria-relevant="additions"></div>
+
+<!-- Modal (single reusable) -->
+<div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <div class="modal-title">
+        <h3 id="modalTitle">Modal</h3>
+        <p id="modalDesc">Description</p>
+      </div>
+      <button id="modalCloseBtn" class="modal-x" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div id="modalBody" class="modal-body"></div>
+
+    <div class="modal-actions">
+      <button id="modalCancelBtn" class="btn flat" type="button">Cancel</button>
+      <button id="modalOkBtn" class="btn primary" type="button">OK</button>
+    </div>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script src="auth.js"></script>

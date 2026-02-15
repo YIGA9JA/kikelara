@@ -1,8 +1,11 @@
-/* ===================== ORDER-SUCCESS.JS (FULL UPDATED) ===================== */
+/* ===================== ORDER-SUCCESS.JS (SHOW INVOICE ONLY WHEN CONFIRMED) ===================== */
 
-const API_BASE = window.API_BASE || ""; // from config.js
+const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
+
+const POLL_INTERVAL_MS = 2500;
+const POLL_MAX_TRIES = 30;
 
 function formatNaira(n) {
   return "₦" + Number(n || 0).toLocaleString();
@@ -44,20 +47,18 @@ function findOrderByRefInBackup(ref) {
 }
 
 function safeGetReceiptOrder() {
-  const last = safeJSON(LAST_ORDER_KEY, null);
-  if (last && Array.isArray(last.cart)) return last;
-
   const ref = getRefFromURL();
+
+  const last = safeJSON(LAST_ORDER_KEY, null);
+  if (last && Array.isArray(last.cart) && (!ref || String(last.reference || "") === String(ref))) return last;
+
   const found = findOrderByRefInBackup(ref);
   if (found && Array.isArray(found.cart)) return found;
 
+  if (last && Array.isArray(last.cart)) return last;
   return null;
 }
 
-/* Optional backend fetch:
-   Requires endpoint: GET /orders/public/:reference
-   response: { ok:true, order:{...} }
-*/
 async function fetchReceiptFromBackend(ref) {
   if (!API_BASE || !ref) return null;
 
@@ -70,7 +71,6 @@ async function fetchReceiptFromBackend(ref) {
 
     const data = await res.json().catch(() => null);
     const order = data?.order || null;
-
     if (order && Array.isArray(order.cart)) return order;
     return null;
   } catch {
@@ -83,14 +83,48 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
+function isPaidStatus(statusRaw) {
+  const s = String(statusRaw || "").toLowerCase();
+  return s === "paid" || s.includes("paid");
+}
+
+function toggleInvoiceActions(canShow) {
+  const actions = document.getElementById("actionsBox");
+  const warn = document.getElementById("notConfirmedBox");
+
+  if (actions) actions.style.display = canShow ? "flex" : "none";
+  if (warn) warn.style.display = canShow ? "none" : "block";
+}
+
+function setHero(ref, statusRaw) {
+  const heroRef = document.getElementById("heroRef");
+  if (heroRef) heroRef.textContent = ref || "—";
+
+  const heroTitle = document.getElementById("heroTitle");
+  const confirmText = document.getElementById("confirmText");
+  const progress = document.getElementById("progressBar");
+
+  const paid = isPaidStatus(statusRaw);
+
+  if (paid) {
+    if (heroTitle) heroTitle.textContent = "Payment confirmed";
+    if (confirmText) confirmText.textContent = "Confirmed ✅";
+    if (progress) progress.style.width = "100%";
+  } else {
+    if (heroTitle) heroTitle.textContent = "Payment received";
+    if (confirmText) confirmText.textContent = "Confirming payment…";
+    if (progress && !progress.style.width) progress.style.width = "55%";
+  }
+}
+
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
-  let label = String(statusRaw || "PAID").toUpperCase();
-  let tone = "paid";
+  let label = "CONFIRMING";
+  let tone = "pending";
 
-  if (s.includes("verif")) { label = "VERIFYING"; tone = "verifying"; }
-  else if (s.includes("failed")) { label = "PENDING CONFIRMATION"; tone = "warning"; }
+  if (s.includes("failed")) { label = "PENDING CONFIRMATION"; tone = "warning"; }
+  else if (s.includes("verif")) { label = "VERIFYING"; tone = "verifying"; }
   else if (s.includes("pending")) { label = "PENDING"; tone = "pending"; }
   else if (s.includes("paid")) { label = "PAID"; tone = "paid"; }
 
@@ -115,18 +149,25 @@ function renderReceipt(order) {
 
   if (!order || !Array.isArray(order.cart)) {
     if (noBox) noBox.style.display = "block";
+    toggleInvoiceActions(false);
     return;
   }
   if (noBox) noBox.style.display = "none";
 
-  setText("receiptRef", order.reference || "—");
+  const ref = order.reference || order.paystackRef || "—";
+  setText("receiptRef", ref);
 
   const pill = statusToPill(order.status);
   setText("receiptStatus", pill.label);
   applyPillTone(pill.tone);
 
+  setHero(ref, order.status);
+
+  // ✅ only show print/download when truly PAID
+  toggleInvoiceActions(isPaidStatus(order.status));
+
   const when = order.paidAt || order.createdAt || new Date().toISOString();
-  const prefix = pill.tone === "verifying" ? "Received at: " : "Paid at: ";
+  const prefix = isPaidStatus(order.status) ? "Paid at: " : "Updated at: ";
   setText("receiptDate", prefix + new Date(when).toLocaleString());
 
   setText("rName", order.name || "—");
@@ -179,7 +220,6 @@ function buildInvoiceHTML(order) {
     `;
   }).join("");
 
-  const pill = statusToPill(order.status);
   const when = order.paidAt || order.createdAt || new Date().toISOString();
 
   return `
@@ -195,13 +235,11 @@ function buildInvoiceHTML(order) {
     <div>
       <h2 style="margin:0;">KÍKÉ LÁRÁ</h2>
       <div style="opacity:.75;">Receipt / Invoice</div>
-      <div style="opacity:.75;margin-top:6px;">
-        ${pill.tone === "verifying" ? "Received at:" : "Paid at:"} ${new Date(when).toLocaleString()}
-      </div>
+      <div style="opacity:.75;margin-top:6px;">Paid at: ${new Date(when).toLocaleString()}</div>
     </div>
     <div style="text-align:right;">
-      <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f2f2f2;font-size:12px;font-weight:800;">
-        ${escapeHtml(pill.label)}
+      <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f7ee;color:#116b34;font-size:12px;font-weight:800;">
+        PAID
       </div>
       <div style="opacity:.75;margin-top:6px;">Reference: <b>${escapeHtml(order.reference || "—")}</b></div>
     </div>
@@ -228,7 +266,7 @@ function buildInvoiceHTML(order) {
       <span style="opacity:.75;">Delivery</span><span>${formatNaira(order.deliveryFee)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:800;">
-      <span>Total Paid</span><span>${formatNaira(order.total)}</span>
+      <span>Total</span><span>${formatNaira(order.total)}</span>
     </div>
   </div>
 
@@ -262,28 +300,68 @@ function downloadTextFile(filename, content, mime = "text/html") {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+async function pollUntilPaid(ref) {
+  if (!ref) return;
+  if (!API_BASE) return; // cannot poll without backend
+
+  for (let i = 0; i < POLL_MAX_TRIES; i++) {
+    const fresh = await fetchReceiptFromBackend(ref);
+    if (fresh) {
+      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
+      renderReceipt(fresh);
+
+      if (isPaidStatus(fresh.status)) return;
+    }
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  // Hide invoice actions initially (until paid)
+  toggleInvoiceActions(false);
+
+  // First paint from local storage
   let order = safeGetReceiptOrder();
   renderReceipt(order);
 
-  const ref = getRefFromURL() || order?.reference || "";
-  if (ref) {
-    const fresh = await fetchReceiptFromBackend(ref);
-    if (fresh) {
-      order = fresh;
-      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
-      renderReceipt(fresh);
+  const ref = getRefFromURL() || order?.reference || order?.paystackRef || "";
+  setHero(ref, order?.status);
+
+  // Copy ref
+  document.getElementById("copyRefBtn")?.addEventListener("click", async () => {
+    const r = getRefFromURL() || safeGetReceiptOrder()?.reference || "";
+    if (!r) return alert("No reference to copy.");
+    try {
+      await navigator.clipboard.writeText(r);
+      alert("Reference copied ✅");
+    } catch {
+      alert("Copy failed. You can manually copy the reference.");
     }
-  }
+  });
 
-  document.getElementById("printBtn")?.addEventListener("click", () => window.print());
+  // Print (guard: only allow if paid)
+  document.getElementById("printBtn")?.addEventListener("click", () => {
+    const o = safeGetReceiptOrder();
+    if (!o || !isPaidStatus(o.status)) {
+      alert("Invoice will be available after payment is confirmed.");
+      return;
+    }
+    window.print();
+  });
 
+  // Download invoice (guard: only allow if paid)
   document.getElementById("downloadBtn")?.addEventListener("click", () => {
     const o = safeGetReceiptOrder();
-    if (!o) return;
+    if (!o || !isPaidStatus(o.status)) {
+      alert("Invoice will be available after payment is confirmed.");
+      return;
+    }
 
     const html = buildInvoiceHTML(o);
     const refSafe = (o.reference || "KIKELARA").replace(/[^a-z0-9_-]/gi, "_");
     downloadTextFile(`KIKELARA-INVOICE-${refSafe}.html`, html, "text/html");
   });
+
+  // Poll server until webhook marks Paid
+  await pollUntilPaid(ref);
 });

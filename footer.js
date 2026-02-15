@@ -1,15 +1,17 @@
-// footer.js — Nécessaire-style premium footer (newsletter + icons + mobile accordion + real subscribe API)
+// footer.js — premium footer (newsletter + hCaptcha + uses window.API_BASE)
 (() => {
   const mount = document.getElementById("siteFooter");
   if (!mount) return;
 
   const year = new Date().getFullYear();
 
-  // ✅ Your backend (Render) + frontend (Vercel)
-  const API_BASE = "https://kikelara.onrender.com";
+  // ✅ Use config.js base (no hardcode)
+  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
   const SUBSCRIBE_ENDPOINT = `${API_BASE}/api/newsletter/subscribe`;
 
-  // Small inline SVG icons (minimal style)
+  const SITE_KEY = String(window.HCAPTCHA_SITE_KEY || "").trim();
+
+  // Small inline SVG icons
   const ICONS = {
     bag: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3v14H4V7h3Zm2 0h6V6a3 3 0 0 0-6 0v1Zm-3 2v10h14V9H6Zm4 3h2v5h-2v-5Zm4 0h2v5h-2v-5Z"/></svg>`,
     heart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 21s-7.2-4.6-9.5-8.6C.6 9.1 2.5 5.9 6 5.5c1.7-.2 3.4.6 4.4 2c1-1.4 2.7-2.2 4.4-2c3.5.4 5.4 3.6 3.5 6.9C19.2 16.4 12 21 12 21Z"/></svg>`,
@@ -45,7 +47,6 @@
     <footer class="main-footer">
       <div class="footer-wrap">
 
-        <!-- Newsletter (Nécessaire-like) -->
         <div class="footer-newsletter">
           <div class="footer-newsletter-text">
             <h3>Sign up to subscribe</h3>
@@ -57,7 +58,11 @@
             <input id="footerEmail" name="email" type="email" placeholder="Email address" required />
             <button type="submit" id="footerSubmitBtn">Submit</button>
 
-            <!-- ✅ inline status text (premium, no alert spam) -->
+            <!-- ✅ hCaptcha widget for newsletter -->
+            <div class="footer-captcha">
+              <div id="footerHcaptcha" class="h-captcha"></div>
+            </div>
+
             <div class="footer-form-status" id="footerFormStatus" aria-live="polite"></div>
           </form>
         </div>
@@ -65,7 +70,6 @@
         <div class="footer-divider"></div>
 
         <div class="footer-grid">
-          <!-- Brand + Follow Us -->
           <div class="footer-brand">
             <a href="index.html" class="footer-logo" aria-label="Kíke Lárá Home">
               <img src="/images/logo.jpg" alt="Kíke Lárá Logo">
@@ -91,7 +95,6 @@
             </div>
           </div>
 
-          <!-- Link columns (accordion on mobile) -->
           <div class="footer-columns">
             ${sections.map((sec) => `
               <details class="footer-col" open>
@@ -117,17 +120,61 @@
     </footer>
   `;
 
-  // ===================== HELPERS =====================
+  // ===================== STATUS =====================
   const statusEl = document.getElementById("footerFormStatus");
   const setStatus = (msg, type = "") => {
     if (!statusEl) return;
     statusEl.textContent = msg || "";
-    statusEl.setAttribute("data-type", type); // for styling in CSS if you want
+    statusEl.setAttribute("data-type", type);
   };
 
   const isValidEmail = (email) => /^\S+@\S+\.\S+$/.test(String(email || "").trim());
 
-  // ===================== NEWSLETTER SUBMIT (API) =====================
+  // ===================== hCaptcha for footer =====================
+  const captchaEl = document.getElementById("footerHcaptcha");
+  let footerWidgetId = null;
+
+  function renderFooterCaptchaIfReady() {
+    if (!captchaEl) return;
+    if (!SITE_KEY) {
+      setStatus("Missing hCaptcha site key in config.js", "error");
+      return;
+    }
+    if (!window.hcaptcha) return;
+
+    if (footerWidgetId === null) {
+      try {
+        footerWidgetId = window.hcaptcha.render(captchaEl, { sitekey: SITE_KEY });
+      } catch {}
+    }
+  }
+
+  function footerCaptchaToken() {
+    if (!window.hcaptcha) return "";
+    try {
+      return footerWidgetId !== null ? window.hcaptcha.getResponse(footerWidgetId) : window.hcaptcha.getResponse();
+    } catch {
+      return "";
+    }
+  }
+
+  function resetFooterCaptcha() {
+    if (!window.hcaptcha) return;
+    try {
+      if (footerWidgetId !== null) window.hcaptcha.reset(footerWidgetId);
+      else window.hcaptcha.reset();
+    } catch {}
+  }
+
+  renderFooterCaptchaIfReady();
+  let tries = 0;
+  const it = setInterval(() => {
+    renderFooterCaptchaIfReady();
+    tries += 1;
+    if (window.hcaptcha || tries > 30) clearInterval(it);
+  }, 500);
+
+  // ===================== SUBMIT =====================
   const form = document.getElementById("footerNewsletter");
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -144,7 +191,12 @@
       return;
     }
 
-    // UI states
+    const captchaToken = footerCaptchaToken();
+    if (!captchaToken) {
+      setStatus("❌ Please complete the captcha.", "error");
+      return;
+    }
+
     setStatus("Subscribing…", "loading");
     if (btn) {
       btn.disabled = true;
@@ -156,22 +208,22 @@
       const res = await fetch(SUBSCRIBE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, captchaToken }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
+        resetFooterCaptcha();
         setStatus(data.message || "Subscription failed. Please try again.", "error");
         return;
       }
 
-      // ✅ keep for your own tracking (optional)
       localStorage.setItem("newsletterEmail", email);
 
       form.reset();
+      resetFooterCaptcha();
 
-      // Premium success line (instead of alert)
       setStatus(
         data.already
           ? "✅ You’re already subscribed. We sent a confirmation email."
@@ -179,6 +231,7 @@
         "success"
       );
     } catch (err) {
+      resetFooterCaptcha();
       setStatus("Network error. Please try again.", "error");
     } finally {
       if (btn) {
@@ -189,7 +242,7 @@
     }
   });
 
-  // Mobile: make the link columns behave like Nécessaire (accordion)
+  // Mobile accordion
   const mq = window.matchMedia("(max-width: 600px)");
   const applyAccordion = () => {
     document.querySelectorAll(".footer-col").forEach((d) => {

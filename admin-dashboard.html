@@ -10,35 +10,62 @@
 
 <header class="dash-header">
   <div class="brand">
-    <span class="logo">KÍKE LÁRÁ</span>
-    <span class="sub">Admin Dashboard</span>
+    <div class="logo-wrap">
+      <img src="images/logo.jpg" alt="Kíke Lárá" />
+    </div>
+    <div class="brand-text">
+      <div class="brand-name">KÍKE LÁRÁ</div>
+      <div class="brand-sub">Admin Suite</div>
+    </div>
   </div>
 
-  <button id="logoutBtn" class="dash-logout" type="button">Logout</button>
+  <div class="head-actions">
+    <span class="pill" id="apiPill">API: —</span>
+    <button id="logoutBtn" class="btn" type="button">Logout</button>
+  </div>
 </header>
 
-<section class="dash-hero">
-  <h1>Welcome Admin</h1>
-  <p>Manage orders, delivery pricing, and customer messages.</p>
+<section class="hero">
+  <div class="hero-card">
+    <div class="hero-top">
+      <h1>Welcome back</h1>
+      <p>Manage orders, products, delivery pricing, and messages.</p>
+    </div>
+
+    <div class="kpis" id="kpis">
+      <div class="kpi"><div class="k">Orders</div><div class="v" id="kOrders">—</div></div>
+      <div class="kpi"><div class="k">Pending</div><div class="v" id="kPending">—</div></div>
+      <div class="kpi"><div class="k">Products</div><div class="v" id="kProducts">—</div></div>
+      <div class="kpi"><div class="k">Messages</div><div class="v" id="kMessages">—</div></div>
+    </div>
+
+    <div class="subnote" id="statusLine">Loading…</div>
+  </div>
 </section>
 
-<section class="dash-grid">
-  <button class="dash-card" data-go="admin-orders.html" type="button">
-    <div class="icon">📦</div>
-    <div class="title">Orders</div>
-    <div class="desc">View and update order status</div>
+<section class="grid">
+  <button class="card" data-go="admin-orders.html" type="button">
+    <div class="ico">📦</div>
+    <div class="t">Orders</div>
+    <div class="d">View & update statuses</div>
   </button>
 
-  <button class="dash-card" data-go="admin-delivery.html" type="button">
-    <div class="icon">🚚</div>
-    <div class="title">Delivery Pricing</div>
-    <div class="desc">Edit state & city delivery fees</div>
+  <button class="card" data-go="admin-products.html" type="button">
+    <div class="ico">🧴</div>
+    <div class="t">Products</div>
+    <div class="d">Add, edit, enable/disable</div>
   </button>
 
-  <button class="dash-card" data-go="admin-messages.html" type="button">
-    <div class="icon">💬</div>
-    <div class="title">Messages</div>
-    <div class="desc">View contact form messages</div>
+  <button class="card" data-go="admin-delivery.html" type="button">
+    <div class="ico">🚚</div>
+    <div class="t">Delivery Pricing</div>
+    <div class="d">State & LGA delivery fees</div>
+  </button>
+
+  <button class="card" data-go="admin-messages.html" type="button">
+    <div class="ico">💬</div>
+    <div class="t">Messages</div>
+    <div class="d">Inbox, search, delete</div>
   </button>
 </section>
 

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KÍKÉLÁRÁ — Products Admin</title>
+
+  <script src="config.js"></script>
+  <link rel="stylesheet" href="admin-products.css" />
+</head>
+<body>
+
+  <main class="ad">
+    <header class="ad-top">
+      <div class="ad-brand">
+        <div class="ad-logo">
+          <img src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
+        </div>
+        <div>
+          <div class="ad-title">KÍKÉLÁRÁ</div>
+          <div class="ad-sub">Products Admin</div>
+        </div>
+      </div>
+
+      <div class="ad-actions">
+        <button class="ad-btn" id="refreshBtn" type="button">Refresh</button>
+        <button class="ad-btn" id="newBtn" type="button">Add Product</button>
+        <button class="ad-btn is-logout" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </header>
+
+    <section class="ad-card">
+      <div class="ad-controls">
+        <div class="ad-search">
+          <input id="q" type="text" placeholder="Search name, price, description…" autocomplete="off" />
+        </div>
+
+        <div class="ad-filters">
+          <button class="ad-pill is-active" type="button" data-filter="all">All</button>
+          <button class="ad-pill" type="button" data-filter="active">Active</button>
+          <button class="ad-pill" type="button" data-filter="inactive">Inactive</button>
+        </div>
+
+        <div class="ad-sort">
+          <select id="sort">
+            <option value="new">Newest</option>
+            <option value="old">Oldest</option>
+            <option value="name">Name (A–Z)</option>
+            <option value="priceHigh">Price (High)</option>
+            <option value="priceLow">Price (Low)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="ad-status" id="status" aria-live="polite"></div>
+
+      <div class="ad-grid" id="grid"></div>
+
+      <div class="ad-empty" id="empty" style="display:none;">
+        No products found.
+      </div>
+    </section>
+  </main>
+
+  <!-- Toasts -->
+  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
+
+  <!-- Login Modal -->
+  <div class="modal" id="loginModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-top">
+        <div class="modal-title">Admin Login</div>
+        <button class="modal-x" id="loginClose" aria-label="Close" type="button">×</button>
+      </div>
+
+      <form id="loginForm">
+        <label class="lbl">Password</label>
+        <input class="ipt" id="adminPass" type="password" placeholder="Enter admin password" required autocomplete="current-password" />
+
+        <div class="modal-actions" style="justify-content:flex-start;">
+          <button class="btn-primary" type="submit" id="loginBtn">Sign in</button>
+          <button class="btn-soft" type="button" id="loginCancel">Cancel</button>
+        </div>
+
+        <div class="help" id="loginHelp"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create/Edit Modal -->
+  <div class="modal" id="editModal" aria-hidden="true">
+    <div class="modal-card modal-wide">
+      <div class="modal-top">
+        <div class="modal-title" id="editTitle">Add Product</div>
+        <button class="modal-x" id="editClose" aria-label="Close" type="button">×</button>
+      </div>
+
+      <form id="editForm">
+        <input type="hidden" id="pid" />
+
+        <div class="form-grid">
+          <div>
+            <label class="lbl">Name</label>
+            <input class="ipt" id="name" type="text" placeholder="Product name" required />
+          </div>
+
+          <div>
+            <label class="lbl">Price (₦)</label>
+            <input class="ipt" id="price" type="number" min="0" step="1" placeholder="0" required inputmode="numeric" />
+          </div>
+
+          <div class="span2">
+            <label class="lbl">Description</label>
+            <textarea class="txt" id="desc" rows="4" placeholder="Short product description…"></textarea>
+          </div>
+
+          <div>
+            <label class="lbl">Active?</label>
+            <select class="ipt" id="active">
+              <option value="true">Yes (Active)</option>
+              <option value="false">No (Hidden)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="lbl">Image (optional)</label>
+            <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,image/webp" />
+          </div>
+
+          <div class="span2 preview">
+            <div class="preview-box">
+              <img id="previewImg" alt="Preview" />
+            </div>
+            <div class="preview-hint">Tip: upload a clean square image for best display.</div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-soft" type="button" id="cancelEdit">Cancel</button>
+          <button class="btn-primary" type="submit" id="saveBtn">Save</button>
+        </div>
+
+        <div class="help" id="editHelp"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="admin-products.js"></script>
+</body>
+</html>

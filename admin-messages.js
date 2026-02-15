@@ -1,8 +1,10 @@
-// admin-messages.js (WORKS WITH YOUR CURRENT server.js)
+// admin-messages.js (SECURED: NO PIN IN FRONTEND CODE)
+// ✅ Works with cookie auth + CSRF + backend-enforced delete PIN
+// ✅ Delete PIN is typed at delete time and sent as header (not stored / not hardcoded)
+// ✅ Requires your backend to enforce: requireAdminCookie + requireCsrf + requireDeletePin
 (() => {
   const API_BASE = (window.API_BASE || "https://kikelara.onrender.com").replace(/\/$/, "");
-  const TOKEN_KEY = "admin-token";
-  const DELETE_PIN = window.ADMIN_DELETE_PIN || "1234";
+  const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin-token"; // keep for your existing auth.js/flow
 
   const apiLabel = document.getElementById("apiLabel");
   const refreshBtn = document.getElementById("refreshBtn");
@@ -14,7 +16,7 @@
   const tbody = document.getElementById("tbody");
   const toastEl = document.getElementById("toast");
 
-  // Modal (optional if your HTML has it)
+  // Modal
   const modal = document.getElementById("modal");
   const closeModalBtn = document.getElementById("closeModalBtn");
   const modalMeta = document.getElementById("modalMeta");
@@ -23,24 +25,46 @@
   const copyEmailBtn = document.getElementById("copyEmailBtn");
   const mMessage = document.getElementById("mMessage");
   const deleteBtn = document.getElementById("deleteBtn");
+  const replyBtn = document.getElementById("replyBtn");
 
   if (apiLabel) apiLabel.textContent = API_BASE;
 
   let allMessages = [];
   let activeMessage = null;
 
+  /* ===================== AUTH / CSRF ===================== */
+
   function getToken() {
     return localStorage.getItem(TOKEN_KEY);
   }
+
+  // If you're already using cookie auth, token may be redundant.
+  // We keep it because your existing auth.js may depend on it.
   function authHeaders() {
     const token = getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
+  function getCookie(name) {
+    const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}=([^;]*)`));
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
+  // CSRF: backend sets csrf_token cookie (NOT HttpOnly)
+  // Frontend sends it back on any mutating request
+  function csrfHeaders() {
+    const csrf = getCookie("csrf_token");
+    return csrf ? { "X-CSRF-Token": csrf } : {};
+  }
+
   async function fetchWithAuth(url, options = {}) {
     const res = await fetch(url, {
+      credentials: "include", // ✅ send cookies
       ...options,
-      headers: { ...(options.headers || {}), ...authHeaders() }
+      headers: {
+        ...(options.headers || {}),
+        ...authHeaders(),
+      }
     });
 
     if (res.status === 401) {
@@ -50,6 +74,12 @@
     }
     return res;
   }
+
+  async function apiFetch(path, options = {}) {
+    return fetchWithAuth(`${API_BASE}${path}`, options);
+  }
+
+  /* ===================== UI HELPERS ===================== */
 
   function toast(msg) {
     if (!toastEl) return alert(msg);
@@ -83,22 +113,43 @@
     return text.length > n ? text.slice(0, n) + "…" : text;
   }
 
+  /* ===================== API ===================== */
+
   async function apiLoadMessages() {
-    const res = await fetchWithAuth(`${API_BASE}/admin/messages`, { cache: "no-store" });
+    const res = await apiFetch(`/admin/messages`, { cache: "no-store" });
     if (!res) return [];
     if (!res.ok) throw new Error("Failed to load messages");
     const data = await res.json().catch(() => ([]));
     return Array.isArray(data) ? data : [];
   }
 
+  // ✅ Delete now handled by backend:
+  // - cookie auth
+  // - CSRF header required
+  // - delete pin required via header X-Admin-Delete-Pin
   async function apiDeleteMessage(id) {
-    const res = await fetchWithAuth(`${API_BASE}/admin/messages/${encodeURIComponent(id)}`, {
-      method: "DELETE"
+    const pin = prompt("Enter delete PIN:");
+    if (!pin) throw new Error("Cancelled");
+
+    const res = await apiFetch(`/admin/messages/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: {
+        ...csrfHeaders(),
+        "X-Admin-Delete-Pin": String(pin).trim(),
+      }
     });
+
     if (!res) return null;
-    if (!res.ok) throw new Error("Delete failed");
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.message || "Delete failed");
+    }
+
     return res.json().catch(() => ({}));
   }
+
+  /* ===================== RENDER ===================== */
 
   function filteredMessages() {
     const q = String(searchBox?.value || "").trim().toLowerCase();
@@ -197,11 +248,10 @@
     }
   }
 
-  async function handleDelete(id) {
-    const pin = prompt("Enter delete PIN:");
-    if (pin !== DELETE_PIN) return toast("❌ Wrong PIN");
+  /* ===================== ACTIONS ===================== */
 
-    const ok = confirm("Delete this message permanently?");
+  async function handleDelete(id) {
+    const ok = confirm("Delete this message permanently?\nThis cannot be undone.");
     if (!ok) return;
 
     try {
@@ -213,7 +263,7 @@
       toast("✅ Message deleted");
     } catch (e) {
       console.error(e);
-      toast("❌ Delete failed (check backend)");
+      toast(`❌ ${String(e.message || e)}`);
     }
   }
 
@@ -260,7 +310,8 @@
     }
   }
 
-  // Events
+  /* ===================== EVENTS ===================== */
+
   refreshBtn?.addEventListener("click", reload);
 
   logoutBtn?.addEventListener("click", () => {
@@ -294,6 +345,14 @@
     }
   });
 
+  replyBtn?.addEventListener("click", () => {
+    if (!activeMessage) return;
+    const email = getEmail(activeMessage);
+    if (!email) return toast("No email available");
+    // Opens user's mail client
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Reply from KÍKÉLÁRÁ")}`;
+  });
+
   deleteBtn?.addEventListener("click", () => {
     if (!activeMessage) return;
     handleDelete(getId(activeMessage));
@@ -313,7 +372,9 @@
     if (action === "delete") handleDelete(id);
   });
 
-  // Boot
+  /* ===================== BOOT ===================== */
+
+  // Keep your fast block in HTML, but also double-check here:
   if (!getToken()) {
     location.replace("admin-login.html");
     return;

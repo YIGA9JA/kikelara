@@ -1,10 +1,12 @@
-// contact.js (WORKS WITH YOUR CURRENT server.js)
+// contact.js (hCaptcha enabled + stable explicit render)
 (() => {
-  const API_BASE = (window.API_BASE || "https://kikelara.onrender.com").replace(/\/$/, "");
+  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
+  const SITE_KEY = String(window.HCAPTCHA_SITE_KEY || "").trim();
 
   const form = document.getElementById("contactForm");
   const statusEl = document.getElementById("formStatus");
   const submitBtn = document.getElementById("submitBtn");
+  const widgetEl = document.getElementById("hcaptchaWidget");
 
   if (!form) return;
 
@@ -28,6 +30,54 @@
     submitBtn.textContent = on ? "Sending..." : "Submit";
   }
 
+  // ---- hCaptcha helpers ----
+  let widgetId = null;
+
+  function renderCaptchaIfReady() {
+    if (!widgetEl) return;
+    if (!SITE_KEY) {
+      setStatus("❌ Missing hCaptcha site key. Add window.HCAPTCHA_SITE_KEY in config.js", false);
+      return;
+    }
+    if (!window.hcaptcha) return;
+
+    if (widgetId === null) {
+      try {
+        widgetId = window.hcaptcha.render(widgetEl, {
+          sitekey: SITE_KEY
+        });
+      } catch (e) {
+        // If already rendered by some race condition, ignore
+      }
+    }
+  }
+
+  function getCaptchaToken() {
+    if (!window.hcaptcha) return "";
+    try {
+      return widgetId !== null ? window.hcaptcha.getResponse(widgetId) : window.hcaptcha.getResponse();
+    } catch {
+      return "";
+    }
+  }
+
+  function resetCaptcha() {
+    if (!window.hcaptcha) return;
+    try {
+      if (widgetId !== null) window.hcaptcha.reset(widgetId);
+      else window.hcaptcha.reset();
+    } catch {}
+  }
+
+  // Try render quickly + retry until script loads
+  renderCaptchaIfReady();
+  let tries = 0;
+  const t = setInterval(() => {
+    renderCaptchaIfReady();
+    tries += 1;
+    if (window.hcaptcha || tries > 30) clearInterval(t); // ~15s max
+  }, 500);
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -42,7 +92,14 @@
       return;
     }
 
-    // Put topic + phone inside message so server can store it without changing server.js
+    // ✅ Require captcha token
+    const captchaToken = getCaptchaToken();
+    if (!captchaToken) {
+      setStatus("❌ Please complete the captcha before submitting.", false);
+      return;
+    }
+
+    // Pack topic + phone into message (keeps backend compatible)
     const packedMessage =
       `Topic: ${topic}\n` +
       `Phone: ${phone || "-"}\n\n` +
@@ -55,20 +112,27 @@
       const res = await fetch(`${API_BASE}/api/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, message: packedMessage })
+        body: JSON.stringify({
+          name,
+          email,
+          message: packedMessage,
+          captchaToken
+        })
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        throw new Error(data.msg || "Failed to send");
+        resetCaptcha();
+        throw new Error(data.msg || data.message || "Failed to send");
       }
 
       form.reset();
+      resetCaptcha();
       setStatus("✅ Message sent successfully. We’ll reply within 24–48 hours.", true);
     } catch (err) {
       console.error(err);
-      setStatus("❌ Message not sent. Please try again.", false);
+      setStatus(err?.message ? `❌ ${err.message}` : "❌ Message not sent. Please try again.", false);
     } finally {
       setLoading(false);
     }
