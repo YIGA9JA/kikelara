@@ -1,12 +1,12 @@
-/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + WAIT FOR WEBHOOK CONFIRM) ===================== */
+/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + ROBUST CONFIRM) ===================== */
 
-const API_BASE = window.API_BASE || ""; // from config.js
+const API_BASE = (window.API_BASE || "").replace(/\/$/, ""); // from config.js
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
 
 /* ===================== SETTINGS ===================== */
 const POLL_INTERVAL_MS = 2500;     // how often we re-check backend
-const POLL_TIMEOUT_MS  = 90_000;   // stop polling after 90s
+const POLL_TIMEOUT_MS  = 120_000;  // stop polling after 120s
 
 /* ===================== HELPERS ===================== */
 function formatNaira(n) {
@@ -69,6 +69,10 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 /* ===================== HERO STATE (CONFIRMING -> CONFIRMED) ===================== */
 function setHeroActionsVisible(show) {
   const box = document.getElementById("heroActions");
@@ -120,7 +124,6 @@ function setHeroState(state, ref) {
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
-  // default to pending unless confirmed
   let label = "CONFIRMING";
   let tone = "verifying";
 
@@ -145,13 +148,13 @@ function applyPillTone(tone) {
 }
 
 /* ===================== BACKEND FETCH (PUBLIC ORDER) =====================
-   Requires endpoint:
+   Expected endpoint:
    GET /orders/public/:reference
-   response: { ok:true, order:{ payload or row } }
-   If your backend returns { order: { payload: {...} } }, we normalize below.
+   - 200 + { ok:true, order:{...} } => returns normalized payload
+   - 404 => treat as "Pending" (order not created yet or webhook delayed)
 */
 async function fetchReceiptFromBackend(ref) {
-  if (!API_BASE || !ref) return null;
+  if (!API_BASE || !ref) return { kind: "error", order: null };
 
   try {
     const res = await fetch(`${API_BASE}/orders/public/${encodeURIComponent(ref)}`, {
@@ -159,24 +162,61 @@ async function fetchReceiptFromBackend(ref) {
       cache: "no-store"
     });
 
-    if (!res.ok) return null;
+    // ✅ IMPORTANT: 404 is NOT a fatal error here — it just means "not created yet"
+    if (res.status === 404) {
+      return { kind: "pending", order: { reference: ref, status: "Pending" } };
+    }
+
+    if (!res.ok) {
+      return { kind: "error", order: null };
+    }
 
     const data = await res.json().catch(() => null);
-    if (!data) return null;
+    if (!data) return { kind: "error", order: null };
 
-    // Normalize possible shapes:
-    // 1) { ok:true, order: { ...payloadFields } }
-    // 2) { success:true, order: { payload: {...} } }
-    // 3) { order: { payload: {...} } }
     const ord = data.order || data?.data?.order || null;
-    if (!ord) return null;
+    if (!ord) return { kind: "error", order: null };
 
     const payload = (ord.payload && typeof ord.payload === "object") ? ord.payload : ord;
 
-    if (payload && Array.isArray(payload.cart)) return payload;
-    return null;
+    // Ensure reference exists
+    payload.reference = payload.reference || ref;
+
+    return { kind: "ok", order: payload };
   } catch {
-    return null;
+    return { kind: "error", order: null };
+  }
+}
+
+/* ===================== OPTIONAL FALLBACK VERIFY =====================
+   If webhook is slow/blocked, we can try verify endpoint (if your backend has it):
+   POST /payments/paystack/verify { reference }
+   - If it returns Paid, your backend should mark order Paid.
+*/
+async function tryFallbackVerify(ref) {
+  if (!API_BASE || !ref) return false;
+
+  try {
+    const res = await fetch(`${API_BASE}/payments/paystack/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ reference: ref })
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json().catch(() => null);
+
+    // If backend returns { success:true, verified:true, order:{...} }
+    const ord = data?.order?.payload || data?.order || null;
+    if (ord && isPaidStatus(ord.status || data?.order?.status)) return true;
+
+    // If backend returns some other shape but verified is true
+    if (data?.verified === true || data?.success === true) return true;
+
+    return false;
+  } catch {
+    return false;
   }
 }
 
@@ -332,19 +372,28 @@ function downloadTextFile(filename, content, mime = "text/html") {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/* ===================== POLL UNTIL WEBHOOK CONFIRMS ===================== */
+/* ===================== POLL UNTIL CONFIRMED ===================== */
 async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
   const start = Date.now();
+  let tries = 0;
 
   while (Date.now() - start < timeoutMs) {
-    const fresh = await fetchReceiptFromBackend(ref);
+    tries++;
 
-    if (fresh && isPaidStatus(fresh.status)) {
-      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
-      return fresh;
+    const { kind, order } = await fetchReceiptFromBackend(ref);
+
+    if (order && isPaidStatus(order.status)) {
+      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
+      return order;
     }
 
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    // ✅ After a few tries, attempt fallback verify once in a while
+    // This helps when webhook is not coming through.
+    if (tries === 4 || tries === 10 || tries === 18) {
+      await tryFallbackVerify(ref);
+    }
+
+    await sleep(POLL_INTERVAL_MS);
   }
 
   return null;
@@ -376,30 +425,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   // If we have local data, keep it, but DO NOT show invoice/buttons until confirmed
   const local = safeGetLocalReceiptOrder();
   if (local && local.reference) {
-    // keep reference on UI
     setText("receiptRef", local.reference);
   }
 
-  // ✅ Poll backend until webhook sets Paid
+  // ✅ Poll backend until "Paid"
   if (ref) {
     const confirmed = await pollUntilConfirmed(ref);
 
     if (confirmed) {
-      // show confirmed hero + show invoice/actions
       setHeroState("confirmed", confirmed.reference);
       renderReceipt(confirmed);
       return;
     }
   }
 
-  // If not confirmed after timeout:
-  // keep user on confirming page; invoice stays hidden.
+  // Not confirmed after timeout:
   const heroNote = document.getElementById("heroNote");
   if (heroNote) {
     heroNote.textContent =
       "Still confirming payment. If this persists, please contact support with your reference.";
   }
 
-  // keep it in confirming state
+  // stay in confirming mode; invoice/actions remain hidden
   setHeroState("confirming", ref);
 });
