@@ -1,12 +1,12 @@
-/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + WAIT FOR WEBHOOK CONFIRM) ===================== */
+/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + UNLOCK BUTTONS ON PAID) ===================== */
 
-const API_BASE = (window.API_BASE || "").replace(/\/$/, ""); // from config.js
+const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
 
 /* ===================== SETTINGS ===================== */
-const POLL_INTERVAL_MS = 2500;     // how often we re-check backend
-const POLL_TIMEOUT_MS  = 90_000;   // stop polling after 90s
+const POLL_INTERVAL_MS = 2500;
+const POLL_TIMEOUT_MS  = 90_000;
 
 /* ===================== HELPERS ===================== */
 function formatNaira(n) {
@@ -61,7 +61,7 @@ function safeGetLocalReceiptOrder() {
 
 function isPaidStatus(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
-  return s === "paid" || s.includes("paid");
+  return s === "paid" || s.includes("paid") || s === "success" || s.includes("success");
 }
 
 function setText(id, value) {
@@ -69,38 +69,37 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
-/* ===================== LOCK BOX (INVOICE LOCKED) ===================== */
-/**
- * ✅ Your HTML lock card MUST have:
- *    id="invoiceLocked"
- * OR data-invoice-lock="1"
- */
-function getInvoiceLockEl() {
-  return (
-    document.getElementById("invoiceLocked") ||
-    document.getElementById("lockedBox") ||
-    document.getElementById("lockBox") ||
-    document.querySelector("[data-invoice-lock]")
-  );
-}
-
-function setInvoiceLockedVisible(show) {
-  const el = getInvoiceLockEl();
+/* ===================== UI SHOW/HIDE ===================== */
+function show(el, display = "block") {
   if (!el) return;
-  el.style.display = show ? "block" : "none";
+  el.style.display = display;
+}
+function hide(el) {
+  if (!el) return;
+  el.style.display = "none";
 }
 
-/* ===================== HERO STATE (CONFIRMING -> CONFIRMED) ===================== */
-function setHeroActionsVisible(show) {
+function setHeroActionsVisible(showIt) {
   const box = document.getElementById("heroActions");
   if (!box) return;
-  box.style.display = show ? "flex" : "none";
+  box.style.display = showIt ? "flex" : "none";
 }
 
-function setInvoiceVisible(show) {
-  const wrap = document.getElementById("receiptWrap");
-  if (!wrap) return;
-  wrap.style.display = show ? "block" : "none";
+function setInvoiceLocked(isLocked) {
+  // Support BOTH ids (your HTML had notConfirmedBox before)
+  const lockedA = document.getElementById("invoiceLocked");
+  const lockedB = document.getElementById("notConfirmedBox");
+  const actions = document.getElementById("actionsBox");
+
+  if (isLocked) {
+    if (lockedA) show(lockedA, "flex");
+    if (lockedB) show(lockedB, "flex");
+    hide(actions);
+  } else {
+    hide(lockedA);
+    hide(lockedB);
+    show(actions, "flex");
+  }
 }
 
 function setHeroState(state, ref) {
@@ -121,10 +120,7 @@ function setHeroState(state, ref) {
     if (heroNote) heroNote.textContent = "Your payment is confirmed. Your invoice is now available below.";
 
     setHeroActionsVisible(true);
-    setInvoiceVisible(true);
-
-    // ✅ hide lock box once confirmed
-    setInvoiceLockedVisible(false);
+    setInvoiceLocked(false); // ✅ UNLOCK invoice + show print/download
     return;
   }
 
@@ -137,23 +133,19 @@ function setHeroState(state, ref) {
     "We’re waiting for confirmation from Paystack. This usually takes a few seconds.";
 
   setHeroActionsVisible(false);
-  setInvoiceVisible(false);
-
-  // ✅ show lock box while confirming
-  setInvoiceLockedVisible(true);
+  setInvoiceLocked(true);
 }
 
-/* ===================== STATUS PILL (INVOICE) ===================== */
+/* ===================== STATUS PILL ===================== */
 function statusToPill(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
 
-  // default to pending unless confirmed
   let label = "CONFIRMING";
   let tone = "verifying";
 
   if (s.includes("failed")) { label = "PENDING CONFIRMATION"; tone = "warning"; }
   else if (s.includes("pending")) { label = "PENDING"; tone = "pending"; }
-  else if (s.includes("paid")) { label = "PAID"; tone = "paid"; }
+  else if (isPaidStatus(s)) { label = "PAID"; tone = "paid"; }
 
   return { label, tone };
 }
@@ -186,34 +178,32 @@ async function fetchReceiptFromBackend(ref) {
     const data = await res.json().catch(() => null);
     if (!data) return null;
 
+    // expected: { ok:true, order:{...safeFields} }
     const ord = data.order || data?.data?.order || null;
     if (!ord) return null;
 
-    // Your /orders/public returns: { ok:true, order: safeFields }
-    // But we also support other shapes.
     const payload = (ord.payload && typeof ord.payload === "object") ? ord.payload : ord;
-
-    if (payload && Array.isArray(payload.cart)) return payload;
+    if (payload && (Array.isArray(payload.cart) || Array.isArray(ord.cart))) {
+      // ensure reference present
+      payload.reference = payload.reference || ord.reference || ref;
+      payload.status = payload.status || ord.status;
+      return payload;
+    }
     return null;
   } catch {
     return null;
   }
 }
 
-/* ===================== RENDER RECEIPT (ONLY WHEN CONFIRMED) ===================== */
+/* ===================== RENDER RECEIPT ===================== */
 function renderReceipt(order) {
   const noBox = document.getElementById("noReceiptBox");
 
   if (!order || !Array.isArray(order.cart)) {
-    if (noBox) noBox.style.display = "block";
+    if (noBox) show(noBox, "block");
     return;
   }
-  if (noBox) noBox.style.display = "none";
-
-  // ✅ If we are rendering receipt and status is paid, invoice is NOT locked
-  if (isPaidStatus(order.status)) {
-    setInvoiceLockedVisible(false);
-  }
+  if (noBox) hide(noBox);
 
   setText("receiptRef", order.reference || "—");
 
@@ -357,7 +347,7 @@ function downloadTextFile(filename, content, mime = "text/html") {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/* ===================== POLL UNTIL WEBHOOK CONFIRMS ===================== */
+/* ===================== POLL UNTIL PAID ===================== */
 async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
   const start = Date.now();
 
@@ -379,17 +369,27 @@ async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
 document.addEventListener("DOMContentLoaded", async () => {
   const ref = getRefFromURL();
 
-  // Default UI: confirming
+  // ✅ set reference text immediately
+  setText("heroRef", ref || "—");
+  setText("receiptRef", ref || "—");
+
+  // ✅ Copy reference button
+  document.getElementById("copyRefBtn")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(ref || "");
+      const btn = document.getElementById("copyRefBtn");
+      if (btn) {
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = old), 900);
+      }
+    } catch {}
+  });
+
+  // Default UI: confirming + locked
   setHeroState("confirming", ref);
 
-  // Hide invoice/buttons until confirmed
-  setInvoiceVisible(false);
-  setHeroActionsVisible(false);
-
-  // ✅ ensure lock is shown on load (until confirmed)
-  setInvoiceLockedVisible(true);
-
-  // Attach buttons (but they won't be visible until confirmed)
+  // Attach actions (they will show only when confirmed)
   document.getElementById("printBtn")?.addEventListener("click", () => window.print());
 
   document.getElementById("downloadBtn")?.addEventListener("click", () => {
@@ -401,27 +401,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     downloadTextFile(`KIKELARA-INVOICE-${refSafe}.html`, html, "text/html");
   });
 
-  // If we have local data, keep it, but DO NOT show invoice/buttons until confirmed
+  // Optional local prefill (won’t unlock unless PAID)
   const local = safeGetLocalReceiptOrder();
   if (local && local.reference) {
-    setText("receiptRef", local.reference);
+    renderReceipt(local);
   }
 
-  // ✅ Poll backend until webhook sets Paid
+  // Poll backend until PAID
   if (ref) {
     const confirmed = await pollUntilConfirmed(ref);
 
     if (confirmed) {
       setHeroState("confirmed", confirmed.reference);
       renderReceipt(confirmed);
-
-      // ✅ hard-hide lock box on confirmed
-      setInvoiceLockedVisible(false);
       return;
     }
   }
 
-  // If not confirmed after timeout:
+  // If not confirmed after timeout
   const heroNote = document.getElementById("heroNote");
   if (heroNote) {
     heroNote.textContent =
