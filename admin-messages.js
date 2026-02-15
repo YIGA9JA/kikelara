@@ -1,10 +1,10 @@
-// admin-messages.js (SECURED: NO PIN IN FRONTEND CODE)
-// ✅ Works with cookie auth + CSRF + backend-enforced delete PIN
-// ✅ Delete PIN is typed at delete time and sent as header (not stored / not hardcoded)
-// ✅ Requires your backend to enforce: requireAdminCookie + requireCsrf + requireDeletePin
+// admin-messages.js (COOKIE AUTH + CSRF FIX - Option A)
+// ✅ Uses cookie auth (admin_session) + CSRF from localStorage ("admin_csrf")
+// ✅ No frontend PIN stored. Delete PIN is requested at delete time.
+// ✅ Sends credentials: "include" always.
+
 (() => {
-  const API_BASE = (window.API_BASE || "https://kikelara.onrender.com").replace(/\/$/, "");
-  const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin-token"; // keep for your existing auth.js/flow
+  const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
 
   const apiLabel = document.getElementById("apiLabel");
   const refreshBtn = document.getElementById("refreshBtn");
@@ -32,51 +32,62 @@
   let allMessages = [];
   let activeMessage = null;
 
-  /* ===================== AUTH / CSRF ===================== */
+  /* ===================== CSRF (Option A) ===================== */
+  const CSRF_STORAGE_KEY = "admin_csrf";
 
-  function getToken() {
-    return localStorage.getItem(TOKEN_KEY);
+  function getCsrfToken() {
+    return localStorage.getItem(CSRF_STORAGE_KEY) || "";
+  }
+  function setCsrfToken(token) {
+    const t = String(token || "").trim();
+    if (t) localStorage.setItem(CSRF_STORAGE_KEY, t);
+  }
+  function clearCsrfToken() {
+    localStorage.removeItem(CSRF_STORAGE_KEY);
   }
 
-  // If you're already using cookie auth, token may be redundant.
-  // We keep it because your existing auth.js may depend on it.
-  function authHeaders() {
-    const token = getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
+  /* ===================== FETCH HELPERS ===================== */
 
-  function getCookie(name) {
-    const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}=([^;]*)`));
-    return m ? decodeURIComponent(m[1]) : "";
-  }
+  async function apiFetch(path, opts = {}) {
+    const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
 
-  // CSRF: backend sets csrf_token cookie (NOT HttpOnly)
-  // Frontend sends it back on any mutating request
-  function csrfHeaders() {
-    const csrf = getCookie("csrf_token");
-    return csrf ? { "X-CSRF-Token": csrf } : {};
-  }
+    const method = String(opts.method || "GET").toUpperCase();
+    const headers = new Headers(opts.headers || {});
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
-  async function fetchWithAuth(url, options = {}) {
+    // send CSRF on mutating methods
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      const csrf = getCsrfToken();
+      if (csrf) headers.set("X-CSRF-Token", csrf);
+    }
+
     const res = await fetch(url, {
-      credentials: "include", // ✅ send cookies
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        ...authHeaders(),
-      }
+      ...opts,
+      method,
+      headers,
+      credentials: "include", // ✅ cookies
+      cache: opts.cache || "no-store",
     });
 
+    // If session expired or CSRF blocked -> go login
     if (res.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
+      clearCsrfToken();
       location.replace("admin-login.html");
       return null;
     }
-    return res;
-  }
 
-  async function apiFetch(path, options = {}) {
-    return fetchWithAuth(`${API_BASE}${path}`, options);
+    if (res.status === 403) {
+      // could be CSRF blocked or your "delete pin" middleware
+      // if it's CSRF blocked, usually message is "CSRF blocked"
+      // treat as needing login if csrf missing
+      const csrf = getCsrfToken();
+      if (!csrf) {
+        location.replace("admin-login.html");
+        return null;
+      }
+    }
+
+    return res;
   }
 
   /* ===================== UI HELPERS ===================== */
@@ -106,7 +117,7 @@
   function getName(m) { return String(m?.name || "Unknown").trim(); }
   function getEmail(m) { return String(m?.email || "").trim(); }
   function getMsg(m) { return String(m?.message || "").trim(); }
-  function getDate(m) { return m?.createdAt || m?.date || m?.time || ""; }
+  function getDate(m) { return m?.createdAt || m?.created_at || m?.date || m?.time || ""; }
 
   function makePreview(text, n = 110) {
     if (!text) return "—";
@@ -123,10 +134,6 @@
     return Array.isArray(data) ? data : [];
   }
 
-  // ✅ Delete now handled by backend:
-  // - cookie auth
-  // - CSRF header required
-  // - delete pin required via header X-Admin-Delete-Pin
   async function apiDeleteMessage(id) {
     const pin = prompt("Enter delete PIN:");
     if (!pin) throw new Error("Cancelled");
@@ -134,7 +141,6 @@
     const res = await apiFetch(`/admin/messages/${encodeURIComponent(id)}`, {
       method: "DELETE",
       headers: {
-        ...csrfHeaders(),
         "X-Admin-Delete-Pin": String(pin).trim(),
       }
     });
@@ -147,6 +153,13 @@
     }
 
     return res.json().catch(() => ({}));
+  }
+
+  async function apiLogout() {
+    // best effort logout - if csrf missing, backend may block.
+    const res = await apiFetch(`/admin/logout`, { method: "POST" });
+    clearCsrfToken();
+    return res;
   }
 
   /* ===================== RENDER ===================== */
@@ -314,8 +327,8 @@
 
   refreshBtn?.addEventListener("click", reload);
 
-  logoutBtn?.addEventListener("click", () => {
-    localStorage.removeItem(TOKEN_KEY);
+  logoutBtn?.addEventListener("click", async () => {
+    try { await apiLogout(); } catch {}
     location.replace("admin-login.html");
   });
 
@@ -349,7 +362,6 @@
     if (!activeMessage) return;
     const email = getEmail(activeMessage);
     if (!email) return toast("No email available");
-    // Opens user's mail client
     window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Reply from KÍKÉLÁRÁ")}`;
   });
 
@@ -374,10 +386,11 @@
 
   /* ===================== BOOT ===================== */
 
-  // Keep your fast block in HTML, but also double-check here:
-  if (!getToken()) {
-    location.replace("admin-login.html");
-    return;
+  // ✅ Cookie auth is the source of truth.
+  // But CSRF token must exist for delete/logout etc.
+  // If user came here without logging in properly, CSRF will be missing.
+  if (!getCsrfToken()) {
+    // still try loading (GET works), but if your /admin/messages requires cookie, it will redirect anyway.
   }
 
   reload();

@@ -1,3 +1,7 @@
+// admin-orders.js (CSRF FIX - Option A)
+// ✅ Stores CSRF in localStorage (from login response) and sends it on all non-GET requests
+// ✅ Always sends credentials so cookies (admin_session + admin_csrf) are included
+
 (async () => {
   const ok = await checkAuth();
   if (!ok) return;
@@ -55,6 +59,52 @@
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
+  }
+
+  // ✅ CSRF helpers (Option A)
+  const CSRF_STORAGE_KEY = "admin_csrf";
+
+  function getCsrfToken() {
+    return localStorage.getItem(CSRF_STORAGE_KEY) || "";
+  }
+
+  function setCsrfToken(token) {
+    const t = String(token || "").trim();
+    if (t) localStorage.setItem(CSRF_STORAGE_KEY, t);
+  }
+
+  function clearCsrfToken() {
+    localStorage.removeItem(CSRF_STORAGE_KEY);
+  }
+
+  // ✅ fetch wrapper that always sends cookies + CSRF on write methods
+  async function apiFetch(path, opts = {}) {
+    const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+
+    const method = String(opts.method || "GET").toUpperCase();
+    const headers = new Headers(opts.headers || {});
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      const csrf = getCsrfToken();
+      if (csrf) headers.set("X-CSRF-Token", csrf);
+    }
+
+    const res = await fetch(url, {
+      ...opts,
+      method,
+      headers,
+      credentials: "include", // ✅ REQUIRED
+      cache: opts.cache || "no-store",
+    });
+
+    // If session expired or CSRF missing, force re-login
+    if (res.status === 401) {
+      clearCsrfToken();
+      // let caller handle redirect if it wants; but safe to redirect too
+      // location.href = "admin-login.html";
+    }
+    return res;
   }
 
   // Your DB stores main values in row.payload (jsonb)
@@ -137,10 +187,13 @@
 
     if (!res.ok) {
       if (res.status === 401) {
+        clearCsrfToken();
         location.href = "admin-login.html";
         return null;
       }
-      throw new Error("Failed to update");
+      // Show useful server message if available
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.message || "Failed to update");
     }
     return res.json().catch(() => ({}));
   }
@@ -307,7 +360,7 @@
       await refreshFromServer();
     } catch (err) {
       console.error(err);
-      toast("❌ Failed to update status");
+      toast(`❌ ${String(err?.message || "Failed to update status")}`);
     }
   }
 
