@@ -1,12 +1,11 @@
-/* ================= product-details.js (BACKEND ONLY) =================
-   ✅ Fetch product: GET /api/products/:id
-   ✅ Reviews: GET/POST /api/products/:id/reviews
-   ✅ Vote: POST /api/reviews/:id/vote
-   ✅ Admin delete review: DELETE /admin/reviews/:id (cookie admin session + CSRF)
-   ✅ Cart stored in sessionStorage(cart)
-   ✅ Safe rendering (escapeHtml)
+/* ================= product-details.js (BACKEND ONLY - FIXED) =================
+   ✅ Does NOT force productId to Number (works with bigint/uuid/string)
+   ✅ Tries: GET /api/products/:id
+   ✅ If 404: falls back to GET /api/products and finds it in the list
    ✅ Resolves /uploads/... images with API_BASE
-====================================================================== */
+   ✅ Cart in sessionStorage(cart)
+   ✅ Reviews + voting + admin delete review (unchanged)
+============================================================================= */
 
 (() => {
   const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
@@ -55,11 +54,10 @@
     return u;
   }
 
-  function getProductId() {
+  function getProductIdRaw() {
     const params = new URLSearchParams(window.location.search);
-    const raw = params.get("id");
-    const id = Number(raw);
-    return Number.isFinite(id) ? id : NaN;
+    const id = (params.get("id") || "").trim();
+    return id || "";
   }
 
   function showMessage(msg) {
@@ -72,13 +70,13 @@
     container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
   }
 
-  /* ---------- cart (session) ---------- */
+  /* ---------- cart ---------- */
   function loadCart() {
     const c = safeJSONSession(CART_KEY, []);
     return Array.isArray(c) ? c : [];
   }
   function saveCart(cart) { try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }
-  function isInCart(cart, id) { return cart.some(i => Number(i.id) === Number(id)); }
+  function isInCart(cart, id) { return cart.some(i => String(i.id) === String(id)); }
 
   function addToCartOnce(product) {
     const cart = loadCart();
@@ -117,7 +115,7 @@
     }
   }
 
-  /* ---------- product fetch ---------- */
+  /* ---------- product normalize + fetch ---------- */
   function normalizeProduct(p) {
     const rawMain =
       p?.image ||
@@ -147,15 +145,40 @@
     };
   }
 
-  async function fetchProduct(productId) {
+  async function fetchProductDirect(productId) {
     const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, { cache: "no-store" });
-    if (!r.ok) throw new Error(`Product fetch failed (${r.status})`);
+    if (!r.ok) {
+      const err = new Error(`direct fetch failed (${r.status})`);
+      err.status = r.status;
+      throw err;
+    }
     const data = await r.json().catch(() => ({}));
+    return normalizeProduct(data?.product || data);
+  }
 
-    // backend might return {product:{...}} or directly product
-    const prod = normalizeProduct(data?.product || data);
-    if (!prod?.id) throw new Error("Product not found");
-    return prod;
+  async function fetchProductsList() {
+    const r = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
+    if (!r.ok) throw new Error(`list fetch failed (${r.status})`);
+    const data = await r.json().catch(() => ({}));
+    const list = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : []);
+    return Array.isArray(list) ? list.map(normalizeProduct) : [];
+  }
+
+  async function fetchProductSmart(productId) {
+    // 1) Try direct endpoint
+    try {
+      const prod = await fetchProductDirect(productId);
+      if (prod?.id) return prod;
+    } catch (e) {
+      // only fallback on 404 (not on real server errors)
+      if (e?.status !== 404) throw e;
+    }
+
+    // 2) Fallback: fetch list and find it
+    const list = await fetchProductsList();
+    const found = list.find(p => String(p.id) === String(productId));
+    if (!found) throw new Error("Product not found (id mismatch)");
+    return found;
   }
 
   /* ---------- gallery ---------- */
@@ -300,8 +323,6 @@
     return list;
   }
 
-  // NOTE: this "admin mode" is only for showing delete buttons.
-  // Actual delete still requires real admin cookie session + CSRF.
   function isReviewAdminUI() { return localStorage.getItem("reviews-admin-ui") === "yes"; }
   function setReviewAdminUI(on) { localStorage.setItem("reviews-admin-ui", on ? "yes" : "no"); }
 
@@ -316,23 +337,16 @@
       adminBtn.textContent = on ? "Admin: ON" : "Admin";
     }
 
-    adminBtn.addEventListener("click", async () => {
+    adminBtn.addEventListener("click", () => {
       if (isReviewAdminUI()) return refreshAdminUI();
-
-      // If you already have real admin login elsewhere, you can just toggle UI here.
-      // Keep your existing PIN logic if you want:
       const pin = prompt("Enter admin PIN to manage reviews:");
       if (pin === null) return;
-
-      // ⚠️ This is only UI gating; server still protects deletes.
       if (String(pin).trim() === "4567") {
         setReviewAdminUI(true);
         refreshAdminUI();
         renderSummary(rvAll);
         renderListUI(productId);
-      } else {
-        alert("Wrong PIN.");
-      }
+      } else alert("Wrong PIN.");
     });
 
     logoutBtn.addEventListener("click", () => {
@@ -360,7 +374,6 @@
       body: JSON.stringify({ ...payload, deviceId }),
       cache: "no-store"
     });
-
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.ok) throw new Error(data?.message || "Failed to submit review");
     return data.review;
@@ -585,12 +598,18 @@
 
   /* ---------- init page ---------- */
   async function init() {
-    const productId = getProductId();
-    if (!Number.isFinite(productId)) return showMessage("Invalid product link.");
+    const productId = getProductIdRaw();
+    if (!productId) return showMessage("Invalid product link.");
 
     let product;
-    try { product = await fetchProduct(productId); }
-    catch { return showMessage("Product not found."); }
+    try {
+      product = await fetchProductSmart(productId);
+    } catch (e) {
+      console.warn(e);
+      return showMessage("Product not found.");
+    }
+
+    if (!product?.id) return showMessage("Product not found.");
 
     const nameEl = el("productName");
     const priceEl = el("productPrice");
@@ -628,7 +647,6 @@
   document.addEventListener("DOMContentLoaded", () => {
     init();
 
-    // keeps header cart count correct if header loads late
     let tries = 0;
     const t = setInterval(() => {
       tries++;
