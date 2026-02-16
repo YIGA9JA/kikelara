@@ -1,3 +1,4 @@
+<!-- admin-products.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
+  <!-- MUST define window.API_BASE in config.js -->
   <script src="config.js"></script>
   <link rel="stylesheet" href="admin-products.css" />
 </head>
@@ -87,7 +89,7 @@
     </div>
   </div>
 
-  <!-- Create/Edit Modal -->
+  <!-- Create/Edit Modal (PREMIUM) -->
   <div class="modal" id="editModal" aria-hidden="true">
     <div class="modal-card modal-wide">
       <div class="modal-top">
@@ -110,28 +112,53 @@
           </div>
 
           <div class="span2">
-            <label class="lbl">Description</label>
-            <textarea class="txt" id="desc" rows="4" placeholder="Short product description…"></textarea>
+            <div class="lblRow">
+              <label class="lbl" style="margin:0;">Description</label>
+              <div class="count" id="descCount">0 / 600</div>
+            </div>
+            <textarea class="txt" id="desc" rows="4" placeholder="Short product description… (max 600 chars)"></textarea>
           </div>
 
           <div>
-            <label class="lbl">Active?</label>
-            <select class="ipt" id="active">
+            <label class="lbl">Visibility</label>
+
+            <div class="seg">
+              <button class="segBtn is-on" type="button" data-seg="true">Active</button>
+              <button class="segBtn" type="button" data-seg="false">Hidden</button>
+            </div>
+
+            <select class="ipt" id="active" style="display:none;">
               <option value="true">Yes (Active)</option>
               <option value="false">No (Hidden)</option>
             </select>
+
+            <div class="preview-hint" style="margin-top:8px;">
+              Active = visible on website • Hidden = not visible
+            </div>
           </div>
 
           <div>
-            <label class="lbl">Image (optional)</label>
+            <label class="lbl">Image</label>
             <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,image/webp" />
+            <button class="btn-soft" id="clearImgBtn" type="button" style="margin-top:10px;">
+              Remove image
+            </button>
           </div>
 
           <div class="span2 preview">
-            <div class="preview-box">
+            <div class="preview-box dropBox" id="dropBox">
+              <div class="dropOverlay" id="imgDropOverlay">
+                <div>
+                  <div class="dropTitle">Drop image here</div>
+                  <div class="dropSub">or click “Choose file” above</div>
+                </div>
+              </div>
               <img id="previewImg" alt="Preview" />
             </div>
-            <div class="preview-hint">Tip: upload a clean square image for best display.</div>
+
+            <div class="preview-hint">
+              Tip: use a clean square image (1080×1080) for best look.
+            </div>
           </div>
         </div>
 

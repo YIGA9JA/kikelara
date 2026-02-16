@@ -1,3 +1,4 @@
+// admin-products.js
 (() => {
   const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
 
@@ -10,7 +11,7 @@
     refreshBtn: document.getElementById("refreshBtn"),
     newBtn: document.getElementById("newBtn"),
     logoutBtn: document.getElementById("logoutBtn"),
-    pills: Array.from(document.querySelectorAll(".pill")),
+    pills: Array.from(document.querySelectorAll(".ad-pill")),
     toastWrap: document.getElementById("toastWrap"),
 
     // login modal
@@ -48,18 +49,41 @@
   let allProducts = [];
   let filterMode = "all";
 
-  /* ================= TOAST ================= */
+  /* =============== HELPERS =============== */
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function money(n) {
+    const v = Number(n || 0);
+    try { return v.toLocaleString("en-NG"); } catch { return String(v); }
+  }
+
+  function imgUrl(image_url) {
+    if (!image_url) return "";
+    const u = String(image_url);
+    if (u.startsWith("/")) return `${API_BASE}${u}`;
+    return u;
+  }
+
+  /* =============== TOAST =============== */
   function toast(type, title, body, ms = 3200) {
     if (!els.toastWrap) return alert([title, body].filter(Boolean).join("\n"));
 
     const el = document.createElement("div");
     el.className = `toast ${type || ""}`.trim();
+
     el.innerHTML = `
-      <div class="toastTop">
-        <div class="toastTitle">${escapeHtml(title || "")}</div>
-        <button class="toastX" type="button" aria-label="Close">✕</button>
+      <div class="t-row">
+        <div class="t-title">${escapeHtml(title || "")}</div>
+        <button class="t-close" type="button" aria-label="Close">✕</button>
       </div>
-      ${body ? `<div class="toastBody">${escapeHtml(body)}</div>` : ""}
+      ${body ? `<div class="t-body">${escapeHtml(body)}</div>` : ""}
     `;
     els.toastWrap.appendChild(el);
 
@@ -69,7 +93,7 @@
       setTimeout(() => el.remove(), 180);
     };
 
-    el.querySelector(".toastX")?.addEventListener("click", close);
+    el.querySelector(".t-close")?.addEventListener("click", close);
     if (ms > 0) setTimeout(close, ms);
   }
 
@@ -102,28 +126,7 @@
     }, 0);
   }
 
-  function escapeHtml(s) {
-    return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function money(n) {
-    const v = Number(n || 0);
-    try { return v.toLocaleString("en-NG"); } catch { return String(v); }
-  }
-
-  function imgUrl(image_url) {
-    if (!image_url) return "";
-    const u = String(image_url);
-    if (u.startsWith("/")) return `${API_BASE}${u}`; // backend stores "/uploads/xxx"
-    return u;
-  }
-
-  /* ================= CSRF + API ================= */
+  /* =============== CSRF + API =============== */
   function getCookie(name) {
     const v = `; ${document.cookie}`;
     const parts = v.split(`; ${name}=`);
@@ -131,8 +134,7 @@
     return "";
   }
 
-  // ✅ MUST match server.js:
-  // const CSRF_COOKIE = "admin_csrf";
+  // MUST match server cookie name
   function csrfToken() {
     return getCookie("admin_csrf") || "";
   }
@@ -141,7 +143,6 @@
     const headers = { ...(opts.headers || {}) };
     const method = (opts.method || "GET").toUpperCase();
 
-    // CSRF for mutating requests
     if (method !== "GET" && method !== "HEAD") {
       const c = csrfToken();
       if (c) headers["X-CSRF-Token"] = c;
@@ -150,11 +151,11 @@
     return fetch(`${API_BASE}${path}`, {
       ...opts,
       headers,
-      credentials: "include"
+      credentials: "include",
     });
   }
 
-  /* ================= AUTH ================= */
+  /* =============== AUTH =============== */
   async function ensureLoggedIn() {
     try {
       const r = await api("/admin/me", { cache: "no-store" });
@@ -168,39 +169,35 @@
 
   function openLogin() {
     setHelp(els.loginHelp, "");
-    els.adminPass.value = "";
+    if (els.adminPass) els.adminPass.value = "";
     openModal(els.loginModal);
-    setTimeout(() => els.adminPass.focus(), 50);
+    setTimeout(() => els.adminPass?.focus(), 50);
   }
 
   async function login(password) {
     setHelp(els.loginHelp, "Signing in…", "loading");
-    els.loginBtn.disabled = true;
+    if (els.loginBtn) els.loginBtn.disabled = true;
 
     try {
       const r = await fetch(`${API_BASE}/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password }),
       });
 
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.success) throw new Error(data.message || "Login failed");
 
       closeModal(els.loginModal);
-      toast("ok", "Logged in", "Session secured with cookie.");
+      toast("ok", "Logged in", "Session secured.");
       setStatus("✅ Logged in", "success");
-
-      // optional: exposes server-returned csrf for debugging
-      if (data.csrfToken) window.__csrf = data.csrfToken;
-
       await loadProducts();
     } catch (e) {
       setHelp(els.loginHelp, `❌ ${String(e.message || e)}`, "error");
       toast("err", "Login failed", String(e.message || e));
     } finally {
-      els.loginBtn.disabled = false;
+      if (els.loginBtn) els.loginBtn.disabled = false;
     }
   }
 
@@ -211,11 +208,10 @@
     openLogin();
   }
 
-  /* ================= NORMALIZE PRODUCTS (ADMIN + PUBLIC) ================= */
+  /* =============== NORMALIZE =============== */
   function normalizeProduct(p) {
     const id = p?.id;
     const name = String(p?.name || "").trim();
-
     const price = Number(p?.price || 0);
     const description = String(p?.description || p?.payload?.description || "").trim();
 
@@ -232,7 +228,7 @@
       description,
       is_active: Boolean(is_active),
       image_url: image_url || "",
-      created_at: p?.created_at || p?.createdAt || null
+      created_at: p?.created_at || p?.createdAt || null,
     };
   }
 
@@ -245,45 +241,20 @@
     return [];
   }
 
-  /* ================= PRODUCTS: LOAD (ADMIN FIRST, PUBLIC FALLBACK) ================= */
-  async function fetchAdminProducts() {
-    const r = await api("/admin/products", { cache: "no-store" });
-    if (r.status === 401) return { authError: true, products: [] };
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data?.message || "Admin products fetch failed");
-    return { authError: false, products: parseProductsResponse(data) };
-  }
-
-  async function fetchPublicProductsFallback() {
-    const r = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
-    const data = await r.json().catch(() => ([]));
-    if (!r.ok) throw new Error(`Public products fetch failed (${r.status})`);
-    return parseProductsResponse(data);
-  }
-
+  /* =============== LOAD =============== */
   async function loadProducts() {
     setStatus("Loading products…", "loading");
     if (els.empty) els.empty.style.display = "none";
     if (els.grid) els.grid.innerHTML = "";
 
     try {
-      const adminRes = await fetchAdminProducts();
+      const r = await api("/admin/products", { cache: "no-store" });
+      if (r.status === 401) { openLogin(); return; }
 
-      if (adminRes.authError) {
-        openLogin();
-        return;
-      }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.message || "Admin products fetch failed");
 
-      let raw = adminRes.products;
-
-      if (!raw.length) {
-        try {
-          raw = await fetchPublicProductsFallback();
-        } catch (e) {
-          console.warn("Public fallback failed:", e);
-        }
-      }
-
+      const raw = parseProductsResponse(data);
       allProducts = raw.map(normalizeProduct).filter(p => p.id && p.name);
 
       setStatus(`✅ Loaded ${allProducts.length} product(s)`, "success");
@@ -295,14 +266,16 @@
     }
   }
 
-  /* ================= Premium UI helpers ================= */
+  /* =============== PREMIUM UI HELPERS =============== */
   function syncSegFromSelect() {
+    if (!els.active) return;
     const v = String(els.active.value || "true");
     els.segBtns.forEach(b => b.classList.toggle("is-on", b.dataset.seg === v));
   }
 
   function updateDescCount() {
     const max = 600;
+    if (!els.desc) return;
     const v = String(els.desc.value || "");
     if (v.length > max) els.desc.value = v.slice(0, max);
     const n = String(els.desc.value || "").length;
@@ -311,12 +284,13 @@
 
   function syncImageOverlay() {
     if (!els.imgDropOverlay) return;
-    els.imgDropOverlay.style.display = els.previewImg?.src ? "none" : "grid";
+    const has = Boolean(els.previewImg?.src);
+    els.imgDropOverlay.style.display = has ? "none" : "grid";
   }
 
-  /* ================= FILTERS + RENDER ================= */
+  /* =============== FILTERS + RENDER =============== */
   function applyFilters(list) {
-    const q = (els.q.value || "").trim().toLowerCase();
+    const q = (els.q?.value || "").trim().toLowerCase();
     let out = list.slice();
 
     if (filterMode === "active") out = out.filter(p => Boolean(p.is_active));
@@ -329,7 +303,7 @@
       });
     }
 
-    const sort = els.sort.value;
+    const sort = els.sort?.value || "new";
     out.sort((a, b) => {
       if (sort === "new") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
       if (sort === "old") return new Date(a.created_at || 0) - new Date(b.created_at || 0);
@@ -343,6 +317,7 @@
   }
 
   function render() {
+    if (!els.grid) return;
     const filtered = applyFilters(allProducts);
     els.grid.innerHTML = "";
 
@@ -404,26 +379,26 @@
     return wrap;
   }
 
-  /* ================= CRUD (ADMIN) ================= */
+  /* =============== CRUD =============== */
   function openCreate() {
     setHelp(els.editHelp, "");
-    els.editTitle.textContent = "Add Product";
+    if (els.editTitle) els.editTitle.textContent = "Add Product";
 
-    els.pid.value = "";
-    els.name.value = "";
-    els.price.value = "0";
-    els.desc.value = "";
-    els.active.value = "true";
+    if (els.pid) els.pid.value = "";
+    if (els.name) els.name.value = "";
+    if (els.price) els.price.value = "0";
+    if (els.desc) els.desc.value = "";
+    if (els.active) els.active.value = "true";
 
-    els.image.value = "";
-    els.previewImg.src = "";
+    if (els.image) els.image.value = "";
+    if (els.previewImg) els.previewImg.src = "";
 
     openModal(els.editModal);
     syncSegFromSelect();
     updateDescCount();
     syncImageOverlay();
 
-    setTimeout(() => els.name.focus(), 60);
+    setTimeout(() => els.name?.focus(), 60);
   }
 
   function openEdit(id) {
@@ -431,16 +406,16 @@
     if (!p) return;
 
     setHelp(els.editHelp, "");
-    els.editTitle.textContent = "Edit Product";
+    if (els.editTitle) els.editTitle.textContent = "Edit Product";
 
-    els.pid.value = String(p.id);
-    els.name.value = p.name || "";
-    els.price.value = String(Number(p.price || 0));
-    els.desc.value = p.description || "";
-    els.active.value = String(Boolean(p.is_active));
+    if (els.pid) els.pid.value = String(p.id);
+    if (els.name) els.name.value = p.name || "";
+    if (els.price) els.price.value = String(Number(p.price || 0));
+    if (els.desc) els.desc.value = p.description || "";
+    if (els.active) els.active.value = String(Boolean(p.is_active));
 
-    els.image.value = "";
-    els.previewImg.src = imgUrl(p.image_url) || "";
+    if (els.image) els.image.value = "";
+    if (els.previewImg) els.previewImg.src = imgUrl(p.image_url) || "";
 
     openModal(els.editModal);
     syncSegFromSelect();
@@ -449,11 +424,11 @@
   }
 
   async function saveProduct() {
-    const id = (els.pid.value || "").trim();
-    const name = (els.name.value || "").trim();
-    const price = Number(els.price.value || 0);
-    const description = String(els.desc.value || "").trim();
-    const is_active = els.active.value;
+    const id = (els.pid?.value || "").trim();
+    const name = (els.name?.value || "").trim();
+    const price = Number(els.price?.value || 0);
+    const description = String(els.desc?.value || "").trim();
+    const is_active = els.active?.value || "true";
 
     if (!name) {
       setHelp(els.editHelp, "❌ Name is required", "error");
@@ -461,7 +436,7 @@
     }
 
     setHelp(els.editHelp, "Saving…", "loading");
-    els.saveBtn.disabled = true;
+    if (els.saveBtn) els.saveBtn.disabled = true;
 
     try {
       const fd = new FormData();
@@ -470,11 +445,11 @@
       fd.append("description", description);
       fd.append("is_active", is_active);
 
-      if (els.image.files && els.image.files[0]) fd.append("image", els.image.files[0]);
+      if (els.image?.files && els.image.files[0]) fd.append("image", els.image.files[0]);
 
       const r = await api(id ? `/admin/products/${encodeURIComponent(id)}` : `/admin/products`, {
         method: id ? "PUT" : "POST",
-        body: fd
+        body: fd,
       });
 
       const data = await r.json().catch(() => ({}));
@@ -495,7 +470,7 @@
       setHelp(els.editHelp, `❌ ${String(e.message || e)}`, "error");
       toast("err", "Save failed", String(e.message || e));
     } finally {
-      els.saveBtn.disabled = false;
+      if (els.saveBtn) els.saveBtn.disabled = false;
     }
   }
 
@@ -538,7 +513,7 @@
 
       const r = await api(`/admin/products/${encodeURIComponent(id)}`, {
         method: "PUT",
-        body: fd
+        body: fd,
       });
 
       const data = await r.json().catch(() => ({}));
@@ -556,13 +531,13 @@
     }
   }
 
-  /* ================= UI EVENTS ================= */
-  els.refreshBtn.addEventListener("click", loadProducts);
-  els.newBtn.addEventListener("click", openCreate);
-  els.logoutBtn.addEventListener("click", logout);
+  /* =============== EVENTS =============== */
+  els.refreshBtn?.addEventListener("click", loadProducts);
+  els.newBtn?.addEventListener("click", openCreate);
+  els.logoutBtn?.addEventListener("click", logout);
 
-  els.q.addEventListener("input", render);
-  els.sort.addEventListener("change", render);
+  els.q?.addEventListener("input", render);
+  els.sort?.addEventListener("change", render);
 
   els.pills.forEach(p => {
     p.addEventListener("click", () => {
@@ -573,50 +548,44 @@
     });
   });
 
-  // visibility segmented
   els.segBtns.forEach(b => {
     b.addEventListener("click", () => {
+      if (!els.active) return;
       els.active.value = b.dataset.seg;
       syncSegFromSelect();
     });
   });
 
-  // desc counter
-  els.desc.addEventListener("input", updateDescCount);
+  els.desc?.addEventListener("input", updateDescCount);
 
-  // image preview
-  els.image.addEventListener("change", () => {
+  els.image?.addEventListener("change", () => {
     const f = els.image.files?.[0];
     if (!f) { syncImageOverlay(); return; }
     const url = URL.createObjectURL(f);
-    els.previewImg.src = url;
+    if (els.previewImg) els.previewImg.src = url;
     syncImageOverlay();
   });
 
-  // remove image
-  els.clearImgBtn.addEventListener("click", () => {
-    els.image.value = "";
-    els.previewImg.src = "";
+  els.clearImgBtn?.addEventListener("click", () => {
+    if (els.image) els.image.value = "";
+    if (els.previewImg) els.previewImg.src = "";
     syncImageOverlay();
   });
 
-  // login modal
-  els.loginClose.addEventListener("click", () => closeModal(els.loginModal));
-  els.loginCancel.addEventListener("click", () => closeModal(els.loginModal));
-  els.loginForm.addEventListener("submit", (e) => {
+  els.loginClose?.addEventListener("click", () => closeModal(els.loginModal));
+  els.loginCancel?.addEventListener("click", () => closeModal(els.loginModal));
+  els.loginForm?.addEventListener("submit", (e) => {
     e.preventDefault();
-    login(els.adminPass.value || "");
+    login(els.adminPass?.value || "");
   });
 
-  // edit modal
-  els.editClose.addEventListener("click", () => closeModal(els.editModal));
-  els.cancelEdit.addEventListener("click", () => closeModal(els.editModal));
-  els.editForm.addEventListener("submit", (e) => {
+  els.editClose?.addEventListener("click", () => closeModal(els.editModal));
+  els.cancelEdit?.addEventListener("click", () => closeModal(els.editModal));
+  els.editForm?.addEventListener("submit", (e) => {
     e.preventDefault();
     saveProduct();
   });
 
-  // ESC closes modals
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeModal(els.editModal);
@@ -624,12 +593,13 @@
     }
   });
 
-  /* ================= BOOT ================= */
+  /* =============== BOOT =============== */
   (async function init() {
-    const ok = await ensureLoggedIn();
-    if (ok) await loadProducts();
     syncSegFromSelect();
     updateDescCount();
     syncImageOverlay();
+
+    const ok = await ensureLoggedIn();
+    if (ok) await loadProducts();
   })();
 })();
