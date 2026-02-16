@@ -6,13 +6,27 @@
   <title>KÍKÉLÁRÁ — Products</title>
 
   <link rel="stylesheet" href="products.css" />
+
+  <!-- ✅ MUST load config first -->
   <script src="config.js"></script>
+
+  <!-- ✅ Defer ensures DOM exists + config already set -->
+  <script defer src="products.js"></script>
+
+  <noscript>
+    <style>
+      body { padding: 20px; font-family: system-ui, Arial, sans-serif; }
+    </style>
+  </noscript>
 </head>
 <body>
+  <noscript>
+    <h2>JavaScript is disabled</h2>
+    <p>Please enable JavaScript to view products.</p>
+  </noscript>
 
   <!-- header injected / your header -->
   <header>
-    <!-- ensure you have cartCount + wishlistCount -->
     <span id="cartCount">0</span>
     <span id="wishlistCount">0</span>
   </header>
@@ -36,6 +50,14 @@
     <div id="productsGrid" class="products-grid"></div>
   </main>
 
-  <script src="products.js"></script>
+  <!-- ✅ Quick debug (remove anytime) -->
+  <script>
+    console.log("API_BASE =", window.API_BASE);
+    if (!window.API_BASE) {
+      // If API_BASE missing, your page will show broken /uploads paths.
+      // This also prevents old sessionStorage from confusing you during debugging.
+      try { sessionStorage.removeItem("allProducts"); } catch {}
+    }
+  </script>
 </body>
 </html>
