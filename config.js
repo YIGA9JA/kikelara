@@ -37,4 +37,14 @@
   // ✅ This is NOT a password. It's only the storage key name.
   // Use a real name (your "4567" is confusing and easy to misuse)
   window.ADMIN_TOKEN_KEY = "kikelara_admin_token_v1";
+
+  // If your backend uses a different CSRF cookie name, set it here.
+// Must match what server sets.
+window.ADMIN_CSRF_COOKIE = "admin_csrf";
+
+// Optional localStorage fallback key (only used if you decide to store csrf token there)
+window.ADMIN_CSRF_STORAGE_KEY = "admin_csrf_ls";
 })();
+
+
+
