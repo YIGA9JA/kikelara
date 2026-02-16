@@ -6,9 +6,24 @@
   <title>KÍKÉLÁRÁ — Product Details</title>
 
   <link rel="stylesheet" href="product-details.css" />
+
+  <!-- ✅ MUST load config first -->
   <script src="config.js"></script>
+
+  <!-- ✅ Defer ensures DOM exists + config already set -->
+  <script defer src="product-details.js"></script>
+
+  <noscript>
+    <style>
+      body { padding: 20px; font-family: system-ui, Arial, sans-serif; }
+    </style>
+  </noscript>
 </head>
 <body>
+  <noscript>
+    <h2>JavaScript is disabled</h2>
+    <p>Please enable JavaScript to view product details and reviews.</p>
+  </noscript>
 
   <header>
     <span id="cartCount">0</span>
@@ -99,6 +114,12 @@
     </section>
   </main>
 
-  <script src="product-details.js"></script>
+  <!-- ✅ Quick debug (remove anytime) -->
+  <script>
+    console.log("API_BASE =", window.API_BASE);
+    if (!window.API_BASE) {
+      try { sessionStorage.removeItem("allProducts"); } catch {}
+    }
+  </script>
 </body>
 </html>

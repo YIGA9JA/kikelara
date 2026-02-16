@@ -38,6 +38,10 @@
   // Use a real name (your "4567" is confusing and easy to misuse)
   window.ADMIN_TOKEN_KEY = "kikelara_admin_token_v1";
 
+
+  window.API_BASE = "https://kikelara1.onrender.com";
+
+
   // If your backend uses a different CSRF cookie name, set it here.
 // Must match what server sets.
 window.ADMIN_CSRF_COOKIE = "admin_csrf";
