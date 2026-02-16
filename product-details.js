@@ -1,43 +1,28 @@
-/* ================= PRODUCT-DETAILS.JS (FULL)
-   - Gallery + cart state
-   - Jumia-like reviews
-   - Admin delete reviews (PIN)
-   - Seed reviews per product (different, mostly female)
-================================================ */
+/* ================= PRODUCT-DETAILS.JS (BACKEND ONLY) =================
+   ✅ Fetch product from backend: GET /api/products/:id
+   ✅ Reviews stored in backend (Postgres)
+   ✅ Vote stored in backend
+   ✅ Admin delete reviews (cookie admin session + CSRF)
+   ✅ Cart stored in sessionStorage(cart)  ✅ (matches your project)
+====================================================================== */
 
-const PRODUCTS_KEY = "allProducts";
+const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
 const CART_KEY = "cart";
 
-/* Reviews */
-const REVIEWS_KEY = "productReviews_v1";
-const DEVICE_ID_KEY = "reviewDeviceId_v1";
-const REVIEWS_SEEDED_KEY = "productReviews_seeded_v1";
-
-/* ✅ Admin PIN for deleting reviews */
-const REVIEWS_ADMIN_PIN = "4567";
-const REVIEWS_ADMIN_AUTH_KEY = "reviews-admin-auth-v1";
-
-/* ================= HELPERS ================= */
-function safeJSON(key, fallback) {
+/* =============== HELPERS =============== */
+function safeJSONSession(key, fallback) {
   try {
-    const v = JSON.parse(localStorage.getItem(key));
+    const v = JSON.parse(sessionStorage.getItem(key));
     return v ?? fallback;
   } catch {
     return fallback;
   }
 }
 function el(id) { return document.getElementById(id); }
-
-function getProductId() {
-  const params = new URLSearchParams(window.location.search);
-  const id = Number(params.get("id"));
-  return Number.isFinite(id) ? id : NaN;
-}
-
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
 function escapeHtml(s) {
-  return String(s)
+  return String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
@@ -57,28 +42,33 @@ function starsText(rating) {
   return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
 }
 
-/* ---------- device id for helpful votes ---------- */
-function getDeviceId() {
-  let id = localStorage.getItem(DEVICE_ID_KEY);
-  if (!id) {
-    id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(DEVICE_ID_KEY, id);
-  }
-  return id;
+function getProductId() {
+  const params = new URLSearchParams(window.location.search);
+  const id = Number(params.get("id"));
+  return Number.isFinite(id) ? id : NaN;
 }
 
-/* ================= CART ================= */
+function showMessage(msg) {
+  const container = document.querySelector(".pd");
+  if (!container) {
+    document.body.innerHTML = `<h2 style="padding:50px">${escapeHtml(msg)}</h2>`;
+    return;
+  }
+  container.innerHTML = `<h2 style="padding:30px">${escapeHtml(msg)}</h2>`;
+}
+
+/* =============== CART (SESSION) =============== */
 function loadCart() {
-  const c = safeJSON(CART_KEY, []);
+  const c = safeJSONSession(CART_KEY, []);
   return Array.isArray(c) ? c : [];
 }
-function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+function saveCart(cart) { try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }
 function isInCart(cart, id) { return cart.some(i => Number(i.id) === Number(id)); }
 
 function addToCartOnce(product) {
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
-  cart.push({ ...product, qty: 1 });
+  cart.push({ id: product.id, name: product.name, price: product.price, image: product.image, qty: 1 });
   saveCart(cart);
 }
 
@@ -92,16 +82,6 @@ function updateHeaderCartCount() {
 
   const wishlistCount = el("wishlistCount");
   if (wishlistCount) wishlistCount.textContent = "0";
-}
-
-/* ================= PAGE UI HELPERS ================= */
-function showMessage(msg) {
-  const container = document.querySelector(".pd");
-  if (!container) {
-    document.body.innerHTML = `<h2 style="padding:50px">${msg}</h2>`;
-    return;
-  }
-  container.innerHTML = `<h2 style="padding:30px">${msg}</h2>`;
 }
 
 function setCartButtonState(inCart) {
@@ -123,75 +103,39 @@ function setCartButtonState(inCart) {
   }
 }
 
-function guessIngredientsText(product) {
-  const d = (product.description || "").trim();
-  return d || "—";
-}
+/* =============== PRODUCT FETCH =============== */
+function normalizeProduct(p) {
+  const image =
+    p?.image || p?.image_url || (Array.isArray(p?.images) && p.images[0]) || "images_brown/bodyButter.png";
 
-function getPresetDetails(category) {
-  const c = (category || "").toLowerCase();
-
-  if (c.includes("oil")) {
-    return {
-      benefits: [
-        "Boosts glow and improves the look of dull skin",
-        "Helps lock in moisture for a softer feel",
-        "Supports an even-looking skin tone"
-      ],
-      howto: [
-        "Warm 2–4 drops between palms",
-        "Press onto slightly damp skin after bath",
-        "Use daily (morning or night) for best results"
-      ]
-    };
+  let images = [];
+  if (Array.isArray(p?.images)) images = p.images;
+  else if (typeof p?.images === "string") {
+    try { images = JSON.parse(p.images); } catch { images = []; }
   }
-
-  if (c.includes("serum") || c.includes("hair")) {
-    return {
-      benefits: [
-        "Softens and conditions for a healthy look",
-        "Helps reduce dryness and rough texture",
-        "Leaves a smooth, luxurious finish"
-      ],
-      howto: [
-        "Apply a small amount to palms",
-        "Massage into hair or targeted dry areas",
-        "Use 3–5 times weekly or as needed"
-      ]
-    };
-  }
+  if (!images.length) images = [image];
 
   return {
-    benefits: [
-      "Deep moisture for supple, radiant-looking skin",
-      "Rich texture that absorbs with a luxe feel",
-      "Helps smooth the look of dry, flaky areas"
-    ],
-    howto: [
-      "Apply generously to clean skin",
-      "Focus on elbows, knees, and dry patches",
-      "Use daily for best results"
-    ]
+    id: p?.id,
+    name: String(p?.name || "").trim(),
+    price: Number(p?.price || 0),
+    category: String(p?.category || p?.payload?.category || "Product"),
+    description: String(p?.description || p?.payload?.description || ""),
+    image,
+    images
   };
 }
 
-function renderList(listEl, items) {
-  if (!listEl) return;
-  listEl.innerHTML = "";
-  (items || []).forEach(text => {
-    const li = document.createElement("li");
-    li.textContent = text;
-    listEl.appendChild(li);
-  });
+async function fetchProduct(productId) {
+  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Product fetch failed (${r.status})`);
+  const data = await r.json();
+  const prod = normalizeProduct(data?.product || data);
+  if (!prod?.id) throw new Error("Product not found");
+  return prod;
 }
 
-/* ================= GALLERY ================= */
-function getProductImages(p) {
-  if (Array.isArray(p.images) && p.images.length) return p.images;
-  if (typeof p.image === "string" && p.image.trim()) return [p.image];
-  return [];
-}
-
+/* =============== GALLERY =============== */
 function renderGallery(images, activeIndex = 0) {
   const mainImg = el("productImage");
   const thumbsWrap = el("productThumbs");
@@ -213,180 +157,38 @@ function renderGallery(images, activeIndex = 0) {
   });
 }
 
-/* ================= REVIEWS STORAGE ================= */
-function loadAllReviews() {
-  const obj = safeJSON(REVIEWS_KEY, {});
-  return obj && typeof obj === "object" ? obj : {};
-}
-function saveAllReviews(obj) {
-  localStorage.setItem(REVIEWS_KEY, JSON.stringify(obj));
-}
-function loadReviewsForProduct(productId) {
-  const all = loadAllReviews();
-  const list = all[String(productId)];
-  return Array.isArray(list) ? list : [];
-}
-function saveReviewsForProduct(productId, list) {
-  const all = loadAllReviews();
-  all[String(productId)] = list;
-  saveAllReviews(all);
+/* =============== REVIEWS (BACKEND) =============== */
+const DEVICE_ID_KEY = "reviewDeviceId_v2";
+
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
 }
 
-function normalizeReview(r) {
-  return {
-    id: r.id || `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-    name: (r.name || "Anonymous").toString(),
-    title: (r.title || "").toString(),
-    text: (r.text || "").toString(),
-    rating: Number(r.rating) || 0,
-    createdAt: r.createdAt || new Date().toISOString(),
-    verified: Boolean(r.verified),
-    votes: r.votes && typeof r.votes === "object"
-      ? r.votes
-      : { up: 0, down: 0, by: {} }
-  };
+function getCookie(name) {
+  const v = `; ${document.cookie}`;
+  const parts = v.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+  return "";
 }
+function csrfToken() { return getCookie("admin_csrf") || ""; }
 
-/* ================= VERIFIED PURCHASE (simple) ================= */
-function isVerifiedPurchase(productId) {
-  const cart = loadCart();
-  if (cart.some(i => Number(i.id) === Number(productId))) return true;
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const method = (opts.method || "GET").toUpperCase();
 
-  const possibleOrderKeys = ["orders", "orders_backup", "orders_backup_v1", "orders_backup_v2", "localOrders"];
-  for (const k of possibleOrderKeys) {
-    const orders = safeJSON(k, []);
-    if (Array.isArray(orders)) {
-      const found = orders.some(o => {
-        if (Array.isArray(o?.items)) return o.items.some(it => Number(it.id) === Number(productId));
-        return Number(o?.id) === Number(productId);
-      });
-      if (found) return true;
-    }
+  if (method !== "GET" && method !== "HEAD") {
+    const c = csrfToken();
+    if (c) headers["X-CSRF-Token"] = c;
   }
 
-  return false;
+  return fetch(`${API_BASE}${path}`, { ...opts, headers, credentials: "include" });
 }
 
-/* ================= ADMIN AUTH ================= */
-function isReviewAdmin() {
-  return localStorage.getItem(REVIEWS_ADMIN_AUTH_KEY) === "yes";
-}
-function setReviewAdminAuth(on) {
-  localStorage.setItem(REVIEWS_ADMIN_AUTH_KEY, on ? "yes" : "no");
-}
-
-/* ================= SEEDED REVIEWS (DIFFERENT PER PRODUCT) ================= */
-function seededAlreadyFor(productId) {
-  const seeded = safeJSON(REVIEWS_SEEDED_KEY, {});
-  return Boolean(seeded[String(productId)]);
-}
-function markSeeded(productId) {
-  const seeded = safeJSON(REVIEWS_SEEDED_KEY, {});
-  seeded[String(productId)] = true;
-  localStorage.setItem(REVIEWS_SEEDED_KEY, JSON.stringify(seeded));
-}
-
-function mulberry32(seed) {
-  return function () {
-    let t = (seed += 0x6D2B79F5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickUnique(rng, arr, count) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, Math.min(count, copy.length));
-}
-
-function seedReviewsIfEmpty(productId, product) {
-  const current = loadReviewsForProduct(productId);
-  if (current.length > 0) return;
-  if (seededAlreadyFor(productId)) return;
-
-  const rng = mulberry32((Number(productId) || 1) * 99991);
-
-  const femaleNames = [
-    "Amina","Hauwa","Zainab","Fatima","Rahma","Safiya","Hadiza","Maryam","Asiya","Khadija",
-    "Sade","Temilade","Damilola","Tolani","Yetunde","Funke","Bimpe","Bukola","Kemi","Tomiwa",
-    "Oluwatoyin","Ayomide","Simisola","Ireoluwa","Abisola","Omotola",
-    "Chioma","Chidinma","Adaeze","Amaka","Ifunanya","Ngozi","Nneka","Uchechi","Oluchi","Chiamaka",
-    "Blessing","Peace","Joy","Mercy","Grace","Rita","Esther","Deborah","Sarah","Mary","Jennifer","Victoria"
-  ];
-
-  const maleNames = ["Tunde","Sani","Ifeanyi","Chinedu","Musa","Abdul","Segun","Emeka","Kunle","Ibrahim"];
-
-  // mostly female
-  const namePool = [];
-  namePool.push(...pickUnique(rng, femaleNames, 16));
-  namePool.push(...pickUnique(rng, maleNames, 3));
-
-  const cat = String(product?.category || "").toLowerCase();
-
-  const templatesBody = [
-    { title: "Super soft skin", text: "My skin felt softer from the first use. It absorbs well and doesn’t feel greasy." },
-    { title: "Perfect after shower", text: "I apply it after shower and my skin stays moisturized till night. Texture is rich." },
-    { title: "Dryness reduced", text: "My elbows and knees were very dry before, now they look smoother. I’m impressed." },
-    { title: "Luxury feel", text: "It feels premium and the scent is not too loud. My skin feels pampered." },
-    { title: "Nice for harmattan", text: "This is now my go-to for harmattan season. Skin stays calm and moisturized." },
-    { title: "Good but small", text: "Quality is great and it works well, I just wish the size was bigger." }
-  ];
-
-  const templatesOil = [
-    { title: "Glowing finish", text: "Gives a clean glow without looking oily. I use it on damp skin and it seals in moisture." },
-    { title: "Lightweight and effective", text: "It’s lightweight but works well. My skin looks healthier after a few days." },
-    { title: "Smooth texture", text: "It spreads easily and absorbs fast. No stains on clothes after a few minutes." },
-    { title: "Good for dull skin", text: "My skin looked dull before, but now I see a brighter look especially on my legs." },
-    { title: "Night routine favourite", text: "The scent is classy and not overwhelming. I love using it at night." }
-  ];
-
-  const templatesHair = [
-    { title: "Hair feels softer", text: "My hair feels softer and easier to comb. A little goes a long way." },
-    { title: "Reduced dryness", text: "Helps with dry scalp and dryness on hair ends. I like the finish." },
-    { title: "Good for sealing", text: "I use it to seal moisture and my hair looks healthier. No heavy build-up." },
-    { title: "Nice shine", text: "Gives a nice shine and keeps my hair looking neat for longer." }
-  ];
-
-  let templates = templatesBody;
-  if (cat.includes("oil")) templates = templatesOil;
-  if (cat.includes("serum") || cat.includes("hair")) templates = templatesHair;
-
-  const ratingsBag = [5,5,5,5,5,5,5,4,4,4,3]; // mostly 5
-  const count = 6 + Math.floor(rng() * 4);      // 6–9
-
-  const now = Date.now();
-  const pickedNames = pickUnique(rng, namePool, count);
-  const pickedTemplates = pickUnique(rng, templates, count);
-
-  const seeded = pickedNames.map((nm, idx) => {
-    const rating = ratingsBag[Math.floor(rng() * ratingsBag.length)];
-    const t = pickedTemplates[idx] || templates[Math.floor(rng() * templates.length)];
-
-    const daysAgo = 2 + Math.floor(rng() * 28);
-    const createdAt = new Date(now - 86400000 * daysAgo).toISOString();
-
-    return normalizeReview({
-      id: `${now}_${productId}_${idx}_${Math.random().toString(16).slice(2)}`,
-      name: nm,
-      title: t.title,
-      text: t.text,
-      rating,
-      createdAt,
-      verified: false,
-      votes: { up: Math.floor(rng() * 8), down: Math.floor(rng() * 2), by: {} }
-    });
-  });
-
-  saveReviewsForProduct(productId, seeded);
-  markSeeded(productId);
-}
-
-/* ================= REVIEWS UI STATE ================= */
 let rvAll = [];
 let rvFilteredStar = 0;
 let rvSortMode = "recent";
@@ -398,13 +200,11 @@ function helpfulScore(r) {
   const down = Number(r?.votes?.down) || 0;
   return up - down;
 }
-
 function calcAverage(list) {
   if (!list.length) return 0;
   const sum = list.reduce((a, r) => a + (Number(r.rating) || 0), 0);
   return sum / list.length;
 }
-
 function breakdownCounts(list) {
   const counts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
   list.forEach(r => {
@@ -464,24 +264,19 @@ function renderSummary(list) {
 function getDisplayList() {
   let list = [...rvAll];
 
-  if (rvFilteredStar) {
-    list = list.filter(r => Number(r.rating) === Number(rvFilteredStar));
-  }
+  if (rvFilteredStar) list = list.filter(r => Number(r.rating) === Number(rvFilteredStar));
 
-  if (rvSortMode === "recent") {
-    list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  } else if (rvSortMode === "high") {
-    list.sort((a,b) => (b.rating - a.rating) || (new Date(b.createdAt) - new Date(a.createdAt)));
-  } else if (rvSortMode === "low") {
-    list.sort((a,b) => (a.rating - b.rating) || (new Date(b.createdAt) - new Date(a.createdAt)));
-  } else if (rvSortMode === "helpful") {
-    list.sort((a,b) => (helpfulScore(b) - helpfulScore(a)) || (new Date(b.createdAt) - new Date(a.createdAt)));
-  }
+  if (rvSortMode === "recent") list.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  else if (rvSortMode === "high") list.sort((a,b) => (b.rating - a.rating) || (new Date(b.created_at) - new Date(a.created_at)));
+  else if (rvSortMode === "low") list.sort((a,b) => (a.rating - b.rating) || (new Date(b.created_at) - new Date(a.created_at)));
+  else if (rvSortMode === "helpful") list.sort((a,b) => (helpfulScore(b) - helpfulScore(a)) || (new Date(b.created_at) - new Date(a.created_at)));
 
   return list;
 }
 
-/* Admin buttons setup */
+function isReviewAdmin() { return localStorage.getItem("reviews-admin-ui") === "yes"; }
+function setReviewAdminUI(on) { localStorage.setItem("reviews-admin-ui", on ? "yes" : "no"); }
+
 function setupAdminButtons(productId) {
   const adminBtn = el("rvAdminBtn");
   const logoutBtn = el("rvAdminLogoutBtn");
@@ -493,15 +288,13 @@ function setupAdminButtons(productId) {
     adminBtn.textContent = on ? "Admin: ON" : "Admin";
   }
 
-  adminBtn.addEventListener("click", () => {
-    if (isReviewAdmin()) {
-      refreshAdminUI();
-      return;
-    }
+  adminBtn.addEventListener("click", async () => {
+    if (isReviewAdmin()) { refreshAdminUI(); return; }
     const pin = prompt("Enter admin PIN to manage reviews:");
     if (pin === null) return;
-    if (String(pin).trim() === REVIEWS_ADMIN_PIN) {
-      setReviewAdminAuth(true);
+
+    if (String(pin).trim() === "4567") {
+      setReviewAdminUI(true);
       refreshAdminUI();
       renderSummary(rvAll);
       renderListUI(productId);
@@ -511,7 +304,7 @@ function setupAdminButtons(productId) {
   });
 
   logoutBtn.addEventListener("click", () => {
-    setReviewAdminAuth(false);
+    setReviewAdminUI(false);
     refreshAdminUI();
     renderSummary(rvAll);
     renderListUI(productId);
@@ -520,54 +313,45 @@ function setupAdminButtons(productId) {
   refreshAdminUI();
 }
 
-/* Voting */
-function voteReview(productId, reviewId, voteType) {
+async function loadReviews(productId) {
+  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, { cache: "no-store" });
+  if (!r.ok) return [];
+  const data = await r.json();
+  return Array.isArray(data?.reviews) ? data.reviews : [];
+}
+
+async function submitReview(productId, payload) {
+  const deviceId = getDeviceId();
+  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, deviceId }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.ok) throw new Error(data?.message || "Failed to submit review");
+  return data.review;
+}
+
+async function voteReview(reviewId, voteType) {
   const deviceId = getDeviceId();
   voteType = (voteType === "up" || voteType === "down") ? voteType : "up";
 
-  let list = loadReviewsForProduct(productId).map(normalizeReview);
-  const idx = list.findIndex(r => r.id === reviewId);
-  if (idx === -1) return;
+  const r = await fetch(`${API_BASE}/api/reviews/${encodeURIComponent(reviewId)}/vote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ voteType, deviceId }),
+  });
 
-  const r = list[idx];
-  r.votes = r.votes || { up: 0, down: 0, by: {} };
-  r.votes.by = r.votes.by || {};
-
-  const prev = r.votes.by[deviceId];
-  if (prev === voteType) return;
-
-  if (prev === "up") r.votes.up = Math.max(0, (Number(r.votes.up) || 0) - 1);
-  if (prev === "down") r.votes.down = Math.max(0, (Number(r.votes.down) || 0) - 1);
-
-  if (voteType === "up") r.votes.up = (Number(r.votes.up) || 0) + 1;
-  if (voteType === "down") r.votes.down = (Number(r.votes.down) || 0) + 1;
-
-  r.votes.by[deviceId] = voteType;
-  list[idx] = r;
-
-  saveReviewsForProduct(productId, list);
-  rvAll = list;
-
-  renderSummary(rvAll);
-  renderListUI(productId);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.ok) throw new Error(data?.message || "Vote failed");
+  return data.review;
 }
 
-/* Admin delete */
-function deleteReview(productId, reviewId) {
-  if (!isReviewAdmin()) return;
-
-  const ok = confirm("Delete this review permanently?");
-  if (!ok) return;
-
-  let list = loadReviewsForProduct(productId).map(normalizeReview);
-  list = list.filter(r => r.id !== reviewId);
-
-  saveReviewsForProduct(productId, list);
-  rvAll = list;
-
-  renderSummary(rvAll);
-  rvShown = Math.min(rvShown, rvAll.length || RV_PAGE_SIZE);
-  renderListUI(productId);
+async function adminDeleteReview(reviewId) {
+  const r = await api(`/admin/reviews/${encodeURIComponent(reviewId)}`, { method: "DELETE" });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.success) throw new Error(data?.message || "Delete failed");
+  return true;
 }
 
 function renderListUI(productId) {
@@ -605,7 +389,7 @@ function renderListUI(productId) {
         <div class="rv-item-meta">
           <span class="rv-item-name">${escapeHtml(r.name || "Anonymous")}</span>
           ${r.verified ? `<span class="rv-badge">Verified purchase</span>` : ``}
-          <span class="rv-item-date">${formatDate(r.createdAt)}</span>
+          <span class="rv-item-date">${formatDate(r.created_at)}</span>
         </div>
       </div>
 
@@ -619,28 +403,42 @@ function renderListUI(productId) {
     `;
 
     item.querySelectorAll(".rv-vote").forEach(btn => {
-      btn.addEventListener("click", () => voteReview(productId, r.id, btn.dataset.vote));
+      btn.addEventListener("click", async () => {
+        try {
+          const updated = await voteReview(r.id, btn.dataset.vote);
+          rvAll = rvAll.map(x => (x.id === updated.id ? updated : x));
+          renderSummary(rvAll);
+          renderListUI(productId);
+        } catch (e) {
+          alert(String(e.message || e));
+        }
+      });
     });
 
     const delBtn = item.querySelector(".rv-del-btn");
     if (delBtn) {
-      delBtn.addEventListener("click", () => deleteReview(productId, delBtn.dataset.del));
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this review permanently?")) return;
+        try {
+          await adminDeleteReview(delBtn.dataset.del);
+          rvAll = rvAll.filter(x => String(x.id) !== String(delBtn.dataset.del));
+          renderSummary(rvAll);
+          rvShown = Math.min(rvShown, rvAll.length || RV_PAGE_SIZE);
+          renderListUI(productId);
+        } catch (e) {
+          alert(String(e.message || e));
+        }
+      });
     }
 
     wrap.appendChild(item);
   });
 
-  if (moreBtn) {
-    moreBtn.hidden = rvShown >= list.length;
-  }
+  if (moreBtn) moreBtn.hidden = rvShown >= list.length;
 }
 
-/* ================= REVIEWS INIT ================= */
-function initReviews(productId, product) {
-  // Seed unique reviews if empty
-  seedReviewsIfEmpty(productId, product);
-
-  rvAll = loadReviewsForProduct(productId).map(normalizeReview);
+async function initReviews(productId) {
+  rvAll = await loadReviews(productId);
 
   renderSummary(rvAll);
   rvShown = RV_PAGE_SIZE;
@@ -648,7 +446,6 @@ function initReviews(productId, product) {
 
   setupAdminButtons(productId);
 
-  // Toggle form
   const toggle = el("rvToggleForm");
   const formWrap = el("rvFormWrap");
   if (toggle && formWrap) {
@@ -658,7 +455,6 @@ function initReviews(productId, product) {
     });
   }
 
-  // Star input
   const starsWrap = el("starInput");
   const ratingInput = el("reviewRating");
   if (starsWrap && ratingInput) {
@@ -671,7 +467,6 @@ function initReviews(productId, product) {
     });
   }
 
-  // Filters
   const filters = el("rvStarFilters");
   if (filters) {
     filters.addEventListener("click", (e) => {
@@ -687,7 +482,6 @@ function initReviews(productId, product) {
     });
   }
 
-  // Sort
   const sort = el("rvSort");
   if (sort) {
     sort.addEventListener("change", () => {
@@ -697,7 +491,6 @@ function initReviews(productId, product) {
     });
   }
 
-  // Show more
   const moreBtn = el("rvMoreBtn");
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
@@ -706,115 +499,81 @@ function initReviews(productId, product) {
     });
   }
 
-  // Submit review
   const form = el("reviewForm");
-  const nameEl = el("reviewName");
+  const nameEl2 = el("reviewName");
   const titleEl = el("reviewTitle");
   const textEl = el("reviewText");
   const err = el("reviewError");
 
   if (form && ratingInput && textEl) {
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const rating = clamp(Number(ratingInput.value) || 0, 0, 5);
-      const name = (nameEl?.value || "").trim();
+      const name = (nameEl2?.value || "").trim();
       const title = (titleEl?.value || "").trim();
       const text = (textEl.value || "").trim();
 
       if (err) err.textContent = "";
 
-      if (rating < 1) {
-        if (err) err.textContent = "Please select a star rating.";
-        return;
+      if (rating < 1) return (err ? (err.textContent = "Please select a star rating.") : alert("Select rating"));
+      if (title.length < 3) return (err ? (err.textContent = "Please add a short review title (min 3 characters).") : alert("Title too short"));
+      if (text.length < 10) return (err ? (err.textContent = "Please write a fuller review (min 10 characters).") : alert("Text too short"));
+
+      try {
+        const newReview = await submitReview(productId, {
+          name: name || "Anonymous",
+          title: title.slice(0, 60),
+          text: text.slice(0, 500),
+          rating
+        });
+
+        rvAll.unshift(newReview);
+        rvAll = rvAll.slice(0, 200);
+
+        renderSummary(rvAll);
+        rvShown = RV_PAGE_SIZE;
+        renderListUI(productId);
+
+        ratingInput.value = "0";
+        setStarUI(0);
+        if (nameEl2) nameEl2.value = "";
+        if (titleEl) titleEl.value = "";
+        textEl.value = "";
+      } catch (e2) {
+        if (err) err.textContent = String(e2.message || e2);
+        else alert(String(e2.message || e2));
       }
-      if (title.length < 3) {
-        if (err) err.textContent = "Please add a short review title (min 3 characters).";
-        return;
-      }
-      if (text.length < 10) {
-        if (err) err.textContent = "Please write a fuller review (min 10 characters).";
-        return;
-      }
-
-      const review = normalizeReview({
-        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-        name: name || "Anonymous",
-        title: title.slice(0, 60),
-        text: text.slice(0, 500),
-        rating,
-        createdAt: new Date().toISOString(),
-        verified: isVerifiedPurchase(productId),
-        votes: { up: 0, down: 0, by: {} }
-      });
-
-      rvAll.unshift(review);
-      rvAll = rvAll.slice(0, 150);
-
-      // ✅ Store new reviews in localStorage
-      saveReviewsForProduct(productId, rvAll);
-
-      renderSummary(rvAll);
-      rvShown = RV_PAGE_SIZE;
-      renderListUI(productId);
-
-      ratingInput.value = "0";
-      setStarUI(0);
-      if (nameEl) nameEl.value = "";
-      if (titleEl) titleEl.value = "";
-      textEl.value = "";
     });
   }
 }
 
-/* ================= INIT PAGE ================= */
-function init() {
-  const products = safeJSON(PRODUCTS_KEY, []);
-  if (!Array.isArray(products) || products.length === 0) {
-    showMessage("No products found.");
-    return;
-  }
-
+/* =============== INIT PAGE =============== */
+async function init() {
   const productId = getProductId();
-  if (!Number.isFinite(productId)) {
-    showMessage("Invalid product link.");
-    return;
-  }
+  if (!Number.isFinite(productId)) return showMessage("Invalid product link.");
 
-  const product = products.find(p => Number(p.id) === productId);
-  if (!product) {
-    showMessage("Product not found.");
-    return;
-  }
+  let product;
+  try { product = await fetchProduct(productId); }
+  catch { return showMessage("Product not found."); }
 
-  // basics
-  const nameEl = el("productName");
+  const nameEl3 = el("productName");
   const priceEl = el("productPrice");
   const descEl = el("productDescription");
   const catEl = el("productCategory");
 
-  if (nameEl) nameEl.textContent = product.name || "";
+  if (nameEl3) nameEl3.textContent = product.name || "";
   if (priceEl) priceEl.textContent = `₦${Number(product.price || 0).toLocaleString()}`;
   if (descEl) descEl.textContent = product.description || "";
   if (catEl) catEl.textContent = String(product.category || "Product").toUpperCase();
 
-  // gallery (ensure 4)
-  const images = getProductImages(product);
+  const images = Array.isArray(product.images) ? product.images : [product.image];
   const gallery = (images.length >= 4)
     ? images.slice(0, 4)
     : Array.from({ length: 4 }, (_, i) => images[i] || images[0] || product.image);
 
   renderGallery(gallery, 0);
 
-  // panels
-  const ingredientsEl = el("productIngredients");
-  if (ingredientsEl) ingredientsEl.textContent = product.ingredients || guessIngredientsText(product);
-
-  const preset = getPresetDetails(product.category);
-  renderList(el("productBenefits"), product.benefits || preset.benefits);
-  renderList(el("productHowToUse"), product.howToUse || preset.howto);
-
-  // cart
   const cart = loadCart();
   setCartButtonState(isInCart(cart, product.id));
   updateHeaderCartCount();
@@ -828,14 +587,12 @@ function init() {
     });
   }
 
-  // reviews (pass product so seed uses category)
-  initReviews(product.id, product);
+  await initReviews(product.id);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   init();
 
-  // header inject safety
   let tries = 0;
   const t = setInterval(() => {
     tries++;

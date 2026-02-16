@@ -639,3 +639,23 @@ body.modal-open{ overflow:hidden; }
   .ad-grid{grid-template-columns: 1fr;}
   .ad{padding: 20px 5% 70px;}
 }
+
+/* ===== MODAL FIX (USABLE) ===== */
+.modal{
+  overflow:auto; /* ✅ overlay can scroll */
+}
+.modal-card{
+  max-height: calc(100vh - 36px); /* ✅ never exceed viewport */
+  overflow:auto;                  /* ✅ scroll inside card */
+  -webkit-overflow-scrolling: touch;
+}
+body.modal-open{
+  overflow:hidden;
+  touch-action:none;
+}
+.preview-box{
+  aspect-ratio: 16/9; /* ✅ more usable on phones */
+}
+.ipt,.txt,.btn-primary,.btn-soft,.modal-x{
+  min-height: 44px; /* ✅ mobile tap */
+}

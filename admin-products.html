@@ -1,4 +1,3 @@
-<!-- admin-products.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
-  <!-- MUST define window.API_BASE in config.js -->
   <script src="config.js"></script>
   <link rel="stylesheet" href="admin-products.css" />
 </head>
@@ -64,7 +62,6 @@
     </section>
   </main>
 
-  <!-- Toasts -->
   <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
 
   <!-- Login Modal -->
@@ -89,7 +86,7 @@
     </div>
   </div>
 
-  <!-- Create/Edit Modal (PREMIUM) -->
+  <!-- Create/Edit Modal -->
   <div class="modal" id="editModal" aria-hidden="true">
     <div class="modal-card modal-wide">
       <div class="modal-top">
@@ -99,6 +96,7 @@
 
       <form id="editForm">
         <input type="hidden" id="pid" />
+        <input type="hidden" id="removeImage" value="false" />
 
         <div class="form-grid">
           <div>

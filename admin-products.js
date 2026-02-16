@@ -1,57 +1,71 @@
-// admin-products.js
-(() => {
-  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
+/* admin-products.js — SECURE + REAL CRUD (KÍKÉLÁRÁ)
+   ✅ Works with YOUR backend routes:
+      - POST /admin/login
+      - POST /admin/logout
+      - GET  /admin/me
+      - GET  /admin/products
+      - POST /admin/products        (multipart, image optional)
+      - PUT  /admin/products/:id    (multipart, image optional + remove_image)
+      - DELETE /admin/products/:id
+   ✅ Cookie session + CSRF header + credentials include
+   ✅ Fixes focus/aria-hidden modal issue
+*/
 
-  const els = {
-    grid: document.getElementById("grid"),
-    empty: document.getElementById("empty"),
-    status: document.getElementById("status"),
-    q: document.getElementById("q"),
-    sort: document.getElementById("sort"),
-    refreshBtn: document.getElementById("refreshBtn"),
-    newBtn: document.getElementById("newBtn"),
-    logoutBtn: document.getElementById("logoutBtn"),
-    pills: Array.from(document.querySelectorAll(".ad-pill")),
-    toastWrap: document.getElementById("toastWrap"),
+(function () {
+  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
+  const $ = (id) => document.getElementById(id);
 
-    // login modal
-    loginModal: document.getElementById("loginModal"),
-    loginForm: document.getElementById("loginForm"),
-    adminPass: document.getElementById("adminPass"),
-    loginBtn: document.getElementById("loginBtn"),
-    loginHelp: document.getElementById("loginHelp"),
-    loginClose: document.getElementById("loginClose"),
-    loginCancel: document.getElementById("loginCancel"),
+  // Elements
+  const loginModal = $("loginModal");
+  const editModal = $("editModal");
 
-    // edit modal
-    editModal: document.getElementById("editModal"),
-    editTitle: document.getElementById("editTitle"),
-    editClose: document.getElementById("editClose"),
-    cancelEdit: document.getElementById("cancelEdit"),
-    editForm: document.getElementById("editForm"),
-    pid: document.getElementById("pid"),
-    name: document.getElementById("name"),
-    price: document.getElementById("price"),
-    desc: document.getElementById("desc"),
-    active: document.getElementById("active"),
-    image: document.getElementById("image"),
-    previewImg: document.getElementById("previewImg"),
-    saveBtn: document.getElementById("saveBtn"),
-    editHelp: document.getElementById("editHelp"),
+  const newBtn = $("newBtn");
+  const refreshBtn = $("refreshBtn");
+  const logoutBtn = $("logoutBtn");
 
-    // premium helpers
-    clearImgBtn: document.getElementById("clearImgBtn"),
-    imgDropOverlay: document.getElementById("imgDropOverlay"),
-    descCount: document.getElementById("descCount"),
-    segBtns: Array.from(document.querySelectorAll(".segBtn")),
-  };
+  const loginClose = $("loginClose");
+  const loginCancel = $("loginCancel");
+  const loginForm = $("loginForm");
+  const adminPass = $("adminPass");
+  const loginHelp = $("loginHelp");
 
-  let allProducts = [];
-  let filterMode = "all";
+  const editClose = $("editClose");
+  const cancelEdit = $("cancelEdit");
+  const editForm = $("editForm");
 
-  /* =============== HELPERS =============== */
-  function escapeHtml(s) {
-    return String(s ?? "")
+  const editTitle = $("editTitle");
+  const pid = $("pid");
+  const nameIpt = $("name");
+  const priceIpt = $("price");
+  const desc = $("desc");
+  const descCount = $("descCount");
+  const activeSel = $("active");
+  const segBtns = Array.from(document.querySelectorAll(".segBtn"));
+
+  const imageIpt = $("image");
+  const previewImg = $("previewImg");
+  const clearImgBtn = $("clearImgBtn");
+  const removeImage = $("removeImage");
+  const imgDropOverlay = $("imgDropOverlay");
+  const dropBox = $("dropBox");
+
+  const toastWrap = $("toastWrap");
+
+  const grid = $("grid");
+  const empty = $("empty");
+  const status = $("status");
+  const q = $("q");
+  const sort = $("sort");
+  const filterBtns = Array.from(document.querySelectorAll("[data-filter]"));
+
+  let lastFocus = null;
+
+  let products = [];
+  let activeFilter = "all"; // all | active | inactive
+
+  /* ================= HELPERS ================= */
+  function escapeHtml(str) {
+    return String(str ?? "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
@@ -59,547 +73,562 @@
       .replaceAll("'", "&#039;");
   }
 
-  function money(n) {
-    const v = Number(n || 0);
-    try { return v.toLocaleString("en-NG"); } catch { return String(v); }
-  }
-
-  function imgUrl(image_url) {
-    if (!image_url) return "";
-    const u = String(image_url);
-    if (u.startsWith("/")) return `${API_BASE}${u}`;
-    return u;
-  }
-
-  /* =============== TOAST =============== */
-  function toast(type, title, body, ms = 3200) {
-    if (!els.toastWrap) return alert([title, body].filter(Boolean).join("\n"));
-
+  function toast(type, title, body) {
+    if (!toastWrap) return;
     const el = document.createElement("div");
-    el.className = `toast ${type || ""}`.trim();
-
+    el.className = `toast ${type || "ok"}`;
     el.innerHTML = `
       <div class="t-row">
-        <div class="t-title">${escapeHtml(title || "")}</div>
-        <button class="t-close" type="button" aria-label="Close">✕</button>
+        <div class="t-title">${escapeHtml(title || "Notice")}</div>
+        <button class="t-close" type="button">Close</button>
       </div>
-      ${body ? `<div class="t-body">${escapeHtml(body)}</div>` : ""}
+      <div class="t-body">${escapeHtml(body || "")}</div>
     `;
-    els.toastWrap.appendChild(el);
-
-    const close = () => {
-      el.style.opacity = "0";
-      el.style.transform = "translateY(6px)";
-      setTimeout(() => el.remove(), 180);
-    };
-
-    el.querySelector(".t-close")?.addEventListener("click", close);
-    if (ms > 0) setTimeout(close, ms);
+    el.querySelector(".t-close")?.addEventListener("click", () => el.remove());
+    toastWrap.appendChild(el);
+    setTimeout(() => { if (el.isConnected) el.remove(); }, 4500);
   }
 
-  function setStatus(msg, type = "") {
-    if (!els.status) return;
-    els.status.textContent = msg || "";
-    els.status.setAttribute("data-type", type);
+  function setStatus(text, type) {
+    if (!status) return;
+    status.textContent = text || "";
+    status.dataset.type = type || "";
   }
 
-  function setHelp(el, msg, type = "") {
-    if (!el) return;
-    el.textContent = msg || "";
-    el.setAttribute("data-type", type);
-  }
-
-  function openModal(modal) {
-    if (!modal) return;
-    document.body.classList.add("modal-open");
-    modal.classList.add("show");
-    modal.setAttribute("aria-hidden", "false");
-  }
-
-  function closeModal(modal) {
-    if (!modal) return;
-    modal.classList.remove("show");
-    modal.setAttribute("aria-hidden", "true");
-    setTimeout(() => {
-      const anyOpen = document.querySelector(".modal.show");
-      if (!anyOpen) document.body.classList.remove("modal-open");
-    }, 0);
-  }
-
-  /* =============== CSRF + API =============== */
   function getCookie(name) {
     const v = `; ${document.cookie}`;
     const parts = v.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(";").shift();
+    if (parts.length === 2) return parts.pop().split(";").shift() || "";
     return "";
   }
 
-  // MUST match server cookie name
   function csrfToken() {
+    // backend sets CSRF cookie name: admin_csrf
     return getCookie("admin_csrf") || "";
   }
 
   async function api(path, opts = {}) {
+    const method = String(opts.method || "GET").toUpperCase();
     const headers = { ...(opts.headers || {}) };
-    const method = (opts.method || "GET").toUpperCase();
 
-    if (method !== "GET" && method !== "HEAD") {
+    // CSRF for mutations
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       const c = csrfToken();
       if (c) headers["X-CSRF-Token"] = c;
     }
 
-    return fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${API_BASE}${path}`, {
       ...opts,
+      method,
       headers,
       credentials: "include",
+      cache: "no-store"
     });
+
+    return res;
   }
 
-  /* =============== AUTH =============== */
-  async function ensureLoggedIn() {
-    try {
-      const r = await api("/admin/me", { cache: "no-store" });
-      if (!r.ok) throw new Error("not authed");
-      return true;
-    } catch {
-      openLogin();
-      return false;
+  function isOpen(modal) {
+    return modal && modal.classList.contains("show");
+  }
+
+  function setAria(modal, open) {
+    if (!modal) return;
+    modal.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function lockBody(open) {
+    document.body.classList.toggle("modal-open", open);
+  }
+
+  function getFocusable(container) {
+    if (!container) return [];
+    return Array.from(
+      container.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => el.offsetParent !== null);
+  }
+
+  function trapFocus(modal, e) {
+    if (!isOpen(modal)) return;
+    if (e.key !== "Tab") return;
+
+    const card = modal.querySelector(".modal-card");
+    const focusables = getFocusable(card);
+    if (!focusables.length) return;
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
     }
   }
 
-  function openLogin() {
-    setHelp(els.loginHelp, "");
-    if (els.adminPass) els.adminPass.value = "";
-    openModal(els.loginModal);
-    setTimeout(() => els.adminPass?.focus(), 50);
+  function openModal(modal, focusEl) {
+    if (!modal) return;
+
+    lastFocus = document.activeElement;
+
+    modal.classList.add("show");
+    setAria(modal, true);
+    lockBody(true);
+
+    const card = modal.querySelector(".modal-card");
+    if (card) card.scrollTop = 0;
+
+    window.requestAnimationFrame(() => {
+      // focus safely
+      if (focusEl && typeof focusEl.focus === "function") {
+        focusEl.focus();
+        return;
+      }
+      const focusables = getFocusable(card);
+      if (focusables[0] && typeof focusables[0].focus === "function") focusables[0].focus();
+    });
+  }
+
+  function closeModal(modal) {
+    if (!modal) return;
+
+    // ✅ fix aria-hidden warning: move focus OUT before hiding
+    try {
+      if (document.activeElement && modal.contains(document.activeElement)) {
+        document.activeElement.blur?.();
+      }
+    } catch {}
+
+    modal.classList.remove("show");
+    setAria(modal, false);
+
+    if (!isOpen(loginModal) && !isOpen(editModal)) lockBody(false);
+
+    // return focus safely
+    if (lastFocus && typeof lastFocus.focus === "function") {
+      window.requestAnimationFrame(() => lastFocus?.focus?.());
+    }
+    lastFocus = null;
+  }
+
+  function bindOutsideClose(modal) {
+    if (!modal) return;
+    modal.addEventListener("mousedown", (e) => {
+      const card = modal.querySelector(".modal-card");
+      if (!card) return;
+      if (!card.contains(e.target)) closeModal(modal);
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (isOpen(editModal)) closeModal(editModal);
+      else if (isOpen(loginModal)) closeModal(loginModal);
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (isOpen(editModal)) trapFocus(editModal, e);
+    else if (isOpen(loginModal)) trapFocus(loginModal, e);
+  });
+
+  bindOutsideClose(loginModal);
+  bindOutsideClose(editModal);
+
+  /* ================= UI SMALLS ================= */
+  function updateDescCount() {
+    if (!desc || !descCount) return;
+    const v = desc.value || "";
+    if (v.length > 600) desc.value = v.slice(0, 600);
+    descCount.textContent = `${desc.value.length} / 600`;
+  }
+  desc?.addEventListener("input", updateDescCount);
+
+  function setActiveUI(valBool) {
+    if (activeSel) activeSel.value = valBool ? "true" : "false";
+    segBtns.forEach((b) => {
+      const isOn = (b.getAttribute("data-seg") === (valBool ? "true" : "false"));
+      b.classList.toggle("is-on", isOn);
+    });
+  }
+  segBtns.forEach((b) => b.addEventListener("click", () => setActiveUI(b.getAttribute("data-seg") === "true")));
+  setActiveUI(true);
+
+  function showPreview(src) {
+    if (!previewImg) return;
+    previewImg.src = src || "";
+    const has = !!src;
+    if (imgDropOverlay) imgDropOverlay.style.display = has ? "none" : "grid";
+  }
+
+  function resetImage() {
+    if (imageIpt) imageIpt.value = "";
+    if (removeImage) removeImage.value = "true";
+    showPreview("");
+  }
+
+  imageIpt?.addEventListener("change", () => {
+    const f = imageIpt.files && imageIpt.files[0];
+    if (!f) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(f.type)) {
+      toast("err", "Invalid image", "Please select a PNG, JPG or WEBP.");
+      imageIpt.value = "";
+      return;
+    }
+    if (removeImage) removeImage.value = "false";
+    showPreview(URL.createObjectURL(f));
+  });
+
+  clearImgBtn?.addEventListener("click", () => {
+    resetImage();
+    toast("warn", "Removed", "Image cleared.");
+  });
+
+  if (dropBox) {
+    ["dragenter", "dragover"].forEach((evt) => {
+      dropBox.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (imgDropOverlay) imgDropOverlay.style.display = "grid";
+      });
+    });
+    ["dragleave", "drop"].forEach((evt) => {
+      dropBox.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+    dropBox.addEventListener("drop", (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+        toast("err", "Invalid image", "Please drop a PNG, JPG or WEBP file.");
+        return;
+      }
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        imageIpt.files = dt.files;
+      } catch {}
+      if (removeImage) removeImage.value = "false";
+      showPreview(URL.createObjectURL(file));
+      toast("ok", "Image added", "Preview updated.");
+    });
+  }
+
+  function resetEditForm() {
+    if (pid) pid.value = "";
+    if (nameIpt) nameIpt.value = "";
+    if (priceIpt) priceIpt.value = "";
+    if (desc) desc.value = "";
+    updateDescCount();
+    setActiveUI(true);
+    if (removeImage) removeImage.value = "false";
+    showPreview("");
+    const help = $("editHelp");
+    if (help) { help.textContent = ""; help.removeAttribute("data-type"); }
+  }
+
+  function fillEditForm(p) {
+    if (pid) pid.value = String(p.id);
+    if (nameIpt) nameIpt.value = String(p.name || "");
+    if (priceIpt) priceIpt.value = String(Number(p.price || 0));
+    if (desc) desc.value = String(p.description || "");
+    updateDescCount();
+    setActiveUI(Boolean(p.is_active));
+    if (removeImage) removeImage.value = "false";
+    // preview existing image_url
+    const img = p.image_url ? resolveImage(p.image_url) : "";
+    showPreview(img);
+  }
+
+  function resolveImage(url) {
+    const u = String(url || "");
+    if (!u) return "";
+    if (u.startsWith("http://") || u.startsWith("https://")) return u;
+    if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
+    return u;
+  }
+
+  /* ================= AUTH ================= */
+  async function checkMe() {
+    const r = await api("/admin/me");
+    return r.ok;
   }
 
   async function login(password) {
-    setHelp(els.loginHelp, "Signing in…", "loading");
-    if (els.loginBtn) els.loginBtn.disabled = true;
-
-    try {
-      const r = await fetch(`${API_BASE}/admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data.success) throw new Error(data.message || "Login failed");
-
-      closeModal(els.loginModal);
-      toast("ok", "Logged in", "Session secured.");
-      setStatus("✅ Logged in", "success");
-      await loadProducts();
-    } catch (e) {
-      setHelp(els.loginHelp, `❌ ${String(e.message || e)}`, "error");
-      toast("err", "Login failed", String(e.message || e));
-    } finally {
-      if (els.loginBtn) els.loginBtn.disabled = false;
-    }
+    const r = await api("/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Login failed");
+    return true;
   }
 
   async function logout() {
-    try { await api("/admin/logout", { method: "POST" }); } catch {}
-    setStatus("Logged out.", "success");
-    toast("ok", "Logged out", "Session cleared.");
-    openLogin();
+    const r = await api("/admin/logout", { method: "POST" });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Logout failed");
+    return true;
   }
 
-  /* =============== NORMALIZE =============== */
-  function normalizeProduct(p) {
-    const id = p?.id;
-    const name = String(p?.name || "").trim();
-    const price = Number(p?.price || 0);
-    const description = String(p?.description || p?.payload?.description || "").trim();
-
-    const is_active =
-      typeof p?.is_active === "boolean" ? p.is_active :
-      (String(p?.is_active || "").toLowerCase() === "true");
-
-    const image_url = p?.image_url || p?.image || (Array.isArray(p?.images) ? p.images[0] : "");
-
-    return {
-      id,
-      name,
-      price: Number.isFinite(price) ? price : 0,
-      description,
-      is_active: Boolean(is_active),
-      image_url: image_url || "",
-      created_at: p?.created_at || p?.createdAt || null,
-    };
+  /* ================= PRODUCTS API ================= */
+  async function fetchAdminProducts() {
+    const r = await api("/admin/products");
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to load products");
+    return Array.isArray(data.products) ? data.products : [];
   }
 
-  function parseProductsResponse(data) {
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === "object") {
-      if (Array.isArray(data.products)) return data.products;
-      if (Array.isArray(data.data)) return data.data;
-    }
-    return [];
+  function buildFormData({ isUpdate }) {
+    const fd = new FormData();
+    fd.append("name", String(nameIpt?.value || "").trim());
+    fd.append("price", String(Number(priceIpt?.value || 0)));
+    fd.append("description", String(desc?.value || "").trim());
+    fd.append("is_active", String(activeSel?.value || "true"));
+    if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
+
+    const file = imageIpt?.files?.[0];
+    if (file) fd.append("image", file);
+    return fd;
   }
 
-  /* =============== LOAD =============== */
-  async function loadProducts() {
-    setStatus("Loading products…", "loading");
-    if (els.empty) els.empty.style.display = "none";
-    if (els.grid) els.grid.innerHTML = "";
-
-    try {
-      const r = await api("/admin/products", { cache: "no-store" });
-      if (r.status === 401) { openLogin(); return; }
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.message || "Admin products fetch failed");
-
-      const raw = parseProductsResponse(data);
-      allProducts = raw.map(normalizeProduct).filter(p => p.id && p.name);
-
-      setStatus(`✅ Loaded ${allProducts.length} product(s)`, "success");
-      render();
-    } catch (e) {
-      console.error(e);
-      setStatus(`❌ ${String(e.message || e)}`, "error");
-      toast("err", "Load failed", String(e.message || e));
-    }
+  async function createProduct() {
+    const fd = buildFormData({ isUpdate: false });
+    const r = await api("/admin/products", { method: "POST", body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Create failed");
+    return data.product;
   }
 
-  /* =============== PREMIUM UI HELPERS =============== */
-  function syncSegFromSelect() {
-    if (!els.active) return;
-    const v = String(els.active.value || "true");
-    els.segBtns.forEach(b => b.classList.toggle("is-on", b.dataset.seg === v));
+  async function updateProduct(id) {
+    const fd = buildFormData({ isUpdate: true });
+    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "PUT", body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Update failed");
+    return data.product;
   }
 
-  function updateDescCount() {
-    const max = 600;
-    if (!els.desc) return;
-    const v = String(els.desc.value || "");
-    if (v.length > max) els.desc.value = v.slice(0, max);
-    const n = String(els.desc.value || "").length;
-    if (els.descCount) els.descCount.textContent = `${n} / ${max}`;
+  async function deleteProduct(id) {
+    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Delete failed");
+    return true;
   }
 
-  function syncImageOverlay() {
-    if (!els.imgDropOverlay) return;
-    const has = Boolean(els.previewImg?.src);
-    els.imgDropOverlay.style.display = has ? "none" : "grid";
-  }
+  /* ================= RENDER ================= */
+  function applyFilterSortSearch(list) {
+    const term = String(q?.value || "").trim().toLowerCase();
+    let out = [...list];
 
-  /* =============== FILTERS + RENDER =============== */
-  function applyFilters(list) {
-    const q = (els.q?.value || "").trim().toLowerCase();
-    let out = list.slice();
+    if (activeFilter === "active") out = out.filter(p => Boolean(p.is_active));
+    if (activeFilter === "inactive") out = out.filter(p => !Boolean(p.is_active));
 
-    if (filterMode === "active") out = out.filter(p => Boolean(p.is_active));
-    if (filterMode === "inactive") out = out.filter(p => !Boolean(p.is_active));
-
-    if (q) {
+    if (term) {
       out = out.filter(p => {
-        const blob = `${p.name} ${p.description} ${p.price}`.toLowerCase();
-        return blob.includes(q);
+        const t = `${p.name || ""} ${p.description || ""} ${p.price || ""}`.toLowerCase();
+        return t.includes(term);
       });
     }
 
-    const sort = els.sort?.value || "new";
-    out.sort((a, b) => {
-      if (sort === "new") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-      if (sort === "old") return new Date(a.created_at || 0) - new Date(b.created_at || 0);
-      if (sort === "name") return String(a.name || "").localeCompare(String(b.name || ""));
-      if (sort === "priceHigh") return Number(b.price || 0) - Number(a.price || 0);
-      if (sort === "priceLow") return Number(a.price || 0) - Number(b.price || 0);
-      return 0;
-    });
+    const mode = String(sort?.value || "new");
+    if (mode === "old") out.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    if (mode === "new") out.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    if (mode === "name") out.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+    if (mode === "priceHigh") out.sort((a,b) => Number(b.price||0) - Number(a.price||0));
+    if (mode === "priceLow") out.sort((a,b) => Number(a.price||0) - Number(b.price||0));
 
     return out;
   }
 
   function render() {
-    if (!els.grid) return;
-    const filtered = applyFilters(allProducts);
-    els.grid.innerHTML = "";
+    if (!grid) return;
+    grid.innerHTML = "";
 
-    if (!filtered.length) {
-      if (els.empty) els.empty.style.display = "block";
+    const list = applyFilterSortSearch(products);
+
+    if (!list.length) {
+      if (empty) empty.style.display = "block";
       return;
     }
+    if (empty) empty.style.display = "none";
 
-    if (els.empty) els.empty.style.display = "none";
-    for (const p of filtered) els.grid.appendChild(card(p));
-  }
+    list.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "ad-item";
 
-  function card(p) {
-    const wrap = document.createElement("div");
-    wrap.className = "pcard";
+      const img = resolveImage(p.image_url);
+      const isOn = Boolean(p.is_active);
 
-    const badgeText = p.is_active ? "Active" : "Hidden";
-    const badgeCls = p.is_active ? "pbadge" : "pbadge off";
-
-    const fallbackImg =
-      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect width='100%25' height='100%25' fill='%23fff4da'/%3E%3Ctext x='50%25' y='50%25' font-family='-apple-system,Segoe UI' font-size='18' fill='%234d3523' text-anchor='middle' dominant-baseline='middle'%3ENo image%3C/text%3E%3C/svg%3E";
-
-    wrap.innerHTML = `
-      <div class="pimg">
-        <img src="${imgUrl(p.image_url) || fallbackImg}" alt="">
-      </div>
-
-      <div class="pbody">
-        <div class="ptop">
-          <div class="pname">${escapeHtml(p.name || "Untitled")}</div>
-          <div class="pprice">₦${money(p.price)}</div>
+      card.innerHTML = `
+        <div class="ad-item-img">
+          <img src="${escapeHtml(img || "images_brown/bodyButter.png")}" alt="${escapeHtml(p.name || "")}" draggable="false">
+          <span class="ad-pill-mini ${isOn ? "on" : "off"}">${isOn ? "ACTIVE" : "HIDDEN"}</span>
         </div>
 
-        <div class="pdesc">${escapeHtml((p.description || "").slice(0, 240))}${(p.description || "").length > 240 ? "…" : ""}</div>
+        <div class="ad-item-body">
+          <div class="ad-item-name">${escapeHtml(p.name || "")}</div>
+          <div class="ad-item-meta">₦${Number(p.price || 0).toLocaleString()}</div>
+          <div class="ad-item-desc">${escapeHtml(String(p.description || "").slice(0, 120))}${String(p.description||"").length>120?"…":""}</div>
 
-        <div class="pmeta">
-          <div class="${badgeCls}">${badgeText}</div>
-          <div class="pbtns">
-            <button class="pbtn" type="button" data-act="toggle" data-id="${p.id}">
-              ${p.is_active ? "Disable" : "Enable"}
-            </button>
-            <button class="pbtn" type="button" data-act="edit" data-id="${p.id}">Edit</button>
-            <button class="pbtn danger" type="button" data-act="del" data-id="${p.id}">Delete</button>
+          <div class="ad-item-actions">
+            <button type="button" class="ad-mini" data-edit="${p.id}">Edit</button>
+            <button type="button" class="ad-mini danger" data-del="${p.id}">Delete</button>
           </div>
         </div>
-      </div>
-    `;
+      `;
 
-    wrap.querySelectorAll("button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const act = btn.dataset.act;
-        const id = Number(btn.dataset.id);
-        if (act === "edit") openEdit(id);
-        else if (act === "del") await delProduct(id);
-        else if (act === "toggle") await toggleActive(id);
-      });
+      grid.appendChild(card);
     });
-
-    return wrap;
   }
 
-  /* =============== CRUD =============== */
-  function openCreate() {
-    setHelp(els.editHelp, "");
-    if (els.editTitle) els.editTitle.textContent = "Add Product";
+  /* ================= LOAD/REFRESH ================= */
+  async function loadProducts() {
+    setStatus("Loading products…", "info");
+    try {
+      products = await fetchAdminProducts();
+      setStatus(`Loaded ${products.length} product(s).`, "ok");
+      render();
 
-    if (els.pid) els.pid.value = "";
-    if (els.name) els.name.value = "";
-    if (els.price) els.price.value = "0";
-    if (els.desc) els.desc.value = "";
-    if (els.active) els.active.value = "true";
-
-    if (els.image) els.image.value = "";
-    if (els.previewImg) els.previewImg.src = "";
-
-    openModal(els.editModal);
-    syncSegFromSelect();
-    updateDescCount();
-    syncImageOverlay();
-
-    setTimeout(() => els.name?.focus(), 60);
+      // ✅ keep frontend cache in sync
+      try {
+        sessionStorage.setItem("allProducts", JSON.stringify(products));
+      } catch {}
+    } catch (e) {
+      console.warn(e);
+      setStatus(String(e.message || e), "err");
+      // if unauthorized, prompt login
+      if (String(e.message || "").toLowerCase().includes("unauthorized")) {
+        openModal(loginModal, adminPass);
+      }
+    }
   }
 
-  function openEdit(id) {
-    const p = allProducts.find(x => Number(x.id) === Number(id));
-    if (!p) return;
+  /* ================= EVENTS ================= */
+  newBtn?.addEventListener("click", () => {
+    resetEditForm();
+    if (editTitle) editTitle.textContent = "Add Product";
+    openModal(editModal, nameIpt);
+  });
 
-    setHelp(els.editHelp, "");
-    if (els.editTitle) els.editTitle.textContent = "Edit Product";
+  refreshBtn?.addEventListener("click", loadProducts);
 
-    if (els.pid) els.pid.value = String(p.id);
-    if (els.name) els.name.value = p.name || "";
-    if (els.price) els.price.value = String(Number(p.price || 0));
-    if (els.desc) els.desc.value = p.description || "";
-    if (els.active) els.active.value = String(Boolean(p.is_active));
+  logoutBtn?.addEventListener("click", async () => {
+    try {
+      await logout();
+      toast("warn", "Logged out", "Session cleared.");
+      openModal(loginModal, adminPass);
+    } catch (e) {
+      toast("err", "Logout failed", String(e.message || e));
+    }
+  });
 
-    if (els.image) els.image.value = "";
-    if (els.previewImg) els.previewImg.src = imgUrl(p.image_url) || "";
+  loginClose?.addEventListener("click", () => closeModal(loginModal));
+  loginCancel?.addEventListener("click", () => closeModal(loginModal));
 
-    openModal(els.editModal);
-    syncSegFromSelect();
-    updateDescCount();
-    syncImageOverlay();
-  }
+  editClose?.addEventListener("click", () => closeModal(editModal));
+  cancelEdit?.addEventListener("click", () => closeModal(editModal));
 
-  async function saveProduct() {
-    const id = (els.pid?.value || "").trim();
-    const name = (els.name?.value || "").trim();
-    const price = Number(els.price?.value || 0);
-    const description = String(els.desc?.value || "").trim();
-    const is_active = els.active?.value || "true";
+  loginForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pass = String(adminPass?.value || "").trim();
+    if (!pass) return;
 
-    if (!name) {
-      setHelp(els.editHelp, "❌ Name is required", "error");
+    try {
+      await login(pass);
+      toast("ok", "Signed in", "Admin session active.");
+      closeModal(loginModal);
+      await loadProducts();
+    } catch (err) {
+      if (loginHelp) {
+        loginHelp.textContent = String(err.message || err);
+        loginHelp.dataset.type = "err";
+      }
+      toast("err", "Login failed", String(err.message || err));
+    }
+  });
+
+  editForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = String(pid?.value || "");
+    const name = String(nameIpt?.value || "").trim();
+    const price = Number(priceIpt?.value || 0);
+
+    if (!name) return toast("err", "Missing", "Product name is required.");
+    if (!Number.isFinite(price) || price < 0) return toast("err", "Invalid", "Price must be 0 or more.");
+
+    try {
+      if (id) {
+        await updateProduct(id);
+        toast("ok", "Updated", "✅ Product updated successfully!");
+      } else {
+        await createProduct();
+        toast("ok", "Created", "✅ Product added successfully!");
+      }
+
+      closeModal(editModal);
+      await loadProducts();
+    } catch (err) {
+      toast("err", "Save failed", String(err.message || err));
+    }
+  });
+
+  // grid edit/delete
+  grid?.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest("[data-edit]");
+    const delBtn = e.target.closest("[data-del]");
+
+    if (editBtn) {
+      const id = String(editBtn.getAttribute("data-edit") || "");
+      const p = products.find(x => String(x.id) === id);
+      if (!p) return;
+      fillEditForm(p);
+      if (editTitle) editTitle.textContent = `Edit Product #${id}`;
+      openModal(editModal, nameIpt);
       return;
     }
 
-    setHelp(els.editHelp, "Saving…", "loading");
-    if (els.saveBtn) els.saveBtn.disabled = true;
+    if (delBtn) {
+      const id = String(delBtn.getAttribute("data-del") || "");
+      if (!confirm(`Delete product #${id}? This cannot be undone.`)) return;
 
-    try {
-      const fd = new FormData();
-      fd.append("name", name);
-      fd.append("price", String(Math.max(0, Math.round(price))));
-      fd.append("description", description);
-      fd.append("is_active", is_active);
-
-      if (els.image?.files && els.image.files[0]) fd.append("image", els.image.files[0]);
-
-      const r = await api(id ? `/admin/products/${encodeURIComponent(id)}` : `/admin/products`, {
-        method: id ? "PUT" : "POST",
-        body: fd,
-      });
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data.success) {
-        if (r.status === 401) {
-          closeModal(els.editModal);
-          openLogin();
-          return;
-        }
-        throw new Error(data.message || "Save failed");
+      try {
+        await deleteProduct(id);
+        toast("ok", "Deleted", "Product removed.");
+        await loadProducts();
+      } catch (err) {
+        toast("err", "Delete failed", String(err.message || err));
       }
-
-      closeModal(els.editModal);
-      setStatus("✅ Saved", "success");
-      toast("ok", "Saved", "Product saved.");
-      await loadProducts();
-    } catch (e) {
-      setHelp(els.editHelp, `❌ ${String(e.message || e)}`, "error");
-      toast("err", "Save failed", String(e.message || e));
-    } finally {
-      if (els.saveBtn) els.saveBtn.disabled = false;
     }
-  }
+  });
 
-  async function delProduct(id) {
-    const p = allProducts.find(x => Number(x.id) === Number(id));
-    if (!p) return;
+  // filters/search/sort
+  q?.addEventListener("input", render);
+  sort?.addEventListener("change", render);
 
-    const ok = confirm(`Delete "${p.name}"?\nThis cannot be undone.`);
-    if (!ok) return;
-
-    setStatus("Deleting…", "loading");
-
-    try {
-      const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
-      const data = await r.json().catch(() => ({}));
-
-      if (!r.ok || !data.success) {
-        if (r.status === 401) { openLogin(); return; }
-        throw new Error(data.message || "Delete failed");
-      }
-
-      setStatus("✅ Deleted", "success");
-      toast("ok", "Deleted", "Product removed.");
-      await loadProducts();
-    } catch (e) {
-      setStatus(`❌ ${String(e.message || e)}`, "error");
-      toast("err", "Delete failed", String(e.message || e));
-    }
-  }
-
-  async function toggleActive(id) {
-    const p = allProducts.find(x => Number(x.id) === Number(id));
-    if (!p) return;
-
-    setStatus("Updating…", "loading");
-
-    try {
-      const fd = new FormData();
-      fd.append("is_active", String(!Boolean(p.is_active)));
-
-      const r = await api(`/admin/products/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        body: fd,
-      });
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data.success) {
-        if (r.status === 401) { openLogin(); return; }
-        throw new Error(data.message || "Update failed");
-      }
-
-      setStatus("✅ Updated", "success");
-      toast("ok", "Updated", "Status updated.");
-      await loadProducts();
-    } catch (e) {
-      setStatus(`❌ ${String(e.message || e)}`, "error");
-      toast("err", "Update failed", String(e.message || e));
-    }
-  }
-
-  /* =============== EVENTS =============== */
-  els.refreshBtn?.addEventListener("click", loadProducts);
-  els.newBtn?.addEventListener("click", openCreate);
-  els.logoutBtn?.addEventListener("click", logout);
-
-  els.q?.addEventListener("input", render);
-  els.sort?.addEventListener("change", render);
-
-  els.pills.forEach(p => {
-    p.addEventListener("click", () => {
-      els.pills.forEach(x => x.classList.remove("is-active"));
-      p.classList.add("is-active");
-      filterMode = p.dataset.filter || "all";
+  filterBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      filterBtns.forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      activeFilter = String(btn.getAttribute("data-filter") || "all");
       render();
     });
   });
 
-  els.segBtns.forEach(b => {
-    b.addEventListener("click", () => {
-      if (!els.active) return;
-      els.active.value = b.dataset.seg;
-      syncSegFromSelect();
-    });
-  });
-
-  els.desc?.addEventListener("input", updateDescCount);
-
-  els.image?.addEventListener("change", () => {
-    const f = els.image.files?.[0];
-    if (!f) { syncImageOverlay(); return; }
-    const url = URL.createObjectURL(f);
-    if (els.previewImg) els.previewImg.src = url;
-    syncImageOverlay();
-  });
-
-  els.clearImgBtn?.addEventListener("click", () => {
-    if (els.image) els.image.value = "";
-    if (els.previewImg) els.previewImg.src = "";
-    syncImageOverlay();
-  });
-
-  els.loginClose?.addEventListener("click", () => closeModal(els.loginModal));
-  els.loginCancel?.addEventListener("click", () => closeModal(els.loginModal));
-  els.loginForm?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    login(els.adminPass?.value || "");
-  });
-
-  els.editClose?.addEventListener("click", () => closeModal(els.editModal));
-  els.cancelEdit?.addEventListener("click", () => closeModal(els.editModal));
-  els.editForm?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    saveProduct();
-  });
-
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeModal(els.editModal);
-      closeModal(els.loginModal);
-    }
-  });
-
-  /* =============== BOOT =============== */
+  /* ================= INIT ================= */
   (async function init() {
-    syncSegFromSelect();
     updateDescCount();
-    syncImageOverlay();
 
-    const ok = await ensureLoggedIn();
-    if (ok) await loadProducts();
+    // if not logged in, show login; else load products
+    const ok = await checkMe().catch(() => false);
+    if (!ok) openModal(loginModal, adminPass);
+    else loadProducts();
   })();
 })();

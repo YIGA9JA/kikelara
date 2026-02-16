@@ -1,53 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Products | KÍKE LÁRÁ</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KÍKÉLÁRÁ — Products</title>
 
-  <link rel="stylesheet" href="products.css">
-  <link rel="stylesheet" href="footer.css">
-  <link rel="stylesheet" href="header.css">
-
-  <!-- ✅ config must load BEFORE any script that uses window.API_BASE -->
-  <script src="config.js" defer></script>
-
-  <!-- Defer so DOM is ready -->
-  <script src="header.js" defer></script>
-  <script src="products.js" defer></script>
-  <script src="footer.js" defer></script>
+  <link rel="stylesheet" href="products.css" />
+  <script src="config.js"></script>
 </head>
-
 <body>
-  <!-- Header mount -->
-  <div id="siteHeader"></div>
 
-  <!-- ================= FILTERS ================= -->
-  <section class="filters-section">
-    <div class="filter-group">
-      <label for="categorySelect">Category:</label>
+  <!-- header injected / your header -->
+  <header>
+    <!-- ensure you have cartCount + wishlistCount -->
+    <span id="cartCount">0</span>
+    <span id="wishlistCount">0</span>
+  </header>
+
+  <main class="pd">
+    <h1>Products</h1>
+
+    <div class="filters">
       <select id="categorySelect">
         <option value="all">All</option>
       </select>
-    </div>
 
-    <div class="filter-group">
-      <label for="sortSelect">Sort By:</label>
       <select id="sortSelect">
         <option value="default">Default</option>
         <option value="priceLow">Price: Low → High</option>
         <option value="priceHigh">Price: High → Low</option>
-        <option value="name">Name</option>
+        <option value="name">Name A → Z</option>
       </select>
     </div>
-  </section>
 
-  <!-- ================= PRODUCTS GRID ================= -->
-  <section class="products-page">
-    <div class="products-grid" id="productsGrid"></div>
-  </section>
+    <div id="productsGrid" class="products-grid"></div>
+  </main>
 
-  <!-- Footer mount -->
-  <div id="siteFooter"></div>
+  <script src="products.js"></script>
 </body>
 </html>

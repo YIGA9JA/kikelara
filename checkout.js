@@ -1,35 +1,18 @@
 /* ===================== CHECKOUT.JS (WEBHOOK CREATES/UPDATES PAID ORDERS ✅) ===================== */
-/**
- * ✅ Uses your existing backend exactly:
- *   GET  /delivery-pricing
- *   POST /orders        (idempotent pending upsert)
- *   POST /order         (alias)
- *   (NO client verify)
- *
- * ✅ Paystack webhook on backend is the source of truth:
- *   POST /payments/paystack/webhook
- *
- * ✅ No "PIN delete" / no pin logic here at all.
- */
 
-/* ================= API (BACKEND) ================= */
-const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
+const API_BASE2 = (window.API_BASE || "").replace(/\/+$/, "");
 
-/* ================= NIGERIA STATES + LGAs (FALLBACK SOURCE) ================= */
 const NIGERIA_LGA_SOURCE =
   "https://gist.githubusercontent.com/chrisidakwo/4ba3a4f03afc442305021be4ca67738e/raw/a8276ee3a756ae47ee853c4be5a82a11d6c8a313/nigerian-states.json";
 
-/* ================= STORAGE KEYS ================= */
-const CART_KEY = "cart";
+const CART_KEY2 = "cart";
 const PRICING_BACKUP_KEY = "deliveryPricing_backup_v1";
 const LOCAL_ORDERS_KEY = "orders_backup";
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
 
-/* ================= SETTINGS ================= */
 const PICKUP_FEE = 0;
 const FALLBACK_DEFAULT_DELIVERY_FEE = 2000;
 
-/* ================= ELEMENTS ================= */
 const nameEl = document.getElementById("name");
 const emailEl = document.getElementById("email");
 const phoneEl = document.getElementById("phone");
@@ -48,24 +31,16 @@ const deliveryFeeChipEl = document.getElementById("deliveryFeeChip");
 const totalAmountEl = document.getElementById("totalAmount");
 const payNowBtn = document.getElementById("payNowBtn");
 
-/* Segment indicator */
 const shipSegment = document.querySelector("[data-ship]");
 const segIndicator = shipSegment ? shipSegment.querySelector(".seg-indicator") : null;
 
-/* ================= PAYSTACK ================= */
 const PAYSTACK_PUBLIC_KEY =
   window.PAYSTACK_PUBLIC_KEY ||
   "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
 
-/* ================= LOAD CART ================= */
-let cart = [];
-try {
-  cart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
-} catch {
-  cart = [];
-}
+let cart2 = [];
+try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
 
-/* ================= PRICING ================= */
 let pricing = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
 
 function normalizePricing(raw) {
@@ -80,12 +55,10 @@ function normalizePricing(raw) {
     .map(s => ({
       name: String(s?.name || "").trim(),
       cities: Array.isArray(s?.cities)
-        ? s.cities
-            .map(c => ({
-              name: String(c?.name || "").trim(),
-              fee: Math.max(0, Math.round(Number(c?.fee) || 0))
-            }))
-            .filter(c => c.name)
+        ? s.cities.map(c => ({
+            name: String(c?.name || "").trim(),
+            fee: Math.max(0, Math.round(Number(c?.fee) || 0))
+          })).filter(c => c.name)
         : []
     }))
     .filter(s => s.name);
@@ -96,8 +69,8 @@ function normalizePricing(raw) {
 }
 
 async function fetchPricingFromServer() {
-  if (!API_BASE) throw new Error("API_BASE missing");
-  const res = await fetch(`${API_BASE}/delivery-pricing`, { cache: "no-store" });
+  if (!API_BASE2) throw new Error("API_BASE missing");
+  const res = await fetch(`${API_BASE2}/delivery-pricing`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Pricing fetch failed: ${res.status}`);
   const data = await res.json();
   return normalizePricing(data);
@@ -105,16 +78,13 @@ async function fetchPricingFromServer() {
 
 function loadPricingBackup() {
   try {
-    const raw = JSON.parse(localStorage.getItem(PRICING_BACKUP_KEY));
+    const raw = JSON.parse(sessionStorage.getItem(PRICING_BACKUP_KEY));
     return normalizePricing(raw);
   } catch {
     return { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
   }
 }
-
-function savePricingBackup(p) {
-  try { localStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p)); } catch {}
-}
+function savePricingBackup(p) { try { sessionStorage.setItem(PRICING_BACKUP_KEY, JSON.stringify(p)); } catch {} }
 
 function buildPricingFromNigeriaDataset(data, defaultFee) {
   const fee = Number.isFinite(Number(defaultFee))
@@ -124,18 +94,11 @@ function buildPricingFromNigeriaDataset(data, defaultFee) {
   const states = Object.keys(data || {})
     .map(stateName => {
       const lgas = Array.isArray(data[stateName]) ? data[stateName] : [];
-      return {
-        name: String(stateName || "").trim(),
-        cities: lgas.map(lga => ({ name: String(lga || "").trim(), fee })).filter(c => c.name)
-      };
+      return { name: String(stateName || "").trim(), cities: lgas.map(lga => ({ name: String(lga || "").trim(), fee })).filter(c => c.name) };
     })
     .filter(s => s.name);
 
-  return normalizePricing({
-    defaultFee: fee,
-    updatedAt: new Date().toISOString(),
-    states
-  });
+  return normalizePricing({ defaultFee: fee, updatedAt: new Date().toISOString(), states });
 }
 
 async function fetchNigeriaStatesLgasPricingFallback() {
@@ -151,20 +114,13 @@ async function fetchNigeriaStatesLgasPricingFallback() {
 function getSelectedShippingType() {
   return document.querySelector('input[name="shippingType"]:checked')?.value || "pickup";
 }
-
-function formatNaira(n) {
-  return Number(n || 0).toLocaleString();
-}
-
-function calcSubtotal() {
-  return cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0);
-}
+function formatNaira2(n) { return Number(n || 0).toLocaleString(); }
+function calcSubtotal2() { return cart2.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0); }
 
 function findState(stateName) {
   const name = String(stateName || "").trim().toLowerCase();
   return (pricing.states || []).find(s => String(s.name || "").trim().toLowerCase() === name);
 }
-
 function findCity(stateObj, cityName) {
   if (!stateObj || !Array.isArray(stateObj.cities)) return null;
   const name = String(cityName || "").trim().toLowerCase();
@@ -187,14 +143,9 @@ function getDeliveryFee() {
   return Number.isFinite(def) ? def : FALLBACK_DEFAULT_DELIVERY_FEE;
 }
 
-function getGrandTotal() {
-  return calcSubtotal() + getDeliveryFee();
-}
+function getGrandTotal() { return calcSubtotal2() + getDeliveryFee(); }
 
-function validateEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
+function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validatePhone(phone) {
   const cleaned = String(phone || "").replace(/\s+/g, "");
   return /^[+]?(\d{10,15})$/.test(cleaned);
@@ -214,12 +165,10 @@ function setBtnLoading(isLoading, label) {
   payNowBtn.disabled = isLoading;
   payNowBtn.style.opacity = isLoading ? "0.6" : "1";
   payNowBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
-
   if (isLoading) payNowBtn.textContent = label || "PROCESSING…";
-  else payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira(getGrandTotal())}</span>`;
+  else payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira2(getGrandTotal())}</span>`;
 }
 
-/* ✅ Segment indicator */
 function updateShippingIndicator() {
   if (!shipSegment || !segIndicator) return;
   const type = getSelectedShippingType();
@@ -228,7 +177,6 @@ function updateShippingIndicator() {
     : "translateX(0)";
 }
 
-/* ================= UI ================= */
 function updateShippingUI() {
   const type = getSelectedShippingType();
   updateShippingIndicator();
@@ -240,7 +188,6 @@ function updateShippingUI() {
     deliveryFields?.classList.add("is-hidden");
     pickupInfo?.classList.remove("is-hidden");
   }
-
   updateTotals();
 }
 
@@ -248,25 +195,23 @@ function updateTotals() {
   const fee = getDeliveryFee();
   const total = getGrandTotal();
 
-  if (deliveryFeeEl) deliveryFeeEl.textContent = formatNaira(fee);
-  if (deliveryFeeChipEl) deliveryFeeChipEl.textContent = formatNaira(fee);
-  if (totalAmountEl) totalAmountEl.textContent = formatNaira(total);
+  if (deliveryFeeEl) deliveryFeeEl.textContent = formatNaira2(fee);
+  if (deliveryFeeChipEl) deliveryFeeChipEl.textContent = formatNaira2(fee);
+  if (totalAmountEl) totalAmountEl.textContent = formatNaira2(total);
 
   const paySpan = document.getElementById("payBtnAmount");
-  if (paySpan) paySpan.textContent = formatNaira(total);
+  if (paySpan) paySpan.textContent = formatNaira2(total);
 
   if (payNowBtn) {
-    const disabled = cart.length === 0;
+    const disabled = cart2.length === 0;
     payNowBtn.disabled = disabled;
     payNowBtn.style.opacity = disabled ? "0.6" : "1";
     payNowBtn.style.cursor = disabled ? "not-allowed" : "pointer";
   }
 }
 
-/* ================= POPULATE STATES/LGAs ================= */
 function populateStates() {
   if (!stateEl) return;
-
   const states = (pricing.states || []).map(s => s.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
   const current = stateEl.value || "";
 
@@ -284,7 +229,6 @@ function populateStates() {
 
 function populateCitiesForState(stateName) {
   if (!cityEl) return;
-
   const st = findState(stateName);
   const cities = (st?.cities || []).map(c => c.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
   const current = cityEl.value || "";
@@ -297,16 +241,16 @@ function populateCitiesForState(stateName) {
   cityEl.disabled = cities.length === 0;
 }
 
-/* ================= SUMMARY ================= */
 function renderSummaryItems() {
   if (!summaryItemsEl) return;
+  try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
 
-  if (!Array.isArray(cart) || cart.length === 0) {
+  if (!Array.isArray(cart2) || cart2.length === 0) {
     summaryItemsEl.innerHTML = `<p style="opacity:.8">Your cart is empty.</p>`;
     return;
   }
 
-  summaryItemsEl.innerHTML = cart.map(item => {
+  summaryItemsEl.innerHTML = cart2.map(item => {
     const qty = Number(item.qty || 0);
     const price = Number(item.price || 0);
     const line = price * qty;
@@ -316,15 +260,14 @@ function renderSummaryItems() {
         <img src="${item.image}" alt="${escapeHtml(item.name)}" draggable="false">
         <div>
           <div class="summary-name">${escapeHtml(item.name)}</div>
-          <div class="summary-meta">Qty: ${qty} • ₦${formatNaira(price)}</div>
+          <div class="summary-meta">Qty: ${qty} • ₦${formatNaira2(price)}</div>
         </div>
-        <div class="summary-line">₦${formatNaira(line)}</div>
+        <div class="summary-line">₦${formatNaira2(line)}</div>
       </div>
     `;
   }).join("");
 }
 
-/* ================= VALIDATION ================= */
 function validateCheckout() {
   const name = nameEl?.value?.trim() || "";
   const email = emailEl?.value?.trim() || "";
@@ -333,7 +276,7 @@ function validateCheckout() {
   if (!name) return { ok: false, msg: "Please enter your full name." };
   if (!email || !validateEmail(email)) return { ok: false, msg: "Please enter a valid email address." };
   if (!phone || !validatePhone(phone)) return { ok: false, msg: "Please enter a valid phone number." };
-  if (cart.length === 0) return { ok: false, msg: "Your cart is empty." };
+  if (cart2.length === 0) return { ok: false, msg: "Your cart is empty." };
 
   const type = getSelectedShippingType();
   if (type === "delivery") {
@@ -346,13 +289,12 @@ function validateCheckout() {
     if (!address) return { ok: false, msg: "Please enter your delivery address." };
   }
 
-  if (!API_BASE) return { ok: false, msg: "Checkout not configured (API_BASE missing)." };
+  if (!API_BASE2) return { ok: false, msg: "Checkout not configured (API_BASE missing)." };
   if (!PAYSTACK_PUBLIC_KEY) return { ok: false, msg: "Checkout not configured (Paystack key missing)." };
 
   return { ok: true };
 }
 
-/* ================= ORDER DRAFT ================= */
 function buildBackendOrderDraft(reference) {
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
@@ -363,11 +305,11 @@ function buildBackendOrderDraft(reference) {
   const city = cityEl?.value || "";
   const address = addressEl?.value?.trim() || "";
 
-  const subtotal = calcSubtotal();
+  const subtotal = calcSubtotal2();
   const deliveryFee = getDeliveryFee();
   const total = subtotal + deliveryFee;
 
-  const cartRows = cart.map(i => ({
+  const cartRows = cart2.map(i => ({
     id: i.id,
     name: i.name,
     price: Number(i.price || 0),
@@ -395,21 +337,17 @@ function buildBackendOrderDraft(reference) {
   };
 }
 
-function saveOrderFallbackLocal(order) {
+function saveOrderFallbackSession(order) {
   try {
-    const arr = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY)) || [];
+    const arr = JSON.parse(sessionStorage.getItem(LOCAL_ORDERS_KEY)) || [];
     arr.push(order);
-    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(arr));
+    sessionStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(arr));
   } catch {}
 }
+function saveLastOrderForReceipt(order) { try { sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {} }
 
-function saveLastOrderForReceipt(order) {
-  try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
-}
-
-/* ================= BACKEND: SAVE PENDING ORDER (IDEMPOTENT) ================= */
 async function savePendingOrderToServer(draftOrder) {
-  const res = await fetch(`${API_BASE}/orders`, {
+  const res = await fetch(`${API_BASE2}/orders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(draftOrder)
@@ -423,34 +361,27 @@ async function savePendingOrderToServer(draftOrder) {
   return res.json().catch(() => ({}));
 }
 
-/* ================= PAYSTACK FLOW ================= */
 function payWithPaystack() {
+  try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
+
   const check = validateCheckout();
   if (!check.ok) return alert(check.msg);
 
   const email = emailEl.value.trim();
   const total = getGrandTotal();
 
-  // ✅ Use a strong unique reference (matches backend max 200)
   const reference = `KIKELARA_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
   setBtnLoading(true, "SAVING ORDER…");
 
   const draft = buildBackendOrderDraft(reference);
-
-  // local receipt immediately
   saveLastOrderForReceipt({ ...draft, status: "Pending (Awaiting Payment)" });
 
-  // ✅ Save pending order FIRST so webhook can update it to Paid
   (async () => {
-    try {
-      await savePendingOrderToServer(draft);
-    } catch (err) {
+    try { await savePendingOrderToServer(draft); }
+    catch (err) {
       console.warn(err);
-
-      // Not fatal: webhook can still create Paid order even if this failed,
-      // but we keep a local backup so you can reconcile.
-      saveOrderFallbackLocal({ ...draft, status: "Pending (Server Save Failed)" });
+      saveOrderFallbackSession({ ...draft, status: "Pending (Server Save Failed)" });
     }
 
     setBtnLoading(true, "OPENING PAYSTACK…");
@@ -465,8 +396,6 @@ function payWithPaystack() {
       callback: function (response) {
         const payRef = response?.reference || reference;
 
-        // ✅ Do NOT call /payments/paystack/verify here.
-        // Webhook will verify + mark Paid.
         const receipt = {
           ...draft,
           reference: payRef,
@@ -476,9 +405,7 @@ function payWithPaystack() {
 
         saveLastOrderForReceipt(receipt);
 
-        // clear cart so user doesn't pay twice
-        localStorage.removeItem(CART_KEY);
-
+        sessionStorage.removeItem(CART_KEY2);
         window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
       },
 
@@ -521,7 +448,7 @@ payNowBtn?.addEventListener("click", (e) => {
     pricing = await fetchPricingFromServer();
     savePricingBackup(pricing);
   } catch (e1) {
-    console.warn("Pricing server failed, trying local backup:", e1);
+    console.warn("Pricing server failed, trying session backup:", e1);
 
     const backup = loadPricingBackup();
     if (backup?.states?.length) {

@@ -1,14 +1,15 @@
-/* ================= INDEX.JS (FULL UPDATED) =================
-   ✅ Preloader (first visit only)
+/* ================= INDEX.JS (UPDATED) =================
+   ✅ Preloader (per-tab sessionStorage)
    ✅ Featured slider kept
-   ✅ Home products + Latest products clickable -> product-details.html?id=ID
-   ✅ Uses REAL product IDs from localStorage(allProducts) when available
-   ✅ Falls back to your hardcoded display list if localStorage has no products yet
-   ✅ Greeting + logout kept
-   ✅ Hamburger toggle kept
+   ✅ Reads products from sessionStorage(allProducts)
+   ✅ If empty, fetches from backend and saves into sessionStorage(allProducts)
+   ✅ Cards navigate to product-details.html?id=ID
 =========================================================== */
 
-/* PRELOADER – SHOW ONLY ON FIRST VISIT */
+const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
+const PRODUCTS_KEY = "allProducts";
+
+/* ================= PRELOADER – PER TAB ================= */
 window.addEventListener("load", () => {
   const preloader = document.getElementById("preloader");
 
@@ -33,7 +34,21 @@ function goToProduct(id) {
 }
 
 /* ================= SAFE JSON HELPERS ================= */
-function safeParseJSON(key, fallback) {
+function safeParseJSONSession(key, fallback) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function safeSetJSONSession(key, value) {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function safeParseJSONLocal(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
@@ -86,18 +101,35 @@ function switchFeatured() {
   });
 }
 
-/* Initial load */
 switchFeatured();
-/* Auto switch */
 setInterval(switchFeatured, 4500);
 
-/* ================= PRODUCTS SOURCE =================
-   Reads products saved by products.js into localStorage(allProducts).
-   Ensures clicking a card opens the correct product id.
-*/
+/* ================= PRODUCTS (SESSION + BACKEND FALLBACK) ================= */
 function getAllProducts() {
-  const list = safeParseJSON("allProducts", []);
+  const list = safeParseJSONSession(PRODUCTS_KEY, []);
   return Array.isArray(list) ? list : [];
+}
+
+function normalizeProduct(p) {
+  const image =
+    p?.image || p?.image_url || (Array.isArray(p?.images) && p.images[0]) || "images_brown/bodyButter.png";
+
+  return {
+    id: p?.id,
+    name: String(p?.name || "").trim(),
+    image,
+    category: String(p?.category || p?.payload?.category || "Product").trim(),
+    price: Number(p?.price || 0),
+  };
+}
+
+async function fetchProductsFromBackend() {
+  if (!API_BASE) return [];
+  const res = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map(normalizeProduct).filter(p => p.id && p.name);
 }
 
 function findProductIdByName(name) {
@@ -107,41 +139,46 @@ function findProductIdByName(name) {
   return found?.id ?? null;
 }
 
-/* ================= CARD RENDER HELPER ================= */
+/* ================= CARD RENDER HELPER (SAFER) ================= */
 function renderCards(container, items, cardClass) {
   if (!container) return;
 
+  container.innerHTML = "";
+
   items.forEach((p) => {
-    // Try real ID from allProducts; fallback to the provided id
     const realId = findProductIdByName(p.name);
     const idToUse = realId ?? p.id;
 
     const card = document.createElement("div");
     card.className = cardClass;
-    card.innerHTML = `
-      <img src="${p.img}" alt="${p.name}" loading="lazy" class="clickable-img">
-      <h4>${p.name}</h4>
-    `;
-
     card.style.cursor = "pointer";
+
+    const img = document.createElement("img");
+    img.src = p.img;
+    img.alt = p.name;
+    img.loading = "lazy";
+    img.className = "clickable-img";
+    img.style.cursor = "pointer";
+
+    const title = document.createElement("h4");
+    title.textContent = p.name;
+
+    img.addEventListener("click", (e) => {
+      e.stopPropagation();
+      goToProduct(idToUse);
+    });
+
     card.addEventListener("click", () => goToProduct(idToUse));
 
-    const img = card.querySelector("img");
-    if (img) {
-      img.style.cursor = "pointer";
-      img.addEventListener("click", (e) => {
-        e.stopPropagation();
-        goToProduct(idToUse);
-      });
-    }
+    card.appendChild(img);
+    card.appendChild(title);
 
     container.appendChild(card);
   });
 }
 
-/* ================= HOMEPAGE PRODUCTS ================= */
+/* ================= HOMEPAGE + LATEST ================= */
 const homeProductsEl = document.getElementById("homeProducts");
-
 const homepageProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
@@ -150,13 +187,7 @@ const homepageProducts = [
   { id: 5, name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
 ];
 
-if (homeProductsEl) {
-  renderCards(homeProductsEl, homepageProducts, "home-card");
-}
-
-/* ================= LATEST PRODUCTS ================= */
 const latestGrid = document.getElementById("latestProducts");
-
 const latestProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
@@ -164,28 +195,46 @@ const latestProducts = [
   { id: 6, name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
 ];
 
-if (latestGrid) {
-  renderCards(latestGrid, latestProducts, "latest-card");
+function renderHomeSections() {
+  if (homeProductsEl) renderCards(homeProductsEl, homepageProducts, "home-card");
+  if (latestGrid) renderCards(latestGrid, latestProducts, "latest-card");
 }
 
 /* ================= USER GREETING ================= */
-const user = safeParseJSON("loggedInUser", null);
+(function greetUser() {
+  const user = safeParseJSONLocal("loggedInUser", null);
+  if (!user) return;
 
-if (user) {
   const greet = document.getElementById("userGreeting");
   const logoutBtn = document.getElementById("logoutBtn");
 
   if (greet) greet.textContent = `Hi, ${user.username || "Guest"}`;
   if (logoutBtn) logoutBtn.classList.remove("hidden");
-}
+})();
 
 /* ================= HAMBURGER TOGGLE ================= */
-const hamburger = document.getElementById("hamburger");
-const mobileNav = document.getElementById("mobileNav");
+(function mobileMenu() {
+  const hamburger = document.getElementById("hamburger");
+  const mobileNav = document.getElementById("mobileNav");
 
-if (hamburger && mobileNav) {
+  if (!hamburger || !mobileNav) return;
+
   hamburger.addEventListener("click", () => {
     hamburger.classList.toggle("active");
     mobileNav.classList.toggle("active");
   });
-}
+})();
+
+/* ================= INIT ================= */
+document.addEventListener("DOMContentLoaded", async () => {
+  renderHomeSections();
+
+  const existing = getAllProducts();
+  if (!existing.length) {
+    const fetched = await fetchProductsFromBackend();
+    if (fetched.length) {
+      safeSetJSONSession(PRODUCTS_KEY, fetched);
+      renderHomeSections();
+    }
+  }
+});
