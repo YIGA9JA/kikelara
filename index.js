@@ -1,9 +1,10 @@
-/* ================= INDEX.JS (MOBILE-FIRST PREMIUM) =================
-   ✅ Preloader per-tab (sessionStorage)
-   ✅ Featured slider
-   ✅ Reads products from sessionStorage(allProducts)
-   ✅ If empty, fetches from backend and saves into sessionStorage(allProducts)
-   ✅ Cards navigate to product-details.html?id=ID
+/* ================= INDEX.JS (PREMIUM + HERO VIDEO) =================
+   ✅ Preloader per-tab
+   ✅ Hero background video (loads only when allowed)
+   ✅ Featured slider kept
+   ✅ Products from sessionStorage(allProducts), backend fallback
+   ✅ Latest = newest products
+   ✅ Most loved = more products (stable pick)
 =========================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
@@ -12,7 +13,6 @@ const PRODUCTS_KEY = "allProducts";
 /* ================= PRELOADER – PER TAB ================= */
 window.addEventListener("load", () => {
   const preloader = document.getElementById("preloader");
-
   if (!sessionStorage.getItem("visited")) {
     sessionStorage.setItem("visited", "true");
     setTimeout(() => {
@@ -26,6 +26,60 @@ window.addEventListener("load", () => {
     if (preloader) preloader.remove();
   }
 });
+
+/* ================= HERO VIDEO (SMART LOAD) ================= */
+(function setupHeroVideo() {
+  const vid = document.getElementById("heroBgVideo");
+  if (!vid) return;
+
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const saveData = !!(navigator.connection && navigator.connection.saveData);
+
+  if (reduceMotion || saveData) {
+    // Leave poster visible (no video load)
+    return;
+  }
+
+  const webm = vid.getAttribute("data-webm");
+  const mp4 = vid.getAttribute("data-mp4");
+
+  // Add sources only when allowed (prevents loading on save-data / reduced-motion)
+  if (webm) {
+    const s1 = document.createElement("source");
+    s1.src = webm;
+    s1.type = "video/webm";
+    vid.appendChild(s1);
+  }
+  if (mp4) {
+    const s2 = document.createElement("source");
+    s2.src = mp4;
+    s2.type = "video/mp4";
+    vid.appendChild(s2);
+  }
+
+  vid.preload = "metadata";
+
+  const tryPlay = async () => {
+    try {
+      await vid.play();
+    } catch {
+      // If autoplay blocked, user will still see poster (fine)
+    }
+  };
+
+  // Pause video when hero is not visible (performance)
+  const hero = document.querySelector(".hero");
+  if ("IntersectionObserver" in window && hero) {
+    const io = new IntersectionObserver((entries) => {
+      const isInView = entries.some(e => e.isIntersecting);
+      if (isInView) tryPlay();
+      else { try { vid.pause(); } catch {} }
+    }, { threshold: 0.2 });
+    io.observe(hero);
+  } else {
+    tryPlay();
+  }
+})();
 
 /* ================= NAV HELPER ================= */
 function goToProduct(id) {
@@ -46,17 +100,14 @@ function safeParseJSONSession(key, fallback) {
 function safeSetJSONSession(key, value) {
   try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
-function safeParseJSONLocal(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-function normalizeName(str) {
-  return String(str || "").trim().toLowerCase();
+
+/* ================= IMAGE URL RESOLVER ================= */
+function resolveImageUrl(src) {
+  const s = String(src || "").trim();
+  if (!s) return "images_brown/bodyButter.png";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (API_BASE && s.startsWith("/uploads/")) return API_BASE + s;
+  return s;
 }
 
 /* ================= FEATURED SLIDER ================= */
@@ -85,15 +136,12 @@ function switchFeatured() {
   if (featuredName) featuredName.style.opacity = "0";
 
   const next = featuredProducts[featuredIndex];
-
   preloadImage(next.img, () => {
     setTimeout(() => {
       featuredImg.src = next.img;
       if (featuredName) featuredName.textContent = next.name || "";
-
       featuredImg.style.opacity = "1";
       if (featuredName) featuredName.style.opacity = "1";
-
       featuredIndex = (featuredIndex + 1) % featuredProducts.length;
     }, 280);
   });
@@ -114,9 +162,10 @@ function normalizeProduct(p) {
   return {
     id: p?.id,
     name: String(p?.name || "").trim(),
-    image,
+    image: resolveImageUrl(image),
     category: String(p?.category || p?.payload?.category || "Product").trim(),
     price: Number(p?.price || 0),
+    active: p?.active ?? p?.is_active ?? true
   };
 }
 
@@ -133,39 +182,25 @@ async function fetchProductsFromBackend() {
   }
 }
 
-function findProductIdByName(name) {
-  const all = getAllProducts();
-  const target = normalizeName(name);
-  const found = all.find(p => normalizeName(p?.name) === target);
-  return found?.id ?? null;
-}
-
-/* ================= CARD RENDER HELPER ================= */
+/* ================= CARD RENDER ================= */
 function renderCards(container, items, cardClass) {
   if (!container) return;
   container.innerHTML = "";
 
   items.forEach((p) => {
-    const realId = findProductIdByName(p.name);
-    const idToUse = realId ?? p.id;
-
     const card = document.createElement("div");
     card.className = cardClass;
-    card.style.cursor = "pointer";
 
     const img = document.createElement("img");
-    img.src = p.img;
+    img.src = resolveImageUrl(p.img);
     img.alt = p.name;
     img.loading = "lazy";
 
     const title = document.createElement("h4");
     title.textContent = p.name;
 
-    img.addEventListener("click", (e) => {
-      e.stopPropagation();
-      goToProduct(idToUse);
-    });
-    card.addEventListener("click", () => goToProduct(idToUse));
+    card.addEventListener("click", () => goToProduct(p.id));
+    img.addEventListener("click", (e) => { e.stopPropagation(); goToProduct(p.id); });
 
     card.appendChild(img);
     card.appendChild(title);
@@ -173,11 +208,18 @@ function renderCards(container, items, cardClass) {
   });
 }
 
-/* ================= DEFAULT CARD DATA ================= */
-const homeProductsEl = document.getElementById("homeProducts");
+/* ================= DEFAULT FALLBACK LISTS ================= */
 const latestGrid = document.getElementById("latestProducts");
+const lovedRail = document.getElementById("homeProducts");
 
-const homepageProducts = [
+const fallbackLatest = [
+  { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
+  { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
+  { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
+  { id: 6, name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
+];
+
+const fallbackLoved = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
   { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
@@ -185,71 +227,42 @@ const homepageProducts = [
   { id: 5, name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
 ];
 
-const latestProducts = [
-  { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
-  { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
-  { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
-  { id: 6, name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
-];
-
-function renderHomeSections() {
-  if (latestGrid) renderCards(latestGrid, latestProducts, "latest-card");
-  if (homeProductsEl) renderCards(homeProductsEl, homepageProducts, "home-card");
+function renderFallback() {
+  if (latestGrid) renderCards(latestGrid, fallbackLatest, "latest-card");
+  if (lovedRail) renderCards(lovedRail, fallbackLoved, "home-card");
 }
 
-/* Upgrade to backend images/ids if available */
-function buildCardsFromBackend(names, fallbackList) {
-  const all = getAllProducts();
-  const mapped = names
-    .map(n => {
-      const p = all.find(x => normalizeName(x?.name) === normalizeName(n));
-      if (!p) return null;
-      return { id: p.id, name: p.name, img: p.image };
-    })
-    .filter(Boolean);
-
-  return mapped.length ? mapped : fallbackList;
+/* ================= BUILD “MAKES SENSE” LISTS FROM BACKEND ================= */
+function buildLatestFromBackend(all) {
+  // newest by ID (works if IDs increment)
+  const sorted = [...all].filter(p => p.active !== false).sort((a,b) => Number(b.id) - Number(a.id));
+  return sorted.slice(0, 4).map(p => ({ id: p.id, name: p.name, img: p.image }));
 }
-
-/* ================= USER GREETING ================= */
-(function greetUser() {
-  const user = safeParseJSONLocal("loggedInUser", null);
-  if (!user) return;
-
-  const greet = document.getElementById("userGreeting");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  if (greet) greet.textContent = `Hi, ${user.username || "Guest"}`;
-  if (logoutBtn) logoutBtn.classList.remove("hidden");
-})();
-
-/* ================= HAMBURGER TOGGLE ================= */
-(function mobileMenu() {
-  const hamburger = document.getElementById("hamburger");
-  const mobileNav = document.getElementById("mobileNav");
-  if (!hamburger || !mobileNav) return;
-
-  hamburger.addEventListener("click", () => {
-    hamburger.classList.toggle("active");
-    mobileNav.classList.toggle("active");
-  });
-})();
+function buildLovedFromBackend(all) {
+  // stable pick: first 10 active products (or fewer)
+  const active = all.filter(p => p.active !== false);
+  const sorted = [...active].sort((a,b) => Number(a.id) - Number(b.id));
+  return sorted.slice(0, 10).map(p => ({ id: p.id, name: p.name, img: p.image }));
+}
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
-  renderHomeSections();
+  renderFallback();
 
-  const existing = getAllProducts();
+  let existing = getAllProducts();
   if (!existing.length) {
     const fetched = await fetchProductsFromBackend();
-    if (fetched.length) safeSetJSONSession(PRODUCTS_KEY, fetched);
+    if (fetched.length) {
+      safeSetJSONSession(PRODUCTS_KEY, fetched);
+      existing = fetched;
+    }
   }
 
-  if (getAllProducts().length) {
-    const latestBetter = buildCardsFromBackend(latestProducts.map(x => x.name), latestProducts);
-    const lovedBetter = buildCardsFromBackend(homepageProducts.map(x => x.name), homepageProducts);
+  if (existing.length) {
+    const latest = buildLatestFromBackend(existing);
+    const loved = buildLovedFromBackend(existing);
 
-    if (latestGrid) renderCards(latestGrid, latestBetter, "latest-card");
-    if (homeProductsEl) renderCards(homeProductsEl, lovedBetter, "home-card");
+    if (latestGrid && latest.length) renderCards(latestGrid, latest, "latest-card");
+    if (lovedRail && loved.length) renderCards(lovedRail, loved, "home-card");
   }
 });

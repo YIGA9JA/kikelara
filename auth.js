@@ -1,13 +1,5 @@
-// auth.js (COOKIE SESSION + CSRF) — HARDENED DROP-IN
+// auth.js (COOKIE SESSION + CSRF) — REDIRECT-FIRST (ONE LOGIN)
 // Requires config.js to be loaded first.
-//
-// ✅ Cookie session auth (credentials include)
-// ✅ CSRF header for non-GET requests (cookie first; localStorage fallback)
-// ✅ Timeout protection (GET: 20s, writes/uploads: 60s)
-// ✅ X-Requested-With header (basic CSRF hardening)
-// ✅ no-store caching for admin requests
-//
-// Exported globals: apiFetch, checkAuth, adminLogout
 
 (() => {
   "use strict";
@@ -16,141 +8,95 @@
   const CSRF_COOKIE_NAME = window.ADMIN_CSRF_COOKIE || "admin_csrf";
   const CSRF_STORAGE_KEY = window.ADMIN_CSRF_STORAGE_KEY || "admin_csrf_ls";
 
-  // Expose for other scripts if needed
-  window.API_BASE = API_BASE;
-  window.ADMIN_CSRF_COOKIE = CSRF_COOKIE_NAME;
-  window.ADMIN_CSRF_STORAGE_KEY = CSRF_STORAGE_KEY;
+  const AUTH_MODE = window.ADMIN_AUTH_MODE || "redirect"; // "modal" | "redirect"
+  const LOGIN_URL = window.ADMIN_LOGIN_URL || "admin-login.html";
 
-  function safeDecode(v) {
-    try { return decodeURIComponent(v); } catch { return v; }
-  }
+  let authAlreadyTriggered = false;
 
-  /** Read cookie value by name (returns "" if not readable or missing) */
   function readCookie(name) {
     const raw = String(document.cookie || "");
     if (!raw) return "";
-
-    // robust split; handles spaces
     const parts = raw.split(";").map(s => s.trim());
     for (const p of parts) {
       if (p.startsWith(name + "=")) {
-        return safeDecode(p.slice(name.length + 1));
+        try { return decodeURIComponent(p.slice(name.length + 1)); }
+        catch { return p.slice(name.length + 1); }
       }
     }
     return "";
   }
 
-  /** Read CSRF token from cookie first, then localStorage fallback */
   function getCsrfToken() {
     const fromCookie = readCookie(CSRF_COOKIE_NAME);
     if (fromCookie) return String(fromCookie).trim();
-
-    try {
-      const fromLS = localStorage.getItem(CSRF_STORAGE_KEY) || "";
-      return String(fromLS).trim();
-    } catch {
-      return "";
-    }
+    try { return String(localStorage.getItem(CSRF_STORAGE_KEY) || "").trim(); }
+    catch { return ""; }
   }
 
-  /** Attach CSRF for non-GET requests */
-  function withCsrfHeaders(headersObj) {
+  function withCsrfHeaders(headers = {}) {
     const csrf = getCsrfToken();
-    if (!csrf) return headersObj;
-    return { ...headersObj, "X-CSRF-Token": csrf };
+    return csrf ? { ...headers, "X-CSRF-Token": csrf } : headers;
   }
 
-  function isAbsoluteUrl(s) {
-    return /^https?:\/\//i.test(String(s || ""));
+  function authRequired() {
+    if (authAlreadyTriggered) return; // ✅ prevents double prompt/redirect storms
+    authAlreadyTriggered = true;
+
+    if (AUTH_MODE === "modal") {
+      window.dispatchEvent(new CustomEvent("admin:auth-required"));
+      return;
+    }
+    location.replace(LOGIN_URL);
   }
 
-  function joinUrl(base, path) {
-    const p = String(path || "");
-    if (isAbsoluteUrl(p)) return p;
-    if (!base) return p; // allows relative if API_BASE not set (but you should set it)
-    if (!p.startsWith("/")) return `${base}/${p}`;
-    return `${base}${p}`;
-  }
-
-  function withTimeout(options, ms) {
-    // If caller already supplied a signal, don’t override
-    if (options.signal) return { options, cleanup: () => {} };
-
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), ms);
-
-    return {
-      options: { ...options, signal: controller.signal },
-      cleanup: () => clearTimeout(t),
-    };
-  }
-
-  /** Fetch helper that always sends cookies */
   async function apiFetch(path, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     const needsCsrf = !["GET", "HEAD", "OPTIONS"].includes(method);
 
-    // timeouts: GET 20s, writes/uploads 60s (override with options.timeoutMs)
-    const timeoutMs =
-      Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs)
-      : (method === "GET" ? 20000 : 60000);
+    const headersBase = { ...(options.headers || {}) };
+    if (!("Accept" in headersBase)) headersBase["Accept"] = "application/json";
+    headersBase["X-Requested-With"] = "XMLHttpRequest";
 
-    const baseHeaders = { ...(options.headers || {}) };
+    const headers = needsCsrf ? withCsrfHeaders(headersBase) : headersBase;
 
-    // Default Accept; do NOT force Content-Type (FormData must set it automatically)
-    if (!("Accept" in baseHeaders)) baseHeaders["Accept"] = "application/json";
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      method,
+      headers,
+      credentials: "include", // ✅ REQUIRED for cookie session
+      cache: "no-store",
+    });
 
-    // helpful signal to backend that this is an AJAX request
-    baseHeaders["X-Requested-With"] = "XMLHttpRequest";
+    // ✅ Only treat 401 as "login needed"
+    if (res.status === 401) authRequired();
 
-    const headers = needsCsrf ? withCsrfHeaders(baseHeaders) : baseHeaders;
-
-    const url = joinUrl(API_BASE, path);
-
-    const { options: opts2, cleanup } = withTimeout(options, timeoutMs);
-
-    try {
-      return await fetch(url, {
-        ...opts2,
-        method,
-        headers,
-        credentials: "include", // ✅ critical for cookie auth
-        cache: "no-store",
-        redirect: "follow",
-        referrerPolicy: "strict-origin-when-cross-origin",
-      });
-    } finally {
-      cleanup();
-    }
+    return res;
   }
 
-  /** Guard: redirect to login if not authenticated */
   async function checkAuth() {
     try {
       const res = await apiFetch("/admin/me", { method: "GET" });
-      // some backends return 200 with {success:false}; handle both safely:
       if (!res.ok) throw new Error("not authed");
-      const data = await res.json().catch(() => ({}));
-      if (data && typeof data === "object" && "success" in data && !data.success) {
-        throw new Error("not authed");
-      }
+      authAlreadyTriggered = false; // ✅ reset if authenticated
       return true;
     } catch {
-      location.replace("admin-login.html");
+      authRequired();
       return false;
     }
   }
 
-  /** Logout: clears cookies server-side */
   async function adminLogout() {
-    try {
-      await apiFetch("/admin/logout", { method: "POST" });
-    } catch {}
+    try { await apiFetch("/admin/logout", { method: "POST" }); } catch {}
     try { localStorage.removeItem(CSRF_STORAGE_KEY); } catch {}
-    location.replace("admin-login.html");
+
+    if (AUTH_MODE === "modal") {
+      authAlreadyTriggered = false;
+      window.dispatchEvent(new CustomEvent("admin:auth-required"));
+      return;
+    }
+    location.replace(LOGIN_URL);
   }
 
-  // Export globals explicitly (safer across bundlers / strict scopes)
   window.apiFetch = apiFetch;
   window.checkAuth = checkAuth;
   window.adminLogout = adminLogout;

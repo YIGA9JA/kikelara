@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
-  <!-- Must load config first -->
   <script src="config.js"></script>
-
   <link rel="stylesheet" href="admin-products.css" />
 </head>
 <body>
@@ -33,7 +31,6 @@
       <div class="ad-actions">
         <button class="ad-btn" id="refreshBtn" type="button">Refresh</button>
         <button class="ad-btn" id="newBtn" type="button">Add Product</button>
-        <button class="ad-btn is-logout" id="logoutBtn" type="button">Logout</button>
       </div>
     </header>
 
@@ -72,37 +69,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
 
-  <!-- Login Modal -->
-  <!-- ✅ inert fixes “aria-hidden descendant retained focus” -->
-  <div class="modal" id="loginModal" aria-hidden="true" inert>
-    <div class="modal-card">
-      <div class="modal-top">
-        <div class="modal-title">Admin Login</div>
-        <button class="modal-x" id="loginClose" aria-label="Close" type="button">×</button>
-      </div>
-
-      <form id="loginForm" novalidate>
-        <label class="lbl" for="adminPass">Password</label>
-        <input
-          class="ipt"
-          id="adminPass"
-          type="password"
-          placeholder="Enter admin password"
-          required
-          autocomplete="current-password"
-        />
-
-        <div class="modal-actions" style="justify-content:flex-start;">
-          <button class="btn-primary" type="submit" id="loginBtn">Sign in</button>
-          <button class="btn-soft" type="button" id="loginCancel">Cancel</button>
-        </div>
-
-        <div class="help" id="loginHelp"></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Create/Edit Modal -->
+  <!-- Create/Edit Modal (kept) -->
   <div class="modal" id="editModal" aria-hidden="true" inert>
     <div class="modal-card modal-wide">
       <div class="modal-top">
@@ -153,40 +120,4 @@
 
           <div>
             <label class="lbl" for="image">Image</label>
-            <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,image/webp" />
-            <button class="btn-soft" id="clearImgBtn" type="button" style="margin-top:10px;">
-              Remove image
-            </button>
-          </div>
-
-          <div class="span2 preview">
-            <div class="preview-box dropBox" id="dropBox">
-              <div class="dropOverlay" id="imgDropOverlay">
-                <div>
-                  <div class="dropTitle">Drop image here</div>
-                  <div class="dropSub">or click “Choose file” above</div>
-                </div>
-              </div>
-              <img id="previewImg" alt="Preview" />
-            </div>
-
-            <div class="preview-hint">
-              Tip: use a clean square image (1080×1080) for best look.
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn-soft" type="button" id="cancelEdit">Cancel</button>
-          <button class="btn-primary" type="submit" id="saveBtn">Save</button>
-        </div>
-
-        <div class="help" id="editHelp"></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ✅ SECURITY LOAD ORDER -->
-  <script src="admin-products.js"></script>
-</body>
-</html>
+            <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,ima

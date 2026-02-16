@@ -42,5 +42,9 @@ window.SUPABASE_PUBLIC_BUCKET_URL = "https://YOURPROJECT.supabase.co/storage/v1/
 
 // Example:
 // window.SUPABASE_PUBLIC_BUCKET_URL = "https://abcd.supabase.co/storage/v1/object/public/product-images";
-
+window.ADMIN_LOGIN_URL = "admin-login.html";
+window.ADMIN_CSRF_COOKIE = "admin_csrf";
+window.ADMIN_CSRF_STORAGE_KEY = "admin_csrf_ls";
 })();
+window.ADMIN_AUTH_MODE = "redirect";
+

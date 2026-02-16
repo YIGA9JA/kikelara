@@ -24,14 +24,25 @@
     </div>
   </div>
 
-  <!-- BACKDROP -->
-  <div class="bg-mesh" aria-hidden="true"></div>
-  <div class="bg-grain" aria-hidden="true"></div>
-  <div class="blob blob-1" aria-hidden="true"></div>
-  <div class="blob blob-2" aria-hidden="true"></div>
-
   <!-- HERO -->
   <section class="hero" aria-label="Hero">
+    <!-- Background video (loads only if allowed) -->
+    <video
+      id="heroBgVideo"
+      class="hero-bg-video"
+      muted
+      loop
+      playsinline
+      preload="none"
+      poster="images/hero-poster.jpg"
+      data-mp4="assets/hero.mp4"
+      data-webm="assets/hero.webm"
+      aria-hidden="true"
+    ></video>
+
+    <div class="hero-overlay" aria-hidden="true"></div>
+    <div class="hero-grain" aria-hidden="true"></div>
+
     <div class="container hero-grid">
       <div class="hero-left">
         <div class="badge">✨ PREMIUM SKIN RITUAL</div>
@@ -50,32 +61,6 @@
           <a class="btn btn-ghost" href="#shopPanels">Explore Favorites</a>
         </div>
 
-        <div class="stats">
-          <div class="stat">
-            <div class="stat-ico">🌿</div>
-            <div>
-              <div class="stat-title">Natural ingredients</div>
-              <div class="stat-sub">carefully sourced</div>
-            </div>
-          </div>
-
-          <div class="stat">
-            <div class="stat-ico">✨</div>
-            <div>
-              <div class="stat-title">Luxury feel</div>
-              <div class="stat-sub">rich + smooth</div>
-            </div>
-          </div>
-
-          <div class="stat">
-            <div class="stat-ico">💛</div>
-            <div>
-              <div class="stat-title">Made with care</div>
-              <div class="stat-sub">crafted for glow</div>
-            </div>
-          </div>
-        </div>
-
         <div class="mini-proof">
           <span class="pill">⭐ Customer-loved</span>
           <span class="pill">📦 Fast delivery</span>
@@ -84,21 +69,21 @@
       </div>
 
       <div class="hero-right">
-        <div class="device">
-          <div class="device-top">
+        <!-- Featured visual card (kept) -->
+        <div class="feature-card">
+          <div class="feature-top">
             <div class="dots"><span></span><span></span><span></span></div>
-            <div class="device-title">Featured Today</div>
-            <div class="device-sub">Auto-switch</div>
+            <div class="feature-title">Featured</div>
+            <div class="feature-sub">Auto-switch</div>
           </div>
 
-          <div class="device-media">
-            <img id="featuredImage" alt="Featured product" />
-            <div class="device-fade"></div>
+          <div class="feature-media">
+            <img id="featuredImage" alt="Featured visual" />
           </div>
 
-          <div class="device-bottom">
-            <div class="device-name" id="featuredName"></div>
-            <div class="device-actions">
+          <div class="feature-bottom">
+            <div class="feature-name" id="featuredName"></div>
+            <div class="feature-actions">
               <a class="chip" href="products.html">Shop</a>
               <a class="chip" href="#shopPanels">Browse</a>
               <a class="chip" href="contact.html">Contact</a>
@@ -111,23 +96,6 @@
           <div class="float-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- MARQUEE STRIP -->
-  <section class="marquee" aria-label="Highlights">
-    <div class="marquee-track">
-      <div class="marquee-item">KÍKÉLÁRÁ</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Luxury Skincare</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Glow Ritual</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Premium Texture</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Natural Ingredients</div><div class="marquee-dot"></div>
-
-      <div class="marquee-item">KÍKÉLÁRÁ</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Luxury Skincare</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Glow Ritual</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Premium Texture</div><div class="marquee-dot"></div>
-      <div class="marquee-item">Natural Ingredients</div><div class="marquee-dot"></div>
     </div>
   </section>
 
@@ -164,7 +132,7 @@
     </div>
   </section>
 
-  <!-- HOW -->
+  <!-- ROUTINE -->
   <section class="section soft">
     <div class="container">
       <div class="section-head">
@@ -253,4 +221,3 @@
   <script src="index.js"></script>
 </body>
 </html>
- 
