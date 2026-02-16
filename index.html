@@ -6,90 +6,251 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <link rel="stylesheet" href="index.css" />
-  <link rel="stylesheet" href="footer.css" />
   <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="footer.css" />
+  <link rel="stylesheet" href="index.css" />
 </head>
 
 <body>
-
   <!-- HEADER INJECT -->
   <div id="siteHeader"></div>
 
-  <!-- ================= PRELOADER ================= -->
-  <div id="preloader">
-    <h1>KÍKÉLÁRÁ</h1>
+  <!-- PRELOADER -->
+  <div id="preloader" aria-label="Loading">
+    <div class="pl-card">
+      <div class="pl-brand">KÍKÉLÁRÁ</div>
+      <div class="pl-sub">Luxury Skincare</div>
+      <div class="pl-bar"><span></span></div>
+    </div>
   </div>
 
-  <!-- ================= HERO ================= -->
-  <section class="hero-slider">
-    <div class="hero-slide active">
-      <div class="hero-glow"></div>
+  <!-- BACKDROP -->
+  <div class="bg-mesh" aria-hidden="true"></div>
+  <div class="bg-grain" aria-hidden="true"></div>
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
 
-      <div class="hero-text">
-        <div class="hero-kicker">Luxury Skincare</div>
-        <h1>KÍKÉLÁRÁ</h1>
-        <p>Glow naturally with premium beauty essentials.</p>
+  <!-- HERO -->
+  <section class="hero" aria-label="Hero">
+    <div class="container hero-grid">
+      <div class="hero-left">
+        <div class="badge">✨ PREMIUM SKIN RITUAL</div>
 
-        <div class="hero-actions">
-          <a href="products.html" class="gold-btn">Shop Now</a>
+        <h1 class="h1">
+          A <span>luxury glow</span><br/>
+          made for your skin.
+        </h1>
+
+        <p class="lead">
+          Premium butters & oils crafted to nourish, soften, and leave you radiant—without the greasy feel.
+        </p>
+
+        <div class="cta-row">
+          <a class="btn btn-gold" href="products.html">Shop Collection</a>
+          <a class="btn btn-ghost" href="#shopPanels">Explore Favorites</a>
         </div>
 
-        <div class="hero-metrics">
-          <span class="metric">🌿 Natural</span>
-          <span class="metric">✨ Luxury Feel</span>
-          <span class="metric">💛 Made With Care</span>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-ico">🌿</div>
+            <div>
+              <div class="stat-title">Natural ingredients</div>
+              <div class="stat-sub">carefully sourced</div>
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="stat-ico">✨</div>
+            <div>
+              <div class="stat-title">Luxury feel</div>
+              <div class="stat-sub">rich + smooth</div>
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="stat-ico">💛</div>
+            <div>
+              <div class="stat-title">Made with care</div>
+              <div class="stat-sub">crafted for glow</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mini-proof">
+          <span class="pill">⭐ Customer-loved</span>
+          <span class="pill">📦 Fast delivery</span>
+          <span class="pill">🧴 Non-greasy finish</span>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="device">
+          <div class="device-top">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <div class="device-title">Featured Today</div>
+            <div class="device-sub">Auto-switch</div>
+          </div>
+
+          <div class="device-media">
+            <img id="featuredImage" alt="Featured product" />
+            <div class="device-fade"></div>
+          </div>
+
+          <div class="device-bottom">
+            <div class="device-name" id="featuredName"></div>
+            <div class="device-actions">
+              <a class="chip" href="products.html">Shop</a>
+              <a class="chip" href="#shopPanels">Browse</a>
+              <a class="chip" href="contact.html">Contact</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="float-card">
+          <div class="float-title">Glow Tip</div>
+          <div class="float-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ================= FEATURED ================= -->
-  <section class="featured-split">
-    <div class="featured-left">
-      <div class="featured-slider">
-        <img id="featuredImage" alt="Featured product" />
-        <h3 id="featuredName"></h3>
+  <!-- MARQUEE STRIP -->
+  <section class="marquee" aria-label="Highlights">
+    <div class="marquee-track">
+      <div class="marquee-item">KÍKÉLÁRÁ</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Luxury Skincare</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Glow Ritual</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Premium Texture</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Natural Ingredients</div><div class="marquee-dot"></div>
+
+      <div class="marquee-item">KÍKÉLÁRÁ</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Luxury Skincare</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Glow Ritual</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Premium Texture</div><div class="marquee-dot"></div>
+      <div class="marquee-item">Natural Ingredients</div><div class="marquee-dot"></div>
+    </div>
+  </section>
+
+  <!-- SHOP PANELS -->
+  <section class="section" id="shopPanels">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Shop what’s trending</h2>
+          <p>Swipe on mobile • tap to view details.</p>
+        </div>
+        <a class="link" href="products.html">View all →</a>
+      </div>
+
+      <div class="duo">
+        <!-- Latest -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Latest Drops</div>
+            <div class="panel-sub">New in</div>
+          </div>
+          <div class="latest-grid" id="latestProducts"></div>
+        </div>
+
+        <!-- Most Loved -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Most Loved</div>
+            <div class="panel-sub">Favorites</div>
+          </div>
+          <div class="loved-rail" id="homeProducts"></div>
+        </div>
       </div>
     </div>
+  </section>
 
-    <div class="featured-right">
-      <div class="latest-grid" id="latestProducts"></div>
+  <!-- HOW -->
+  <section class="section soft">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Simple routine. Real results.</h2>
+          <p>A premium ritual you can keep daily.</p>
+        </div>
+      </div>
+
+      <div class="how-grid">
+        <div class="how-card">
+          <div class="how-badge">01</div>
+          <h3>Cleanse</h3>
+          <p>Start clean so your skin can absorb better.</p>
+        </div>
+
+        <div class="how-card">
+          <div class="how-badge">02</div>
+          <h3>Treat</h3>
+          <p>Use oil to nourish and boost glow & tone.</p>
+        </div>
+
+        <div class="how-card">
+          <div class="how-badge">03</div>
+          <h3>Seal</h3>
+          <p>Butter locks in moisture for soft skin.</p>
+        </div>
+
+        <div class="how-card">
+          <div class="how-badge">04</div>
+          <h3>Repeat</h3>
+          <p>Consistency is the luxury—daily wins.</p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- ================= HOME PRODUCTS ================= -->
-  <section class="home-products">
-    <h2>Most Loved Products</h2>
-    <div class="horizontal-scroll" id="homeProducts"></div>
-  </section>
+  <!-- PROOF + CTA -->
+  <section class="section">
+    <div class="container">
+      <div class="duo duo-cta">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Loved by customers</div>
+            <div class="panel-sub">Real feedback</div>
+          </div>
 
-  <!-- ================= BRAND VALUES ================= -->
-  <section class="brand-values">
-    <div class="value-card">
-      <h3>🌿 Natural Ingredients</h3>
-      <p>Carefully sourced botanicals for glowing skin.</p>
-    </div>
+          <div class="quotes">
+            <div class="quote">
+              <p>“My skin feels so soft and looks brighter. The scent is premium!”</p>
+              <div class="who">— A happy customer</div>
+            </div>
+            <div class="quote">
+              <p>“Body Butter is my favorite. It keeps my skin moisturized all day.”</p>
+              <div class="who">— Verified buyer</div>
+            </div>
+            <div class="quote">
+              <p>“The oils are not sticky at all. Clean glow, luxury feel.”</p>
+              <div class="who">— Returning customer</div>
+            </div>
+          </div>
+        </div>
 
-    <div class="value-card">
-      <h3>✨ Proven Results</h3>
-      <p>Formulated to deliver visible improvements.</p>
-    </div>
+        <div class="panel cta-panel">
+          <div class="cta-badge">KÍKÉLÁRÁ</div>
+          <h2 class="cta-title">Feed your skin with beauty.</h2>
+          <p class="cta-text">Shop the collection and start your glow ritual today.</p>
 
-    <div class="value-card">
-      <h3>💛 Luxury Feel</h3>
-      <p>Premium textures and rich nourishment.</p>
+          <div class="cta-row">
+            <a class="btn btn-gold" href="products.html">Shop Collection</a>
+            <a class="btn btn-ghost" href="contact.html">Contact Us</a>
+          </div>
+
+          <div class="cta-note">✨ Premium textures • 🌿 Natural ingredients • 💛 Made with care</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- FOOTER INJECT -->
   <div id="siteFooter"></div>
 
-  <!-- ✅ SCRIPT ORDER -->
   <script src="config.js"></script>
   <script src="header.js"></script>
   <script src="footer.js"></script>
   <script src="index.js"></script>
-
 </body>
 </html>
+ 

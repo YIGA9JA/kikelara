@@ -1,25 +1,29 @@
-/* ================= PRODUCT-DETAILS.JS (WORKS WITH YOUR server.js) =================
+/* ================= PRODUCT-DETAILS.JS (PRIVATE BUCKET OPTION A + YOUR server.js) =================
    ✅ GET /api/products/:id
    ✅ GET /api/products/:id/reviews
    ✅ GET /api/products/:id/reviews/summary
    ✅ POST /api/products/:id/reviews  (deviceId)
    ✅ POST /api/reviews/:id/vote      (deviceId)
    ✅ Admin delete: DELETE /admin/reviews/:id (cookie session + CSRF)
-   ✅ Cart stored in sessionStorage(cart)
-=============================================================================== */
+   ✅ Cart stored in localStorage(cart) (matches products.js)
+================================================================================================= */
 
-const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
+const API_BASE = (window.API_BASE || "").replace(/\/+$/, "") || "https://kikelara1.onrender.com";
 const CART_KEY = "cart";
 
 /* ---------- helpers ---------- */
 function el(id) { return document.getElementById(id); }
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
-function safeJSONSession(key, fallback) {
+function safeJSON(storage, key, fallback) {
   try {
-    const v = JSON.parse(sessionStorage.getItem(key));
+    const v = JSON.parse(storage.getItem(key));
     return v ?? fallback;
   } catch { return fallback; }
+}
+
+function saveJSON(storage, key, value) {
+  try { storage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
 function escapeHtml(s) {
@@ -31,12 +35,27 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+/* ✅ Private bucket: frontend MUST receive signed URLs from backend
+   We resolve only:
+   - full https:// signed url
+   - /uploads legacy -> API_BASE/uploads
+   - local assets
+   Anything like "products/abc.webp" cannot be shown without backend signing.
+*/
 function resolveImage(url) {
   const u = String(url || "").trim();
   if (!u) return "images_brown/bodyButter.png";
+
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("data:") || u.startsWith("blob:")) return u;
+
   if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-  return u;
+
+  // allow your local folders
+  if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
+
+  // likely a storage key like "products/..", cannot resolve on frontend safely
+  return "images_brown/bodyButter.png";
 }
 
 function formatDate(iso) {
@@ -54,7 +73,6 @@ function starsText(rating) {
 function getProductId() {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("id");
-  // keep as string to support bigint ids
   return raw ? String(raw).trim() : "";
 }
 
@@ -68,18 +86,36 @@ function showMessage(msg) {
   container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
 }
 
-/* ---------- cart ---------- */
+/* ---------- cart (localStorage, and migrate sessionStorage if it existed) ---------- */
 function loadCart() {
-  const c = safeJSONSession(CART_KEY, []);
-  return Array.isArray(c) ? c : [];
+  let c = safeJSON(localStorage, CART_KEY, null);
+  if (Array.isArray(c)) return c;
+
+  // migrate from old sessionStorage cart if present
+  const old = safeJSON(sessionStorage, CART_KEY, null);
+  if (Array.isArray(old)) {
+    saveJSON(localStorage, CART_KEY, old);
+    try { sessionStorage.removeItem(CART_KEY); } catch {}
+    return old;
+  }
+
+  return [];
 }
-function saveCart(cart) { try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }
+function saveCart(cart) { saveJSON(localStorage, CART_KEY, cart); }
 function isInCart(cart, id) { return cart.some(i => String(i.id) === String(id)); }
 
 function addToCartOnce(product) {
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
-  cart.push({ id: product.id, name: product.name, price: product.price, image: product.image, qty: 1 });
+
+  cart.push({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    image: product.image,   // may be signed; ok (cart image can expire later)
+    qty: 1
+  });
+
   saveCart(cart);
 }
 
@@ -115,11 +151,15 @@ function setCartButtonState(inCart) {
 
 /* ---------- product fetch ---------- */
 function normalizeProduct(p) {
-  const image = resolveImage(p?.image_url || p?.image || (Array.isArray(p?.images) ? p.images[0] : ""));
+  const image = resolveImage(
+    p?.image_url || p?.image || (Array.isArray(p?.images) ? p.images[0] : "")
+  );
 
   let images = [];
   if (Array.isArray(p?.images)) images = p.images;
-  else if (typeof p?.images === "string") { try { images = JSON.parse(p.images); } catch { images = []; } }
+  else if (typeof p?.images === "string") {
+    try { images = JSON.parse(p.images); } catch { images = []; }
+  }
 
   images = images.map(resolveImage).filter(Boolean);
   if (!images.length) images = [image];
@@ -148,17 +188,21 @@ function renderGallery(images, activeIndex = 0) {
   const thumbsWrap = el("productThumbs");
   if (!mainImg || !Array.isArray(images) || !images.length) return;
 
-  mainImg.src = images[activeIndex] || images[0];
+  const src = images[activeIndex] || images[0];
+  mainImg.src = src;
   mainImg.alt = "Product image";
+
+  // fallback image if signed URL expired / broken
+  mainImg.onerror = () => { mainImg.src = "images_brown/bodyButter.png"; };
 
   if (!thumbsWrap) return;
   thumbsWrap.innerHTML = "";
 
-  images.forEach((src, idx) => {
+  images.forEach((imgSrc, idx) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pd-thumb" + (idx === activeIndex ? " active" : "");
-    b.innerHTML = `<img src="${escapeHtml(src)}" alt="thumbnail ${idx + 1}" draggable="false">`;
+    b.innerHTML = `<img src="${escapeHtml(imgSrc)}" alt="thumbnail ${idx + 1}" draggable="false">`;
     b.addEventListener("click", () => renderGallery(images, idx));
     thumbsWrap.appendChild(b);
   });
@@ -195,6 +239,20 @@ async function api(path, opts = {}) {
   return fetch(`${API_BASE}${path}`, { ...opts, headers, credentials: "include" });
 }
 
+/* ✅ REAL admin detection (no fake PIN)
+   If admin cookie session exists, /admin/me will return {success:true}.
+*/
+let isAdmin = false;
+async function detectAdminSession() {
+  try {
+    const r = await api("/admin/me");
+    const data = await r.json().catch(() => ({}));
+    isAdmin = Boolean(r.ok && data?.success);
+  } catch {
+    isAdmin = false;
+  }
+}
+
 let rvAll = [];
 let rvFilteredStar = 0;
 let rvSortMode = "recent";
@@ -211,7 +269,6 @@ function calcAverage(list) {
   const sum = list.reduce((a, r) => a + (Number(r.rating) || 0), 0);
   return sum / list.length;
 }
-
 function breakdownCounts(list) {
   const counts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
   list.forEach(r => { counts[clamp(Number(r.rating)||1,1,5)] += 1; });
@@ -273,42 +330,6 @@ function getDisplayList() {
   return list;
 }
 
-function isReviewAdmin() { return localStorage.getItem("reviews-admin-ui") === "yes"; }
-function setReviewAdminUI(on) { localStorage.setItem("reviews-admin-ui", on ? "yes" : "no"); }
-
-function setupAdminButtons(productId) {
-  const adminBtn = el("rvAdminBtn");
-  const logoutBtn = el("rvAdminLogoutBtn");
-  if (!adminBtn || !logoutBtn) return;
-
-  function refreshAdminUI() {
-    const on = isReviewAdmin();
-    logoutBtn.hidden = !on;
-    adminBtn.textContent = on ? "Admin: ON" : "Admin";
-  }
-
-  adminBtn.addEventListener("click", async () => {
-    if (isReviewAdmin()) { refreshAdminUI(); return; }
-    const pin = prompt("Enter admin PIN to manage reviews:");
-    if (pin === null) return;
-    if (String(pin).trim() === "4567") {
-      setReviewAdminUI(true);
-      refreshAdminUI();
-      renderSummary(rvAll);
-      renderListUI(productId);
-    } else alert("Wrong PIN.");
-  });
-
-  logoutBtn.addEventListener("click", () => {
-    setReviewAdminUI(false);
-    refreshAdminUI();
-    renderSummary(rvAll);
-    renderListUI(productId);
-  });
-
-  refreshAdminUI();
-}
-
 async function loadReviews(productId) {
   const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, { cache: "no-store" });
   const data = await r.json().catch(() => ({}));
@@ -346,7 +367,11 @@ async function voteReview(reviewId, voteType) {
 async function adminDeleteReview(reviewId) {
   const r = await api(`/admin/reviews/${encodeURIComponent(reviewId)}`, { method: "DELETE" });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data?.success) throw new Error(data?.message || "Delete failed");
+  if (!r.ok || !data?.success) {
+    if (r.status === 401) throw new Error("Unauthorized. Please login as admin.");
+    if (r.status === 403) throw new Error("Blocked (CSRF). Please refresh + login again.");
+    throw new Error(data?.message || "Delete failed");
+  }
   return true;
 }
 
@@ -363,8 +388,6 @@ function renderListUI(productId) {
     if (moreBtn) moreBtn.hidden = true;
     return;
   }
-
-  const adminOn = isReviewAdmin();
 
   wrap.innerHTML = "";
   visible.forEach(r => {
@@ -394,7 +417,7 @@ function renderListUI(productId) {
       <div class="rv-item-actions">
         <button type="button" class="rv-vote" data-vote="up">Helpful <span class="rv-vnum">(${up})</span></button>
         <button type="button" class="rv-vote" data-vote="down">Not helpful <span class="rv-vnum">(${down})</span></button>
-        ${adminOn ? `<button type="button" class="rv-del-btn" data-del="${r.id}">Delete</button>` : ``}
+        ${isAdmin ? `<button type="button" class="rv-del-btn" data-del="${r.id}">Delete</button>` : ``}
       </div>
     `;
 
@@ -434,12 +457,14 @@ function renderListUI(productId) {
 }
 
 async function initReviews(productId) {
+  // detect admin once
+  await detectAdminSession();
+
   rvAll = await loadReviews(productId);
 
   renderSummary(rvAll);
   rvShown = RV_PAGE_SIZE;
   renderListUI(productId);
-  setupAdminButtons(productId);
 
   const toggle = el("rvToggleForm");
   const formWrap = el("rvFormWrap");
@@ -588,6 +613,7 @@ async function init() {
 document.addEventListener("DOMContentLoaded", () => {
   init();
 
+  // keep header cart count in sync
   let tries = 0;
   const t = setInterval(() => {
     tries++;

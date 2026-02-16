@@ -36,4 +36,11 @@
 
   // must match server.js
   window.ADMIN_CSRF_COOKIE = "admin_csrf";
+
+  // Option A (best): backend already returns full URLs -> you can skip this
+window.SUPABASE_PUBLIC_BUCKET_URL = "https://YOURPROJECT.supabase.co/storage/v1/object/public/YOURBUCKET";
+
+// Example:
+// window.SUPABASE_PUBLIC_BUCKET_URL = "https://abcd.supabase.co/storage/v1/object/public/product-images";
+
 })();

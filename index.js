@@ -1,6 +1,6 @@
-/* ================= INDEX.JS (UPDATED) =================
-   ✅ Preloader (per-tab sessionStorage)
-   ✅ Featured slider kept
+/* ================= INDEX.JS (MOBILE-FIRST PREMIUM) =================
+   ✅ Preloader per-tab (sessionStorage)
+   ✅ Featured slider
    ✅ Reads products from sessionStorage(allProducts)
    ✅ If empty, fetches from backend and saves into sessionStorage(allProducts)
    ✅ Cards navigate to product-details.html?id=ID
@@ -15,13 +15,13 @@ window.addEventListener("load", () => {
 
   if (!sessionStorage.getItem("visited")) {
     sessionStorage.setItem("visited", "true");
-
     setTimeout(() => {
       if (preloader) {
         preloader.style.opacity = "0";
-        setTimeout(() => preloader.remove(), 600);
+        preloader.style.transition = "opacity .45s ease";
+        setTimeout(() => preloader.remove(), 480);
       }
-    }, 1200);
+    }, 950);
   } else {
     if (preloader) preloader.remove();
   }
@@ -43,11 +43,9 @@ function safeParseJSONSession(key, fallback) {
     return fallback;
   }
 }
-
 function safeSetJSONSession(key, value) {
   try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
-
 function safeParseJSONLocal(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -57,7 +55,6 @@ function safeParseJSONLocal(key, fallback) {
     return fallback;
   }
 }
-
 function normalizeName(str) {
   return String(str || "").trim().toLowerCase();
 }
@@ -78,6 +75,7 @@ function preloadImage(src, callback) {
   const img = new Image();
   img.src = src;
   img.onload = callback;
+  img.onerror = callback;
 }
 
 function switchFeatured() {
@@ -97,10 +95,9 @@ function switchFeatured() {
       if (featuredName) featuredName.style.opacity = "1";
 
       featuredIndex = (featuredIndex + 1) % featuredProducts.length;
-    }, 400);
+    }, 280);
   });
 }
-
 switchFeatured();
 setInterval(switchFeatured, 4500);
 
@@ -125,11 +122,15 @@ function normalizeProduct(p) {
 
 async function fetchProductsFromBackend() {
   if (!API_BASE) return [];
-  const res = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
-  if (!res.ok) return [];
-  const data = await res.json();
-  if (!Array.isArray(data)) return [];
-  return data.map(normalizeProduct).filter(p => p.id && p.name);
+  try {
+    const res = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(normalizeProduct).filter(p => p.id && p.name);
+  } catch {
+    return [];
+  }
 }
 
 function findProductIdByName(name) {
@@ -139,10 +140,9 @@ function findProductIdByName(name) {
   return found?.id ?? null;
 }
 
-/* ================= CARD RENDER HELPER (SAFER) ================= */
+/* ================= CARD RENDER HELPER ================= */
 function renderCards(container, items, cardClass) {
   if (!container) return;
-
   container.innerHTML = "";
 
   items.forEach((p) => {
@@ -157,8 +157,6 @@ function renderCards(container, items, cardClass) {
     img.src = p.img;
     img.alt = p.name;
     img.loading = "lazy";
-    img.className = "clickable-img";
-    img.style.cursor = "pointer";
 
     const title = document.createElement("h4");
     title.textContent = p.name;
@@ -167,18 +165,18 @@ function renderCards(container, items, cardClass) {
       e.stopPropagation();
       goToProduct(idToUse);
     });
-
     card.addEventListener("click", () => goToProduct(idToUse));
 
     card.appendChild(img);
     card.appendChild(title);
-
     container.appendChild(card);
   });
 }
 
-/* ================= HOMEPAGE + LATEST ================= */
+/* ================= DEFAULT CARD DATA ================= */
 const homeProductsEl = document.getElementById("homeProducts");
+const latestGrid = document.getElementById("latestProducts");
+
 const homepageProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
@@ -187,7 +185,6 @@ const homepageProducts = [
   { id: 5, name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
 ];
 
-const latestGrid = document.getElementById("latestProducts");
 const latestProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
@@ -196,8 +193,22 @@ const latestProducts = [
 ];
 
 function renderHomeSections() {
-  if (homeProductsEl) renderCards(homeProductsEl, homepageProducts, "home-card");
   if (latestGrid) renderCards(latestGrid, latestProducts, "latest-card");
+  if (homeProductsEl) renderCards(homeProductsEl, homepageProducts, "home-card");
+}
+
+/* Upgrade to backend images/ids if available */
+function buildCardsFromBackend(names, fallbackList) {
+  const all = getAllProducts();
+  const mapped = names
+    .map(n => {
+      const p = all.find(x => normalizeName(x?.name) === normalizeName(n));
+      if (!p) return null;
+      return { id: p.id, name: p.name, img: p.image };
+    })
+    .filter(Boolean);
+
+  return mapped.length ? mapped : fallbackList;
 }
 
 /* ================= USER GREETING ================= */
@@ -216,7 +227,6 @@ function renderHomeSections() {
 (function mobileMenu() {
   const hamburger = document.getElementById("hamburger");
   const mobileNav = document.getElementById("mobileNav");
-
   if (!hamburger || !mobileNav) return;
 
   hamburger.addEventListener("click", () => {
@@ -232,9 +242,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   const existing = getAllProducts();
   if (!existing.length) {
     const fetched = await fetchProductsFromBackend();
-    if (fetched.length) {
-      safeSetJSONSession(PRODUCTS_KEY, fetched);
-      renderHomeSections();
-    }
+    if (fetched.length) safeSetJSONSession(PRODUCTS_KEY, fetched);
+  }
+
+  if (getAllProducts().length) {
+    const latestBetter = buildCardsFromBackend(latestProducts.map(x => x.name), latestProducts);
+    const lovedBetter = buildCardsFromBackend(homepageProducts.map(x => x.name), homepageProducts);
+
+    if (latestGrid) renderCards(latestGrid, latestBetter, "latest-card");
+    if (homeProductsEl) renderCards(homeProductsEl, lovedBetter, "home-card");
   }
 });
