@@ -640,3 +640,10 @@ body{background:var(--butter);color:var(--text-dark);}
   font-weight: 950;
   color: rgba(138,46,46,0.9);
 }
+.rv-summary{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:14px;margin:14px 0}
+.rv-avg-num{font-size:28px;font-weight:900;line-height:1}
+.rv-avg-stars{font-size:18px;margin-top:4px}
+.rv-count{opacity:.8;margin-top:4px}
+.rv-bar-row{display:grid;grid-template-columns:44px 1fr 40px;gap:10px;align-items:center;margin-top:8px}
+.rv-bar-track{height:10px;background:rgba(0,0,0,.08);border-radius:999px;overflow:hidden}
+.rv-bar-fill{height:100%;background:rgba(0,0,0,.35)}

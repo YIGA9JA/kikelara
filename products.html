@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="products.css" />
 
-  <!-- ✅ MUST load config first -->
+  <!-- ✅ MUST load config first (sets window.API_BASE) -->
   <script src="config.js"></script>
 
   <!-- ✅ Defer ensures DOM exists + config already set -->
@@ -19,35 +19,59 @@
     </style>
   </noscript>
 </head>
+
 <body>
+
   <noscript>
     <h2>JavaScript is disabled</h2>
     <p>Please enable JavaScript to view products.</p>
   </noscript>
 
-  <!-- header injected / your header -->
-  <header>
-    <span id="cartCount">0</span>
-    <span id="wishlistCount">0</span>
+  <!-- ================= HEADER ================= -->
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Go to homepage">
+      <span class="brand-name">KÍKÉLÁRÁ</span>
+    </a>
+
+    <nav class="top-nav" aria-label="Top navigation">
+      <a class="nav-link" href="products.html">Shop</a>
+      <a class="nav-link" href="cart.html">Cart <span class="badge" id="cartCount">0</span></a>
+      <a class="nav-link" href="#" aria-disabled="true">Wishlist <span class="badge" id="wishlistCount">0</span></a>
+    </nav>
   </header>
 
+  <!-- ================= MAIN ================= -->
   <main class="pd">
-    <h1>Products</h1>
+    <div class="pd-top">
+      <h1 class="pd-title">Products</h1>
 
-    <div class="filters">
-      <select id="categorySelect">
-        <option value="all">All</option>
-      </select>
+      <div class="filters" aria-label="Product filters">
+        <label class="sr-only" for="categorySelect">Category</label>
+        <select id="categorySelect">
+          <option value="all">All</option>
+        </select>
 
-      <select id="sortSelect">
-        <option value="default">Default</option>
-        <option value="priceLow">Price: Low → High</option>
-        <option value="priceHigh">Price: High → Low</option>
-        <option value="name">Name A → Z</option>
-      </select>
+        <label class="sr-only" for="sortSelect">Sort</label>
+        <select id="sortSelect">
+          <option value="default">Default</option>
+          <option value="priceLow">Price: Low → High</option>
+          <option value="priceHigh">Price: High → Low</option>
+          <option value="name">Name A → Z</option>
+        </select>
+      </div>
     </div>
 
-    <div id="productsGrid" class="products-grid"></div>
+    <!-- Optional: status line -->
+    <div id="productsMeta" class="pd-meta" aria-live="polite"></div>
+
+    <!-- Grid -->
+    <div id="productsGrid" class="products-grid" aria-label="Products list"></div>
+
+    <!-- Optional: empty state -->
+    <div id="emptyState" class="empty" hidden>
+      <h3>No products found</h3>
+      <p>Try changing your filters.</p>
+    </div>
   </main>
 
   <!-- ✅ Quick debug (remove anytime) -->
@@ -59,5 +83,14 @@
       try { sessionStorage.removeItem("allProducts"); } catch {}
     }
   </script>
+
+  <!-- Small accessibility helper -->
+  <style>
+    .sr-only{
+      position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+      clip:rect(0,0,0,0);white-space:nowrap;border:0;
+    }
+  </style>
+
 </body>
 </html>

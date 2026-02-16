@@ -190,3 +190,14 @@ body{background:var(--butter);color:var(--text-dark);}
   letter-spacing: 0;
   opacity: .7;
 }
+.p-card{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.p-img{display:block;background:#fafafa}
+.p-img img{width:100%;height:260px;object-fit:cover;display:block}
+.p-body{padding:14px}
+.p-name{margin:0 0 6px;font-size:16px}
+.p-price{font-weight:800;margin-bottom:6px}
+.p-rating{opacity:.85;font-size:14px;margin-bottom:10px}
+.p-actions{display:flex;gap:10px}
+.p-btn{border:none;border-radius:12px;padding:10px 12px;font-weight:800;cursor:pointer}
+.p-btn:disabled{opacity:.6;cursor:not-allowed}
+.p-btn-ghost{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:rgba(0,0,0,.05);color:#111}

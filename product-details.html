@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Product Details</title>
 
+  <!-- ✅ CSS -->
   <link rel="stylesheet" href="product-details.css" />
 
-  <!-- ✅ MUST load config first -->
+  <!-- ✅ MUST load config first (sets window.API_BASE) -->
   <script src="config.js"></script>
 
   <!-- ✅ Defer ensures DOM exists + config already set -->
@@ -19,56 +20,90 @@
     </style>
   </noscript>
 </head>
+
 <body>
+
   <noscript>
     <h2>JavaScript is disabled</h2>
     <p>Please enable JavaScript to view product details and reviews.</p>
   </noscript>
 
-  <header>
-    <span id="cartCount">0</span>
-    <span id="wishlistCount">0</span>
+  <!-- ================= HEADER ================= -->
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Go to homepage">
+      <span class="brand-name">KÍKÉLÁRÁ</span>
+    </a>
+
+    <nav class="top-nav" aria-label="Top navigation">
+      <a class="nav-link" href="products.html">Shop</a>
+      <a class="nav-link" href="cart.html">Cart <span class="badge" id="cartCount">0</span></a>
+      <a class="nav-link" href="#" aria-disabled="true">Wishlist <span class="badge" id="wishlistCount">0</span></a>
+    </nav>
   </header>
 
+  <!-- ================= MAIN ================= -->
   <main class="pd">
-    <section class="pd-grid">
+
+    <!-- ================= PRODUCT GRID ================= -->
+    <section class="pd-grid" aria-label="Product details">
+
+      <!-- LEFT: images -->
       <div class="pd-left">
-        <img id="productImage" alt="Product" />
-        <div id="productThumbs"></div>
+        <div class="pd-image-wrap">
+          <img id="productImage" alt="Product image" loading="eager" />
+        </div>
+
+        <!-- Thumbnails -->
+        <div id="productThumbs" class="pd-thumbs" aria-label="Product thumbnails"></div>
       </div>
 
+      <!-- RIGHT: info -->
       <div class="pd-right">
-        <div id="productCategory"></div>
-        <h1 id="productName"></h1>
-        <div id="productPrice"></div>
+        <div id="productCategory" class="pd-category"></div>
 
-        <p id="productDescription"></p>
+        <h1 id="productName" class="pd-title"></h1>
+
+        <div class="pd-price-row">
+          <div id="productPrice" class="pd-price"></div>
+        </div>
+
+        <p id="productDescription" class="pd-desc"></p>
 
         <div class="pd-actions">
-          <button id="cartBtn" type="button">ADD TO CART</button>
-          <span id="productInCart" style="display:none;">IN CART</span>
-          <a id="viewCartLink" href="cart.html" style="display:none;">View Cart</a>
+          <button id="cartBtn" class="pd-cart-btn" type="button">ADD TO CART</button>
+
+          <span id="productInCart" class="pd-in-cart" style="display:none;">IN CART</span>
+
+          <a id="viewCartLink" class="pd-view-cart" href="cart.html" style="display:none;">View Cart</a>
         </div>
       </div>
     </section>
 
-    <!-- REVIEWS -->
-    <section class="reviews">
+    <!-- ================= REVIEWS ================= -->
+    <section class="reviews" aria-label="Product reviews">
+
+      <!-- Top summary row -->
       <div class="rv-top">
-        <div>
-          <div><span id="rvAvg">0.0</span> <span id="rvAvgStars"></span></div>
-          <div id="rvCount">0 ratings</div>
+        <div class="rv-summary">
+          <div class="rv-score-line">
+            <span class="rv-avg" id="rvAvg">0.0</span>
+            <span class="rv-stars" id="rvAvgStars"></span>
+          </div>
+          <div class="rv-count" id="rvCount">0 ratings</div>
         </div>
 
+        <!-- Admin controls -->
         <div class="rv-admin">
-          <button id="rvAdminBtn" type="button">Admin</button>
-          <button id="rvAdminLogoutBtn" type="button" hidden>Logout</button>
+          <button id="rvAdminBtn" class="rv-admin-btn" type="button">Admin</button>
+          <button id="rvAdminLogoutBtn" class="rv-admin-btn" type="button" hidden>Logout</button>
         </div>
       </div>
 
-      <div id="rvBreakdown"></div>
+      <!-- Breakdown bars -->
+      <div id="rvBreakdown" class="rv-breakdown" aria-label="Ratings breakdown"></div>
 
-      <div id="rvStarFilters">
+      <!-- Filters -->
+      <div id="rvStarFilters" class="rv-filters" aria-label="Review filters">
         <button class="rv-filter is-active" data-star="0" type="button">All</button>
         <button class="rv-filter" data-star="5" type="button">5★</button>
         <button class="rv-filter" data-star="4" type="button">4★</button>
@@ -77,49 +112,68 @@
         <button class="rv-filter" data-star="1" type="button">1★</button>
       </div>
 
-      <select id="rvSort">
-        <option value="recent">Most recent</option>
-        <option value="helpful">Most helpful</option>
-        <option value="high">Highest rating</option>
-        <option value="low">Lowest rating</option>
-      </select>
+      <!-- Sort -->
+      <div class="rv-sort-row">
+        <label class="rv-sort-label" for="rvSort">Sort</label>
+        <select id="rvSort" class="rv-sort">
+          <option value="recent">Most recent</option>
+          <option value="helpful">Most helpful</option>
+          <option value="high">Highest rating</option>
+          <option value="low">Lowest rating</option>
+        </select>
+      </div>
 
-      <div id="reviewsList"></div>
-      <button id="rvMoreBtn" type="button">Load more</button>
+      <!-- Reviews list -->
+      <div id="reviewsList" class="rv-list" aria-label="Reviews list"></div>
 
-      <button id="rvToggleForm" type="button">Write a review</button>
+      <!-- Load more -->
+      <button id="rvMoreBtn" class="rv-more" type="button">Load more</button>
 
-      <div id="rvFormWrap" hidden>
-        <form id="reviewForm">
-          <div id="starInput">
-            <button class="star" data-value="1" type="button">★</button>
-            <button class="star" data-value="2" type="button">★</button>
-            <button class="star" data-value="3" type="button">★</button>
-            <button class="star" data-value="4" type="button">★</button>
-            <button class="star" data-value="5" type="button">★</button>
-            <span id="rvHint">Select a rating</span>
+      <!-- Toggle form -->
+      <button id="rvToggleForm" class="rv-toggle-form" type="button">Write a review</button>
+
+      <!-- Review form -->
+      <div id="rvFormWrap" class="rv-form-wrap" hidden>
+        <form id="reviewForm" class="rv-form" autocomplete="off">
+
+          <!-- Star input -->
+          <div id="starInput" class="rv-stars-input" aria-label="Select star rating">
+            <button class="star" data-value="1" type="button" aria-label="1 star">★</button>
+            <button class="star" data-value="2" type="button" aria-label="2 stars">★</button>
+            <button class="star" data-value="3" type="button" aria-label="3 stars">★</button>
+            <button class="star" data-value="4" type="button" aria-label="4 stars">★</button>
+            <button class="star" data-value="5" type="button" aria-label="5 stars">★</button>
+            <span id="rvHint" class="rv-hint">Select a rating</span>
           </div>
 
+          <!-- Hidden rating value (JS sets this) -->
           <input id="reviewRating" type="hidden" value="0" />
 
-          <input id="reviewName" placeholder="Your name (optional)" />
-          <input id="reviewTitle" placeholder="Review title" required />
-          <textarea id="reviewText" placeholder="Write your review..." required></textarea>
+          <!-- Inputs -->
+          <div class="rv-fields">
+            <input id="reviewName" class="rv-input" placeholder="Your name (optional)" />
+            <input id="reviewTitle" class="rv-input" placeholder="Review title" required minlength="3" />
+            <textarea id="reviewText" class="rv-textarea" placeholder="Write your review..." required minlength="10"></textarea>
+          </div>
 
-          <div id="reviewError" style="color:#b00020;"></div>
+          <!-- Error message -->
+          <div id="reviewError" class="rv-error" style="color:#b00020;"></div>
 
-          <button type="submit">Submit review</button>
+          <!-- Submit -->
+          <button type="submit" class="rv-submit">Submit review</button>
         </form>
       </div>
+
     </section>
   </main>
 
-  <!-- ✅ Quick debug (remove anytime) -->
+  <!-- ✅ Optional debug (remove anytime) -->
   <script>
     console.log("API_BASE =", window.API_BASE);
     if (!window.API_BASE) {
       try { sessionStorage.removeItem("allProducts"); } catch {}
     }
   </script>
+
 </body>
 </html>
