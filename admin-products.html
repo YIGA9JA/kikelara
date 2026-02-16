@@ -5,10 +5,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
+  <!-- Must load config first -->
   <script src="config.js"></script>
+
   <link rel="stylesheet" href="admin-products.css" />
 </head>
 <body>
+
+  <noscript>
+    <div style="padding:16px; background:#fff4da; color:#2b2215; font-weight:700;">
+      This admin page requires JavaScript to work.
+    </div>
+  </noscript>
 
   <main class="ad">
     <header class="ad-top">
@@ -65,16 +73,24 @@
   <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
 
   <!-- Login Modal -->
-  <div class="modal" id="loginModal" aria-hidden="true">
+  <!-- ✅ inert fixes “aria-hidden descendant retained focus” -->
+  <div class="modal" id="loginModal" aria-hidden="true" inert>
     <div class="modal-card">
       <div class="modal-top">
         <div class="modal-title">Admin Login</div>
         <button class="modal-x" id="loginClose" aria-label="Close" type="button">×</button>
       </div>
 
-      <form id="loginForm">
-        <label class="lbl">Password</label>
-        <input class="ipt" id="adminPass" type="password" placeholder="Enter admin password" required autocomplete="current-password" />
+      <form id="loginForm" novalidate>
+        <label class="lbl" for="adminPass">Password</label>
+        <input
+          class="ipt"
+          id="adminPass"
+          type="password"
+          placeholder="Enter admin password"
+          required
+          autocomplete="current-password"
+        />
 
         <div class="modal-actions" style="justify-content:flex-start;">
           <button class="btn-primary" type="submit" id="loginBtn">Sign in</button>
@@ -87,31 +103,31 @@
   </div>
 
   <!-- Create/Edit Modal -->
-  <div class="modal" id="editModal" aria-hidden="true">
+  <div class="modal" id="editModal" aria-hidden="true" inert>
     <div class="modal-card modal-wide">
       <div class="modal-top">
         <div class="modal-title" id="editTitle">Add Product</div>
         <button class="modal-x" id="editClose" aria-label="Close" type="button">×</button>
       </div>
 
-      <form id="editForm">
+      <form id="editForm" novalidate>
         <input type="hidden" id="pid" />
         <input type="hidden" id="removeImage" value="false" />
 
         <div class="form-grid">
           <div>
-            <label class="lbl">Name</label>
+            <label class="lbl" for="name">Name</label>
             <input class="ipt" id="name" type="text" placeholder="Product name" required />
           </div>
 
           <div>
-            <label class="lbl">Price (₦)</label>
+            <label class="lbl" for="price">Price (₦)</label>
             <input class="ipt" id="price" type="number" min="0" step="1" placeholder="0" required inputmode="numeric" />
           </div>
 
           <div class="span2">
             <div class="lblRow">
-              <label class="lbl" style="margin:0;">Description</label>
+              <label class="lbl" for="desc" style="margin:0;">Description</label>
               <div class="count" id="descCount">0 / 600</div>
             </div>
             <textarea class="txt" id="desc" rows="4" placeholder="Short product description… (max 600 chars)"></textarea>
@@ -120,7 +136,7 @@
           <div>
             <label class="lbl">Visibility</label>
 
-            <div class="seg">
+            <div class="seg" role="group" aria-label="Visibility">
               <button class="segBtn is-on" type="button" data-seg="true">Active</button>
               <button class="segBtn" type="button" data-seg="false">Hidden</button>
             </div>
@@ -136,7 +152,7 @@
           </div>
 
           <div>
-            <label class="lbl">Image</label>
+            <label class="lbl" for="image">Image</label>
             <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,image/webp" />
             <button class="btn-soft" id="clearImgBtn" type="button" style="margin-top:10px;">
               Remove image
@@ -170,6 +186,8 @@
     </div>
   </div>
 
+  <!-- ✅ SECURITY LOAD ORDER -->
+  <script src="auth.js"></script>
   <script src="admin-products.js"></script>
 </body>
 </html>

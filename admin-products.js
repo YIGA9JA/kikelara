@@ -1,18 +1,12 @@
 /* admin-products.js — SECURE + REAL CRUD (KÍKÉLÁRÁ)
-   ✅ Works with YOUR backend routes:
-      - POST /admin/login
-      - POST /admin/logout
-      - GET  /admin/me
-      - GET  /admin/products
-      - POST /admin/products        (multipart, image optional)
-      - PUT  /admin/products/:id    (multipart, image optional + remove_image)
-      - DELETE /admin/products/:id
-   ✅ Cookie session + CSRF header + credentials include
-   ✅ Fixes focus/aria-hidden modal issue
+   ✅ Cookie session + CSRF header (cookie OR localStorage fallback)
+   ✅ Uses apiFetch() from auth.js
+   ✅ Fixes aria-hidden focus warning (blur before hide + inert)
+   ✅ Refresh works: re-fetches backend products
+   ✅ After save, products show immediately + sessionStorage(allProducts) sync
 */
 
 (function () {
-  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
   const $ = (id) => document.getElementById(id);
 
   // Elements
@@ -95,39 +89,6 @@
     status.dataset.type = type || "";
   }
 
-  function getCookie(name) {
-    const v = `; ${document.cookie}`;
-    const parts = v.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(";").shift() || "";
-    return "";
-  }
-
-  function csrfToken() {
-    // backend sets CSRF cookie name: admin_csrf
-    return getCookie("admin_csrf") || "";
-  }
-
-  async function api(path, opts = {}) {
-    const method = String(opts.method || "GET").toUpperCase();
-    const headers = { ...(opts.headers || {}) };
-
-    // CSRF for mutations
-    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-      const c = csrfToken();
-      if (c) headers["X-CSRF-Token"] = c;
-    }
-
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...opts,
-      method,
-      headers,
-      credentials: "include",
-      cache: "no-store"
-    });
-
-    return res;
-  }
-
   function isOpen(modal) {
     return modal && modal.classList.contains("show");
   }
@@ -135,6 +96,9 @@
   function setAria(modal, open) {
     if (!modal) return;
     modal.setAttribute("aria-hidden", open ? "false" : "true");
+    // ✅ inert prevents focus (recommended by browser warning)
+    if (open) modal.removeAttribute("inert");
+    else modal.setAttribute("inert", "");
   }
 
   function lockBody(open) {
@@ -183,20 +147,19 @@
     if (card) card.scrollTop = 0;
 
     window.requestAnimationFrame(() => {
-      // focus safely
       if (focusEl && typeof focusEl.focus === "function") {
         focusEl.focus();
         return;
       }
       const focusables = getFocusable(card);
-      if (focusables[0] && typeof focusables[0].focus === "function") focusables[0].focus();
+      focusables[0]?.focus?.();
     });
   }
 
   function closeModal(modal) {
     if (!modal) return;
 
-    // ✅ fix aria-hidden warning: move focus OUT before hiding
+    // ✅ move focus OUT before hiding (fixes your aria-hidden warning)
     try {
       if (document.activeElement && modal.contains(document.activeElement)) {
         document.activeElement.blur?.();
@@ -208,7 +171,6 @@
 
     if (!isOpen(loginModal) && !isOpen(editModal)) lockBody(false);
 
-    // return focus safely
     if (lastFocus && typeof lastFocus.focus === "function") {
       window.requestAnimationFrame(() => lastFocus?.focus?.());
     }
@@ -333,6 +295,15 @@
     if (help) { help.textContent = ""; help.removeAttribute("data-type"); }
   }
 
+  function resolveImage(url) {
+    const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
+    const u = String(url || "");
+    if (!u) return "";
+    if (u.startsWith("http://") || u.startsWith("https://")) return u;
+    if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
+    return u;
+  }
+
   function fillEditForm(p) {
     if (pid) pid.value = String(p.id);
     if (nameIpt) nameIpt.value = String(p.name || "");
@@ -341,46 +312,44 @@
     updateDescCount();
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
-    // preview existing image_url
-    const img = p.image_url ? resolveImage(p.image_url) : "";
-    showPreview(img);
-  }
-
-  function resolveImage(url) {
-    const u = String(url || "");
-    if (!u) return "";
-    if (u.startsWith("http://") || u.startsWith("https://")) return u;
-    if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u;
+    showPreview(p.image_url ? resolveImage(p.image_url) : "");
   }
 
   /* ================= AUTH ================= */
   async function checkMe() {
-    const r = await api("/admin/me");
+    const r = await apiFetch("/admin/me", { method: "GET" });
     return r.ok;
   }
 
   async function login(password) {
-    const r = await api("/admin/login", {
+    const r = await apiFetch("/admin/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ password })
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Login failed");
+
+    // if backend returns csrfToken, auth.js can use localStorage fallback (already stored in admin-login.js)
+    // but if you're logging in from this modal, store it too:
+    if (data?.csrfToken) {
+      try { localStorage.setItem((window.ADMIN_CSRF_STORAGE_KEY || "admin_csrf_ls"), String(data.csrfToken)); } catch {}
+    }
+
     return true;
   }
 
   async function logout() {
-    const r = await api("/admin/logout", { method: "POST" });
+    const r = await apiFetch("/admin/logout", { method: "POST" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Logout failed");
+    try { localStorage.removeItem((window.ADMIN_CSRF_STORAGE_KEY || "admin_csrf_ls")); } catch {}
     return true;
   }
 
   /* ================= PRODUCTS API ================= */
   async function fetchAdminProducts() {
-    const r = await api("/admin/products");
+    const r = await apiFetch("/admin/products", { method: "GET" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to load products");
     return Array.isArray(data.products) ? data.products : [];
@@ -401,7 +370,7 @@
 
   async function createProduct() {
     const fd = buildFormData({ isUpdate: false });
-    const r = await api("/admin/products", { method: "POST", body: fd });
+    const r = await apiFetch("/admin/products", { method: "POST", body: fd });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Create failed");
     return data.product;
@@ -409,14 +378,14 @@
 
   async function updateProduct(id) {
     const fd = buildFormData({ isUpdate: true });
-    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "PUT", body: fd });
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(id)}`, { method: "PUT", body: fd });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Update failed");
     return data.product;
   }
 
   async function deleteProduct(id) {
-    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Delete failed");
     return true;
@@ -496,15 +465,15 @@
       setStatus(`Loaded ${products.length} product(s).`, "ok");
       render();
 
-      // ✅ keep frontend cache in sync
-      try {
-        sessionStorage.setItem("allProducts", JSON.stringify(products));
-      } catch {}
+      // ✅ keep frontend session cache in sync (public pages can read this if you want)
+      try { sessionStorage.setItem("allProducts", JSON.stringify(products)); } catch {}
     } catch (e) {
       console.warn(e);
       setStatus(String(e.message || e), "err");
-      // if unauthorized, prompt login
-      if (String(e.message || "").toLowerCase().includes("unauthorized")) {
+
+      // If auth failure, show login modal
+      const msg = String(e.message || "").toLowerCase();
+      if (msg.includes("unauthorized") || msg.includes("not authed") || msg.includes("401") || msg.includes("403")) {
         openModal(loginModal, adminPass);
       }
     }
@@ -626,7 +595,6 @@
   (async function init() {
     updateDescCount();
 
-    // if not logged in, show login; else load products
     const ok = await checkMe().catch(() => false);
     if (!ok) openModal(loginModal, adminPass);
     else loadProducts();
