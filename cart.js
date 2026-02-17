@@ -1,21 +1,81 @@
 /* ================= CART.JS (PREMIUM + YOUR COLORS) =================
    ✅ Qty +/- only in cart
-   ✅ No wishlist dependency (but won’t crash if wishlistCount exists in header)
+   ✅ No wishlist dependency (safe if wishlistCount exists)
    ✅ Delivery shown as “calculated at checkout”
    ✅ Shows totals inside checkout button
    ✅ Sticky mobile checkout bar
-   ✅ SessionStorage ONLY (cart + wishlist)
-   ✅ Cross-tab sync via BroadcastChannel (works with sessionStorage)
+   ✅ Cart stored in localStorage(cart) for consistency across pages/tabs
+   ✅ Cross-tab sync via storage event + BroadcastChannel
 ==================================================================== */
 
 const CART_KEY = "cart";
-const WISHLIST_KEY = "wishlist"; // optional safety for header badge
+const WISHLIST_KEY = "wishlist"; // optional badge safety
 
 const CART_CHANNEL = "kikelara_cart_sync_v1";
 const cartChannel = ("BroadcastChannel" in window) ? new BroadcastChannel(CART_CHANNEL) : null;
 
+function safeJSON(storage, key, fallback) {
+  try {
+    const v = JSON.parse(storage.getItem(key));
+    return v ?? fallback;
+  } catch { return fallback; }
+}
+function saveJSON(storage, key, value) {
+  try { storage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/* Resolve image safely (avoid broken / risky values) */
+function resolveImage(url) {
+  const u = String(url || "").trim();
+  if (!u) return "images_brown/bodyButter.png";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
+  if (u.startsWith("/uploads/") && window.API_BASE) {
+    const base = String(window.API_BASE || "").replace(/\/+$/, "");
+    return `${base}${u}`;
+  }
+  return "images_brown/bodyButter.png";
+}
+
+function broadcastCartUpdated() {
+  document.dispatchEvent(new Event("cart:updated"));
+  if (cartChannel) { try { cartChannel.postMessage({ type: "CART_UPDATED" }); } catch {} }
+}
+
 let cart = [];
-try { cart = JSON.parse(sessionStorage.getItem(CART_KEY)) || []; } catch { cart = []; }
+
+/* ✅ migrate old sessionStorage cart -> localStorage once */
+(function migrateCartOnce() {
+  const local = safeJSON(localStorage, CART_KEY, null);
+  if (Array.isArray(local)) return;
+
+  const old = safeJSON(sessionStorage, CART_KEY, null);
+  if (Array.isArray(old)) {
+    saveJSON(localStorage, CART_KEY, old);
+    try { sessionStorage.removeItem(CART_KEY); } catch {}
+  }
+})();
+
+function readCart() {
+  const v = safeJSON(localStorage, CART_KEY, []);
+  return Array.isArray(v) ? v : [];
+}
+function saveCart({ broadcast = true } = {}) {
+  saveJSON(localStorage, CART_KEY, cart);
+  if (broadcast) broadcastCartUpdated();
+}
+
+function formatNaira(n) { return `₦${Number(n || 0).toLocaleString()}`; }
 
 const cartItems = document.getElementById("cartItems");
 const subtotalEl = document.getElementById("subtotal");
@@ -28,20 +88,6 @@ const mobileCheckout = document.getElementById("mobileCheckout");
 const mobileCheckoutBtn = document.getElementById("mobileCheckoutBtn");
 const mobileCheckoutTotal = document.getElementById("mobileCheckoutTotal");
 
-function saveCart({ broadcast = true } = {}) {
-  try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {
-    console.warn("Failed to save cart to sessionStorage:", e);
-  }
-  if (broadcast && cartChannel) { try { cartChannel.postMessage({ type: "CART_UPDATED" }); } catch {} }
-}
-function readCartFromSession() {
-  try {
-    const v = JSON.parse(sessionStorage.getItem(CART_KEY)) || [];
-    return Array.isArray(v) ? v : [];
-  } catch { return []; }
-}
-function formatNaira(n) { return `₦${Number(n || 0).toLocaleString()}`; }
-
 /* ================= HEADER BADGES ================= */
 function updateHeaderBadges() {
   const cartCountEl = document.getElementById("cartCount");
@@ -51,12 +97,16 @@ function updateHeaderBadges() {
     ? cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
     : 0;
 
-  if (cartCountEl) cartCountEl.textContent = cartQty;
+  if (cartCountEl) {
+    cartCountEl.textContent = String(cartQty);
+    // if your header.js hides badge automatically, this is fine
+  }
 
   if (wishlistCountEl) {
-    let wishlist = [];
-    try { wishlist = JSON.parse(sessionStorage.getItem(WISHLIST_KEY)) || []; } catch {}
-    wishlistCountEl.textContent = Array.isArray(wishlist) ? wishlist.length : 0;
+    const wLocal = safeJSON(localStorage, WISHLIST_KEY, []);
+    const wSession = safeJSON(sessionStorage, WISHLIST_KEY, []);
+    const w = Array.isArray(wLocal) ? wLocal : (Array.isArray(wSession) ? wSession : []);
+    wishlistCountEl.textContent = String(w.length);
   }
 }
 
@@ -112,16 +162,20 @@ function renderCart() {
   }
 
   cart.forEach(item => {
+    const id = String(item.id ?? "");
     const qty = Number(item.qty || 1);
     const price = Number(item.price || 0);
 
     const row = document.createElement("div");
     row.className = "cart-item";
 
+    const imgSrc = resolveImage(item.image);
+    const safeName = escapeHtml(item.name || "Item");
+
     row.innerHTML = `
-      <img class="cart-img" src="${item.image}" alt="${item.name}" draggable="false">
+      <img class="cart-img" src="${escapeHtml(imgSrc)}" alt="${safeName}" draggable="false">
       <div class="cart-info">
-        <div class="cart-name">${item.name}</div>
+        <div class="cart-name">${safeName}</div>
 
         <div class="cart-meta">
           <span class="cart-price">${formatNaira(price)}</span>
@@ -130,13 +184,13 @@ function renderCart() {
         </div>
 
         <div class="qty">
-          <button class="qty-btn" data-action="decrease" data-id="${item.id}" aria-label="Decrease quantity">−</button>
+          <button class="qty-btn" data-action="decrease" data-id="${escapeHtml(id)}" aria-label="Decrease quantity">−</button>
           <span class="qty-num">${qty}</span>
-          <button class="qty-btn" data-action="increase" data-id="${item.id}" aria-label="Increase quantity">+</button>
+          <button class="qty-btn" data-action="increase" data-id="${escapeHtml(id)}" aria-label="Increase quantity">+</button>
         </div>
       </div>
 
-      <button class="remove" data-action="remove" data-id="${item.id}" type="button" aria-label="Remove item">
+      <button class="remove" data-action="remove" data-id="${escapeHtml(id)}" type="button" aria-label="Remove item">
         Remove
       </button>
     `;
@@ -154,17 +208,19 @@ cartItems?.addEventListener("click", (e) => {
   if (!btn) return;
 
   const action = btn.dataset.action;
-  const id = Number(btn.dataset.id);
+  const id = String(btn.dataset.id || "");
   if (!id) return;
 
-  const item = cart.find(i => Number(i.id) === id);
+  const item = cart.find(i => String(i.id) === id);
 
   if (action === "increase" && item) item.qty = (Number(item.qty) || 1) + 1;
+
   if (action === "decrease" && item) {
     item.qty = (Number(item.qty) || 1) - 1;
-    if (item.qty <= 0) cart = cart.filter(i => Number(i.id) !== id);
+    if (item.qty <= 0) cart = cart.filter(i => String(i.id) !== id);
   }
-  if (action === "remove") cart = cart.filter(i => Number(i.id) !== id);
+
+  if (action === "remove") cart = cart.filter(i => String(i.id) !== id);
 
   saveCart();
   renderCart();
@@ -186,24 +242,31 @@ function updateMobileBar() {
 }
 
 /* ================= CROSS-TAB SYNC ================= */
+window.addEventListener("storage", (e) => {
+  if (e.key !== CART_KEY) return;
+  cart = readCart();
+  renderCart();
+});
+
 if (cartChannel) {
   cartChannel.onmessage = (msg) => {
     if (msg?.data?.type !== "CART_UPDATED") return;
-    cart = readCartFromSession();
+    cart = readCart();
     renderCart();
   };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  cart = readCartFromSession();
+  cart = readCart();
   renderCart();
   updateMobileBar();
   window.addEventListener("resize", updateMobileBar);
 
+  // if header.js injects after, keep badge sync
   let tries = 0;
   const t = setInterval(() => {
     tries++;
     updateHeaderBadges();
-    if (tries >= 10) clearInterval(t);
+    if (tries >= 12) clearInterval(t);
   }, 150);
 });

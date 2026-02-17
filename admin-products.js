@@ -1,7 +1,7 @@
-/* ================= admin-products.js (Vercel ↔ Render cookie auth + working upload click)
-   ✅ Uses cookie session (credentials: include)
-   ✅ Uses window.apiFetch (adds CSRF header for non-GET)
+/* ================= admin-products.js (Vercel ↔ Render cookie auth + working upload)
+   ✅ Uses cookie session (credentials: include) via apiFetch/auth.js
    ✅ Upload click FIX: real file input overlay (no blocked clicks)
+   ✅ Uses FormData correctly (no JSON content-type here)
 =============================================================================== */
 
 (async function () {
@@ -10,19 +10,17 @@
   const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
 
-  // If auth.js is missing or broken, fail loudly.
   if (typeof apiFetch !== "function") {
-    alert("auth.js not loaded (apiFetch missing). Make sure you included auth.js before admin-products.js");
+    alert("auth.js not loaded (apiFetch missing). Include auth.js before admin-products.js");
     return;
   }
 
-  // ✅ Must be authed
+  // must be authed
   const ok = await window.checkAuth?.();
   if (!ok) return;
 
   const $ = (id) => document.getElementById(id);
 
-  /* ================= ELEMENTS ================= */
   const apiPill = $("apiPill");
   const status = $("status");
 
@@ -55,7 +53,7 @@
   const activeSel = $("active");
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
 
-  const imageIpt = $("image");
+  const imageIpt = $("image");           // ✅ real overlay input
   const previewImg = $("previewImg");
   const imgDropOverlay = $("imgDropOverlay");
   const clearImgBtn = $("clearImgBtn");
@@ -67,14 +65,13 @@
 
   if (apiPill) apiPill.textContent = `API: ${API_BASE || "—"}`;
 
-  /* ================= STATE ================= */
   let products = [];
   let activeFilter = "all";
   let lastFocus = null;
+
   let pickedFile = null;
   let previewObjectUrl = "";
 
-  /* ================= HELPERS ================= */
   function escapeHtml(str) {
     return String(str ?? "")
       .replaceAll("&", "&amp;")
@@ -109,11 +106,8 @@
   function setHelp(text, type) {
     if (!editHelp) return;
     editHelp.textContent = text || "";
-    if (!text) {
-      editHelp.removeAttribute("data-type");
-    } else {
-      editHelp.dataset.type = type || "info";
-    }
+    if (!text) editHelp.removeAttribute("data-type");
+    else editHelp.dataset.type = type || "info";
   }
 
   function revokePreviewUrl() {
@@ -140,10 +134,7 @@
   function resetImage({ markRemove } = { markRemove: true }) {
     revokePreviewUrl();
     pickedFile = null;
-
-    // clear picker (safe)
     try { if (imageIpt) imageIpt.value = ""; } catch {}
-
     if (removeImage && markRemove) removeImage.value = "true";
     showPreview("");
   }
@@ -195,9 +186,7 @@
     const card = modal.querySelector(".modal-card");
     if (card) card.scrollTop = 0;
 
-    requestAnimationFrame(() => {
-      (focusEl || card?.querySelector("input,textarea,button,select"))?.focus?.();
-    });
+    requestAnimationFrame(() => (focusEl || card?.querySelector("input,textarea,button,select"))?.focus?.());
   }
 
   function closeModal(modal) {
@@ -237,7 +226,6 @@
   editClose?.addEventListener("click", () => closeModal(editModal));
   cancelEdit?.addEventListener("click", () => closeModal(editModal));
 
-  /* ================= UI EVENTS ================= */
   desc?.addEventListener("input", updateDescCount);
 
   segBtns.forEach((b) =>
@@ -250,7 +238,7 @@
     toast("warn", "Removed", "Image cleared.");
   });
 
-  // ✅ File chooser (works because input is clickable overlay)
+  // ✅ change handler for REAL overlay input
   imageIpt?.addEventListener("change", () => {
     const f = imageIpt.files && imageIpt.files[0];
     if (!f) return;
@@ -314,7 +302,6 @@
     if (logoutBtn) logoutBtn.disabled = !!on;
   }
 
-  /* ================= API ================= */
   async function fetchAdminProducts() {
     const r = await apiFetch("/admin/products", { method: "GET" });
     const data = await r.json().catch(() => ({}));
@@ -360,7 +347,6 @@
     return true;
   }
 
-  /* ================= RENDER ================= */
   function applyFilterSortSearch(list) {
     const term = String(q?.value || "").trim().toLowerCase();
     let out = [...list];
@@ -485,11 +471,8 @@
         </div>
       `;
 
-      // fallback image if signed URL fails
       const imgEl = card.querySelector("img");
-      imgEl?.addEventListener("error", () => {
-        if (imgEl) imgEl.src = fallbackImg();
-      });
+      imgEl?.addEventListener("error", () => { if (imgEl) imgEl.src = fallbackImg(); });
 
       card.querySelector("[data-edit]")?.addEventListener("click", (ev) => {
         ev.preventDefault(); ev.stopPropagation();
@@ -523,15 +506,12 @@
       products = await fetchAdminProducts();
       setStatus(`Loaded ${products.length} product(s).`, "ok");
       render();
-      try { sessionStorage.setItem("allProducts", JSON.stringify(products)); } catch {}
     } catch (e) {
-      console.warn(e);
       setStatus(String(e.message || e), "err");
       toast("err", "Load failed", String(e.message || e));
     }
   }
 
-  /* ================= TOP EVENTS ================= */
   logoutBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     window.adminLogout?.();
@@ -611,7 +591,6 @@
     }
   });
 
-  /* ================= INIT ================= */
   setActiveUI(true);
   updateDescCount();
   loadProducts();

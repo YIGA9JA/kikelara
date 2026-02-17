@@ -135,17 +135,40 @@ function loadProductsCache() {
 }
 
 /* ================= CART ================= */
+/* ================= CART (localStorage + sync) ================= */
+const CART_CHANNEL = "kikelara_cart_sync_v1";
+const cartChannel = ("BroadcastChannel" in window) ? new BroadcastChannel(CART_CHANNEL) : null;
+
+function broadcastCartUpdated() {
+  document.dispatchEvent(new Event("cart:updated"));
+  if (cartChannel) { try { cartChannel.postMessage({ type: "CART_UPDATED" }); } catch {} }
+}
+
 function loadCart() {
   const c = safeJSON(CART_KEY, []);
   return Array.isArray(c) ? c : [];
 }
-function saveCart(cart) { saveJSON(CART_KEY, cart); }
-function isInCart(cart, id) { return cart.some(i => Number(i.id) === Number(id)); }
+function saveCart(cart) {
+  saveJSON(CART_KEY, cart);
+  broadcastCartUpdated();
+}
+function isInCart(cart, id) {
+  const sid = String(id);
+  return cart.some(i => String(i.id) === sid);
+}
 
 function addToCartOnce(product) {
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
-  cart.push({ ...product, qty: 1 });
+
+  cart.push({
+    id: String(product.id),
+    name: String(product.name || ""),
+    price: Number(product.price || 0),
+    image: product.image,
+    qty: 1
+  });
+
   saveCart(cart);
 }
 
@@ -153,7 +176,8 @@ function updateCartCount() {
   const cartCountEl = document.getElementById("cartCount");
   if (!cartCountEl) return;
   const cart = loadCart();
-  cartCountEl.textContent = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  const total = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  cartCountEl.textContent = String(total);
 }
 
 /* ================= REVIEWS (CARD RATINGS) ================= */
