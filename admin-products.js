@@ -1,17 +1,12 @@
-/* ================= admin-products.js (AUTHED — ONE LOGIN ONLY) =================
+/* ================= admin-products.js (AUTHED — ONE LOGIN ONLY)
    ✅ Uses cookie session from admin-login.html (credentials: include)
    ✅ Checks /admin/me ONCE on page load
    ✅ Uses window.apiFetch (adds CSRF header automatically for non-GET)
-   ✅ NO “second login”, NO credentials: omit
    ✅ CRUD:
       GET    /admin/products
       POST   /admin/products
       PUT    /admin/products/:id
       DELETE /admin/products/:id
-   Requires (in this order):
-     <script src="config.js"></script>
-     <script src="auth.js"></script>
-     <script src="admin-products.js" defer></script>
 =============================================================================== */
 
 (async function () {
@@ -33,9 +28,13 @@
   const refreshBtn = $("refreshBtn");
   const logoutBtn = $("logoutBtn");
 
+  const clearSearchBtn = $("clearSearchBtn");
+  const emptyAddBtn = $("emptyAddBtn");
+
   const editClose = $("editClose");
   const cancelEdit = $("cancelEdit");
   const editForm = $("editForm");
+  const saveBtn = $("saveBtn");
 
   const editTitle = $("editTitle");
   const pid = $("pid");
@@ -66,15 +65,11 @@
   let lastFocus = null;
   let products = [];
   let activeFilter = "all"; // all | active | inactive
+  let previewObjectUrl = ""; // revoke on change
 
   /* ================= NETWORK (AUTHED) ================= */
   async function api(path, options = {}) {
-    // window.apiFetch already does:
-    // - credentials: include
-    // - CSRF header on non-GET
-    // - no-store
-    const res = await apiFetch(path, options);
-    return res;
+    return apiFetch(path, options);
   }
 
   /* ================= HELPERS ================= */
@@ -107,11 +102,6 @@
     if (!status) return;
     status.textContent = text || "";
     status.dataset.type = type || "";
-  }
-
-  function setNum(el, n) {
-    if (!el) return;
-    el.textContent = (n === null || n === undefined) ? "—" : String(n);
   }
 
   function isOpen(modal) {
@@ -192,7 +182,7 @@
     modal.classList.remove("show");
     setAria(modal, false);
 
-    if (!isOpen(editModal)) lockBody(false);
+    lockBody(false);
 
     if (lastFocus && typeof lastFocus.focus === "function") {
       window.requestAnimationFrame(() => lastFocus?.focus?.());
@@ -214,11 +204,9 @@
       if (isOpen(editModal)) closeModal(editModal);
     }
   });
-
   document.addEventListener("keydown", (e) => {
     if (isOpen(editModal)) trapFocus(editModal, e);
   });
-
   bindOutsideClose(editModal);
 
   /* ================= UI SMALLS ================= */
@@ -242,6 +230,13 @@
   );
   setActiveUI(true);
 
+  function revokePreviewUrl() {
+    if (previewObjectUrl) {
+      try { URL.revokeObjectURL(previewObjectUrl); } catch {}
+      previewObjectUrl = "";
+    }
+  }
+
   function showPreview(src) {
     if (!previewImg) return;
     previewImg.src = src || "";
@@ -250,6 +245,7 @@
   }
 
   function resetImage() {
+    revokePreviewUrl();
     if (imageIpt) imageIpt.value = "";
     if (removeImage) removeImage.value = "true";
     showPreview("");
@@ -258,19 +254,28 @@
   imageIpt?.addEventListener("change", () => {
     const f = imageIpt.files && imageIpt.files[0];
     if (!f) return;
-    if (!/^image\/(png|jpeg|webp)$/.test(f.type)) {
+
+    const okType = /^image\/(png|jpeg|webp)$/.test(f.type);
+    if (!okType) {
       toast("err", "Invalid image", "Please select a PNG, JPG or WEBP.");
       imageIpt.value = "";
       return;
     }
+
+    revokePreviewUrl();
+    previewObjectUrl = URL.createObjectURL(f);
+
     if (removeImage) removeImage.value = "false";
-    showPreview(URL.createObjectURL(f));
+    showPreview(previewObjectUrl);
   });
 
   clearImgBtn?.addEventListener("click", () => {
     resetImage();
     toast("warn", "Removed", "Image cleared.");
   });
+
+  // Click drop box to open file picker
+  dropBox?.addEventListener("click", () => imageIpt?.click());
 
   if (dropBox) {
     ["dragenter", "dragover"].forEach((evt) => {
@@ -291,22 +296,29 @@
     dropBox.addEventListener("drop", (e) => {
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
+
       if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
         toast("err", "Invalid image", "Please drop a PNG, JPG or WEBP file.");
         return;
       }
+
       try {
         const dt = new DataTransfer();
         dt.items.add(file);
         imageIpt.files = dt.files;
       } catch {}
+
+      revokePreviewUrl();
+      previewObjectUrl = URL.createObjectURL(file);
+
       if (removeImage) removeImage.value = "false";
-      showPreview(URL.createObjectURL(file));
+      showPreview(previewObjectUrl);
       toast("ok", "Image added", "Preview updated.");
     });
   }
 
   function resetEditForm() {
+    revokePreviewUrl();
     if (pid) pid.value = "";
     if (nameIpt) nameIpt.value = "";
     if (priceIpt) priceIpt.value = "";
@@ -327,10 +339,11 @@
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u;
+    return u; // could be signed url already
   }
 
   function fillEditForm(p) {
+    revokePreviewUrl();
     if (pid) pid.value = String(p.id);
     if (nameIpt) nameIpt.value = String(p.name || "");
     if (priceIpt) priceIpt.value = String(Number(p.price || 0));
@@ -339,6 +352,12 @@
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
     showPreview(p.image_url ? resolveImage(p.image_url) : "");
+  }
+
+  function setBusy(on) {
+    if (saveBtn) saveBtn.disabled = !!on;
+    if (newBtn) newBtn.disabled = !!on;
+    if (refreshBtn) refreshBtn.disabled = !!on;
   }
 
   /* ================= PRODUCTS API (AUTHED) ================= */
@@ -360,6 +379,7 @@
 
     const file = imageIpt?.files?.[0];
     if (file) fd.append("image", file);
+
     return fd;
   }
 
@@ -412,6 +432,11 @@
     return out;
   }
 
+  function fallbackImg() {
+    // Use your existing placeholder if present; otherwise empty (browser will show broken image icon)
+    return "images_brown/bodyButter.png";
+  }
+
   function render() {
     if (!grid) return;
     grid.innerHTML = "";
@@ -419,35 +444,47 @@
     const list = applyFilterSortSearch(products);
 
     if (!list.length) {
-      if (empty) empty.style.display = "block";
+      if (empty) empty.style.display = "grid";
       return;
     }
     if (empty) empty.style.display = "none";
 
     list.forEach((p) => {
-      const card = document.createElement("div");
-      card.className = "ad-item";
-
-      const img = resolveImage(p.image_url);
+      const img = resolveImage(p.image_url) || fallbackImg();
       const isOn = Boolean(p.is_active);
+
+      const card = document.createElement("article");
+      card.className = "ad-item";
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", `Edit ${String(p.name || "product")}`);
+      card.dataset.cardEdit = String(p.id);
 
       card.innerHTML = `
         <div class="ad-item-img">
-          <img src="${escapeHtml(img || "images_brown/bodyButter.png")}" alt="${escapeHtml(p.name || "")}" draggable="false">
+          <img src="${escapeHtml(img)}" alt="${escapeHtml(p.name || "")}" draggable="false" loading="lazy">
           <span class="ad-pill-mini ${isOn ? "on" : "off"}">${isOn ? "ACTIVE" : "HIDDEN"}</span>
         </div>
 
         <div class="ad-item-body">
           <div class="ad-item-name">${escapeHtml(p.name || "")}</div>
           <div class="ad-item-meta">₦${Number(p.price || 0).toLocaleString()}</div>
-          <div class="ad-item-desc">${escapeHtml(String(p.description || "").slice(0, 120))}${String(p.description || "").length > 120 ? "…" : ""}</div>
+          <div class="ad-item-desc">${
+            escapeHtml(String(p.description || "").slice(0, 120)) +
+            (String(p.description || "").length > 120 ? "…" : "")
+          }</div>
 
-          <div class="ad-item-actions">
+          <div class="ad-item-actions" aria-label="Actions">
             <button type="button" class="ad-mini" data-edit="${escapeHtml(p.id)}">Edit</button>
             <button type="button" class="ad-mini danger" data-del="${escapeHtml(p.id)}">Delete</button>
           </div>
         </div>
       `;
+
+      // Prevent card click when clicking buttons
+      card.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", (ev) => ev.stopPropagation());
+      });
 
       grid.appendChild(card);
     });
@@ -479,10 +516,21 @@
     openModal(editModal, nameIpt);
   });
 
+  emptyAddBtn?.addEventListener("click", () => {
+    newBtn?.click();
+  });
+
   refreshBtn?.addEventListener("click", loadProducts);
 
   editClose?.addEventListener("click", () => closeModal(editModal));
   cancelEdit?.addEventListener("click", () => closeModal(editModal));
+
+  // Clear search
+  clearSearchBtn?.addEventListener("click", () => {
+    if (q) q.value = "";
+    render();
+    q?.focus?.();
+  });
 
   editForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -494,6 +542,7 @@
     if (!name) return toast("err", "Missing", "Product name is required.");
     if (!Number.isFinite(price) || price < 0) return toast("err", "Invalid", "Price must be 0 or more.");
 
+    setBusy(true);
     try {
       if (id) {
         await updateProduct(id);
@@ -507,15 +556,29 @@
       await loadProducts();
     } catch (err) {
       toast("err", "Save failed", String(err.message || err));
+    } finally {
+      setBusy(false);
     }
   });
 
+  // Click card to edit + button actions
   grid?.addEventListener("click", async (e) => {
-    const editBtn = e.target.closest("[data-edit]");
     const delBtn = e.target.closest("[data-del]");
+    const editBtn = e.target.closest("[data-edit]");
+    const cardEdit = e.target.closest("[data-card-edit]");
 
     if (editBtn) {
       const id = String(editBtn.getAttribute("data-edit") || "");
+      const p = products.find((x) => String(x.id) === id);
+      if (!p) return;
+      fillEditForm(p);
+      if (editTitle) editTitle.textContent = `Edit Product #${id}`;
+      openModal(editModal, nameIpt);
+      return;
+    }
+
+    if (cardEdit && !delBtn) {
+      const id = String(cardEdit.getAttribute("data-card-edit") || "");
       const p = products.find((x) => String(x.id) === id);
       if (!p) return;
       fillEditForm(p);
@@ -528,14 +591,30 @@
       const id = String(delBtn.getAttribute("data-del") || "");
       if (!confirm(`Delete product #${id}? This cannot be undone.`)) return;
 
+      setBusy(true);
       try {
         await deleteProduct(id);
         toast("ok", "Deleted", "Product removed.");
         await loadProducts();
       } catch (err) {
         toast("err", "Delete failed", String(err.message || err));
+      } finally {
+        setBusy(false);
       }
     }
+  });
+
+  // Keyboard: Enter on focused card opens edit
+  grid?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const card = e.target.closest("[data-card-edit]");
+    if (!card) return;
+    const id = String(card.getAttribute("data-card-edit") || "");
+    const p = products.find((x) => String(x.id) === id);
+    if (!p) return;
+    fillEditForm(p);
+    if (editTitle) editTitle.textContent = `Edit Product #${id}`;
+    openModal(editModal, nameIpt);
   });
 
   q?.addEventListener("input", render);
@@ -543,8 +622,12 @@
 
   filterBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
-      filterBtns.forEach((b) => b.classList.remove("is-active"));
+      filterBtns.forEach((b) => {
+        b.classList.remove("is-active");
+        b.setAttribute("aria-selected", "false");
+      });
       btn.classList.add("is-active");
+      btn.setAttribute("aria-selected", "true");
       activeFilter = String(btn.getAttribute("data-filter") || "all");
       render();
     });

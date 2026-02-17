@@ -3,26 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
+  <!-- MUST define window.API_BASE in config.js -->
   <script src="config.js"></script>
-  <link rel="stylesheet" href="admin-products.css" />
-</head>
-<body>
 
+  <!-- cookie auth + csrf wrapper -->
+  <script src="auth.js"></script>
+
+  <link rel="stylesheet" href="admin-products.css" />
+  <script src="admin-products.js" defer></script>
+</head>
+
+<body>
   <noscript>
-    <div style="padding:16px; background:#fff4da; color:#2b2215; font-weight:700;">
+    <div class="nojs">
       This admin page requires JavaScript to work.
     </div>
   </noscript>
 
   <main class="ad">
+    <!-- Top bar -->
     <header class="ad-top">
-      <div class="ad-brand">
-        <div class="ad-logo">
+      <div class="ad-brand" role="banner" aria-label="KÍKÉLÁRÁ Admin">
+        <div class="ad-logo" aria-hidden="true">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
         </div>
-        <div>
+        <div class="ad-brandText">
           <div class="ad-title">KÍKÉLÁRÁ</div>
           <div class="ad-sub">Products Admin</div>
         </div>
@@ -30,94 +38,135 @@
 
       <div class="ad-actions">
         <button class="ad-btn" id="refreshBtn" type="button">Refresh</button>
-        <button class="ad-btn" id="newBtn" type="button">Add Product</button>
+        <button class="ad-btn primary" id="newBtn" type="button">Add Product</button>
+        <button class="ad-btn ghost" id="logoutBtn" type="button">Logout</button>
       </div>
     </header>
 
-    <section class="ad-card">
+    <!-- Toolbar -->
+    <section class="ad-toolbar" aria-label="Tools">
+      <div class="ad-search">
+        <label class="srOnly" for="q">Search products</label>
+        <input id="q" type="search" placeholder="Search name, price, description…" autocomplete="off" />
+        <button class="ad-iconBtn" id="clearSearchBtn" type="button" aria-label="Clear search" title="Clear">
+          ✕
+        </button>
+      </div>
+
       <div class="ad-controls">
-        <div class="ad-search">
-          <input id="q" type="text" placeholder="Search name, price, description…" autocomplete="off" />
-        </div>
-
-        <div class="ad-filters">
-          <button class="ad-pill is-active" type="button" data-filter="all">All</button>
-          <button class="ad-pill" type="button" data-filter="active">Active</button>
-          <button class="ad-pill" type="button" data-filter="inactive">Inactive</button>
-        </div>
-
         <div class="ad-sort">
+          <label class="srOnly" for="sort">Sort</label>
           <select id="sort">
-            <option value="new">Newest</option>
+            <option value="new" selected>Newest</option>
             <option value="old">Oldest</option>
-            <option value="name">Name (A–Z)</option>
-            <option value="priceHigh">Price (High)</option>
-            <option value="priceLow">Price (Low)</option>
+            <option value="name">Name</option>
+            <option value="priceHigh">Price: High → Low</option>
+            <option value="priceLow">Price: Low → High</option>
           </select>
         </div>
-      </div>
 
-      <div class="ad-status" id="status" aria-live="polite"></div>
-
-      <div class="ad-grid" id="grid"></div>
-
-      <div class="ad-empty" id="empty" style="display:none;">
-        No products found.
+        <div class="ad-filters" role="tablist" aria-label="Filter">
+          <button type="button" class="filterBtn is-active" data-filter="all" role="tab" aria-selected="true">All</button>
+          <button type="button" class="filterBtn" data-filter="active" role="tab" aria-selected="false">Active</button>
+          <button type="button" class="filterBtn" data-filter="inactive" role="tab" aria-selected="false">Hidden</button>
+        </div>
       </div>
     </section>
+
+    <!-- Status -->
+    <div class="ad-status" id="status" data-type="info" aria-live="polite"></div>
+
+    <!-- Grid -->
+    <section class="ad-gridWrap">
+      <div id="grid" class="ad-grid" aria-label="Products"></div>
+
+      <div id="empty" class="ad-empty" style="display:none;">
+        <div class="ad-emptyCard">
+          <div class="ad-emptyTitle">No products found</div>
+          <div class="ad-emptySub">Try a different search or filter.</div>
+          <button class="ad-btn primary" type="button" id="emptyAddBtn">Add Product</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Toasts -->
+    <div id="toastWrap" class="toastWrap" aria-live="polite" aria-relevant="additions removals"></div>
   </main>
 
-  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
-
-  <!-- Create/Edit Modal (kept) -->
-  <div class="modal" id="editModal" aria-hidden="true" inert>
-    <div class="modal-card modal-wide">
+  <!-- Edit/Add Modal -->
+  <div id="editModal" class="modal" aria-hidden="true" inert>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
       <div class="modal-top">
         <div class="modal-title" id="editTitle">Add Product</div>
-        <button class="modal-x" id="editClose" aria-label="Close" type="button">×</button>
+        <button class="ad-iconBtn" id="editClose" type="button" aria-label="Close">✕</button>
       </div>
 
-      <form id="editForm" novalidate>
-        <input type="hidden" id="pid" />
-        <input type="hidden" id="removeImage" value="false" />
+      <div class="modal-body">
+        <div id="editHelp" class="help" aria-live="polite"></div>
 
-        <div class="form-grid">
-          <div>
-            <label class="lbl" for="name">Name</label>
-            <input class="ipt" id="name" type="text" placeholder="Product name" required />
-          </div>
+        <form id="editForm" class="form" autocomplete="off">
+          <input id="pid" type="hidden" />
 
-          <div>
-            <label class="lbl" for="price">Price (₦)</label>
-            <input class="ipt" id="price" type="number" min="0" step="1" placeholder="0" required inputmode="numeric" />
-          </div>
-
-          <div class="span2">
-            <div class="lblRow">
-              <label class="lbl" for="desc" style="margin:0;">Description</label>
-              <div class="count" id="descCount">0 / 600</div>
-            </div>
-            <textarea class="txt" id="desc" rows="4" placeholder="Short product description… (max 600 chars)"></textarea>
-          </div>
-
-          <div>
-            <label class="lbl">Visibility</label>
-
-            <div class="seg" role="group" aria-label="Visibility">
-              <button class="segBtn is-on" type="button" data-seg="true">Active</button>
-              <button class="segBtn" type="button" data-seg="false">Hidden</button>
+          <div class="row2">
+            <div class="field">
+              <label for="name">Product name</label>
+              <input id="name" type="text" placeholder="e.g. Baby Body Butter" required />
             </div>
 
-            <select class="ipt" id="active" style="display:none;">
-              <option value="true">Yes (Active)</option>
-              <option value="false">No (Hidden)</option>
+            <div class="field">
+              <label for="price">Price (₦)</label>
+              <input id="price" inputmode="numeric" type="number" min="0" step="1" placeholder="0" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="desc">Description</label>
+            <textarea id="desc" rows="4" placeholder="Short premium description…"></textarea>
+            <div class="count" id="descCount">0 / 600</div>
+          </div>
+
+          <div class="field">
+            <label>Status</label>
+
+            <!-- Hidden select still used for value, segmented buttons set it -->
+            <select id="active" class="srOnly" aria-hidden="true" tabindex="-1">
+              <option value="true" selected>Active</option>
+              <option value="false">Hidden</option>
             </select>
 
-            <div class="preview-hint" style="margin-top:8px;">
-              Active = visible on website • Hidden = not visible
+            <div class="seg">
+              <button type="button" class="segBtn is-on" data-seg="true">Active</button>
+              <button type="button" class="segBtn" data-seg="false">Hidden</button>
             </div>
           </div>
 
-          <div>
-            <label class="lbl" for="image">Image</label>
-            <input class="ipt" id="image" type="file" accept="image/png,image/jpeg,ima
+          <div class="field">
+            <label>Image</label>
+
+            <input id="removeImage" type="hidden" value="false" />
+
+            <div id="dropBox" class="dropBox" tabindex="0" role="button" aria-label="Drop image here or click to choose">
+              <div id="imgDropOverlay" class="dropOverlay">
+                <div class="dropTitle">Drop an image here</div>
+                <div class="dropSub">or click to choose (PNG/JPG/WEBP, max 8MB)</div>
+              </div>
+
+              <img id="previewImg" class="previewImg" alt="Preview" draggable="false" />
+            </div>
+
+            <div class="imgActions">
+              <input id="image" type="file" accept="image/png,image/jpeg,image/webp" class="fileInput" />
+              <button id="clearImgBtn" class="ad-btn ghost" type="button">Clear image</button>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="ad-btn" id="cancelEdit" type="button">Cancel</button>
+            <button class="ad-btn primary" id="saveBtn" type="submit">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
