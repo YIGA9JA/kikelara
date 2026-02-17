@@ -1,11 +1,11 @@
 /* ================= PRODUCT-DETAILS.JS (PRIVATE BUCKET OPTION A + YOUR server.js) =================
    ✅ GET /api/products/:id
    ✅ GET /api/products/:id/reviews
-   ✅ GET /api/products/:id/reviews/summary
    ✅ POST /api/products/:id/reviews  (deviceId)
    ✅ POST /api/reviews/:id/vote      (deviceId)
    ✅ Admin delete: DELETE /admin/reviews/:id (cookie session + CSRF)
-   ✅ Cart stored in localStorage(cart) (matches products.js)
+   ✅ Cart stored in localStorage(cart)
+   ✅ Gallery uses LAST 4 images (latest = last four)
 ================================================================================================= */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "") || "https://kikelara1.onrender.com";
@@ -35,13 +35,7 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-/* ✅ Private bucket: frontend MUST receive signed URLs from backend
-   We resolve only:
-   - full https:// signed url
-   - /uploads legacy -> API_BASE/uploads
-   - local assets
-   Anything like "products/abc.webp" cannot be shown without backend signing.
-*/
+/* ✅ Private bucket: frontend MUST receive signed URLs from backend */
 function resolveImage(url) {
   const u = String(url || "").trim();
   if (!u) return "images_brown/bodyButter.png";
@@ -51,10 +45,8 @@ function resolveImage(url) {
 
   if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
 
-  // allow your local folders
   if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
 
-  // likely a storage key like "products/..", cannot resolve on frontend safely
   return "images_brown/bodyButter.png";
 }
 
@@ -86,21 +78,20 @@ function showMessage(msg) {
   container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
 }
 
-/* ---------- cart (localStorage, and migrate sessionStorage if it existed) ---------- */
+/* ---------- cart ---------- */
 function loadCart() {
   let c = safeJSON(localStorage, CART_KEY, null);
   if (Array.isArray(c)) return c;
 
-  // migrate from old sessionStorage cart if present
   const old = safeJSON(sessionStorage, CART_KEY, null);
   if (Array.isArray(old)) {
     saveJSON(localStorage, CART_KEY, old);
     try { sessionStorage.removeItem(CART_KEY); } catch {}
     return old;
   }
-
   return [];
 }
+
 function saveCart(cart) { saveJSON(localStorage, CART_KEY, cart); }
 function isInCart(cart, id) { return cart.some(i => String(i.id) === String(id)); }
 
@@ -112,7 +103,7 @@ function addToCartOnce(product) {
     id: product.id,
     name: product.name,
     price: product.price,
-    image: product.image,   // may be signed; ok (cart image can expire later)
+    image: product.image,
     qty: 1
   });
 
@@ -123,8 +114,7 @@ function updateHeaderCartCount() {
   const cartCount = el("cartCount");
   if (!cartCount) return;
   const cart = loadCart();
-  const total = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
-  cartCount.textContent = total;
+  cartCount.textContent = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 
   const wishlistCount = el("wishlistCount");
   if (wishlistCount) wishlistCount.textContent = "0";
@@ -182,7 +172,45 @@ async function fetchProduct(productId) {
   return normalizeProduct(data.product);
 }
 
-/* ---------- gallery ---------- */
+/* ---------- 5D tilt (desktop only) ---------- */
+const CAN_TILT = window.matchMedia?.("(hover:hover) and (pointer:fine)")?.matches;
+
+function bindTilt(node) {
+  if (!CAN_TILT || !node) return;
+
+  node.addEventListener("pointermove", (e) => {
+    const r = node.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+
+    const ry = (x - 0.5) * 10;
+    const rx = (0.5 - y) * 8;
+
+    node.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
+    node.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
+    node.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+    node.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+    node.classList.add("tilting");
+  });
+
+  node.addEventListener("pointerleave", () => {
+    node.classList.remove("tilting");
+    node.style.setProperty("--ry", "0deg");
+    node.style.setProperty("--rx", "0deg");
+    node.style.setProperty("--mx", "50%");
+    node.style.setProperty("--my", "50%");
+  });
+}
+
+/* ---------- gallery (LATEST = LAST 4) ---------- */
+function pickLastFour(images) {
+  const list = (Array.isArray(images) ? images : []).filter(Boolean);
+  if (!list.length) return ["images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png"];
+  const last = list.length >= 4 ? list.slice(-4) : list.slice(0);
+  while (last.length < 4) last.push(last[last.length - 1] || list[0]);
+  return last;
+}
+
 function renderGallery(images, activeIndex = 0) {
   const mainImg = el("productImage");
   const thumbsWrap = el("productThumbs");
@@ -192,7 +220,6 @@ function renderGallery(images, activeIndex = 0) {
   mainImg.src = src;
   mainImg.alt = "Product image";
 
-  // fallback image if signed URL expired / broken
   mainImg.onerror = () => { mainImg.src = "images_brown/bodyButter.png"; };
 
   if (!thumbsWrap) return;
@@ -239,9 +266,7 @@ async function api(path, opts = {}) {
   return fetch(`${API_BASE}${path}`, { ...opts, headers, credentials: "include" });
 }
 
-/* ✅ REAL admin detection (no fake PIN)
-   If admin cookie session exists, /admin/me will return {success:true}.
-*/
+/* admin detection */
 let isAdmin = false;
 async function detectAdminSession() {
   try {
@@ -266,8 +291,7 @@ function helpfulScore(r) {
 }
 function calcAverage(list) {
   if (!list.length) return 0;
-  const sum = list.reduce((a, r) => a + (Number(r.rating) || 0), 0);
-  return sum / list.length;
+  return list.reduce((a, r) => a + (Number(r.rating) || 0), 0) / list.length;
 }
 function breakdownCounts(list) {
   const counts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
@@ -457,7 +481,6 @@ function renderListUI(productId) {
 }
 
 async function initReviews(productId) {
-  // detect admin once
   await detectAdminSession();
 
   rvAll = await loadReviews(productId);
@@ -520,7 +543,7 @@ async function initReviews(productId) {
   }
 
   const form = el("reviewForm");
-  const nameEl2 = el("reviewName");
+  const nameEl = el("reviewName");
   const titleEl = el("reviewTitle");
   const textEl = el("reviewText");
   const err = el("reviewError");
@@ -530,7 +553,7 @@ async function initReviews(productId) {
       e.preventDefault();
 
       const rating = clamp(Number(ratingInput.value) || 0, 0, 5);
-      const name = (nameEl2?.value || "").trim();
+      const name = (nameEl?.value || "").trim();
       const title = (titleEl?.value || "").trim();
       const text = (textEl.value || "").trim();
 
@@ -557,7 +580,7 @@ async function initReviews(productId) {
 
         ratingInput.value = "0";
         setStarUI(0);
-        if (nameEl2) nameEl2.value = "";
+        if (nameEl) nameEl.value = "";
         if (titleEl) titleEl.value = "";
         textEl.value = "";
       } catch (e2) {
@@ -577,22 +600,16 @@ async function init() {
   try { product = await fetchProduct(productId); }
   catch { return showMessage("Product not found."); }
 
-  const nameEl3 = el("productName");
-  const priceEl = el("productPrice");
-  const descEl = el("productDescription");
-  const catEl = el("productCategory");
+  el("productName") && (el("productName").textContent = product.name || "");
+  el("productPrice") && (el("productPrice").textContent = `₦${Number(product.price || 0).toLocaleString()}`);
+  el("productDescription") && (el("productDescription").textContent = product.description || "");
+  el("productCategory") && (el("productCategory").textContent = String(product.category || "Product").toUpperCase());
 
-  if (nameEl3) nameEl3.textContent = product.name || "";
-  if (priceEl) priceEl.textContent = `₦${Number(product.price || 0).toLocaleString()}`;
-  if (descEl) descEl.textContent = product.description || "";
-  if (catEl) catEl.textContent = String(product.category || "Product").toUpperCase();
-
-  const images = Array.isArray(product.images) ? product.images : [product.image];
-  const gallery = (images.length >= 4)
-    ? images.slice(0, 4)
-    : Array.from({ length: 4 }, (_, i) => images[i] || images[0] || product.image);
-
+  const gallery = pickLastFour(product.images?.length ? product.images : [product.image]);
   renderGallery(gallery, 0);
+
+  // tilt main image container
+  bindTilt(el("tiltMain"));
 
   const cart = loadCart();
   setCartButtonState(isInCart(cart, product.id));
@@ -613,11 +630,11 @@ async function init() {
 document.addEventListener("DOMContentLoaded", () => {
   init();
 
-  // keep header cart count in sync
+  // header cart count sync (header injected)
   let tries = 0;
   const t = setInterval(() => {
     tries++;
     updateHeaderCartCount();
-    if (tries >= 10) clearInterval(t);
+    if (tries >= 12) clearInterval(t);
   }, 150);
 });

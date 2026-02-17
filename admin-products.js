@@ -1,16 +1,12 @@
-/* ================= admin-products.js (AUTHED — FIXED CLICK + FIXED UPLOAD)
+/* ================= admin-products.js (AUTHED — FULL PAGE)
    ✅ Uses cookie session from admin-login.html (credentials: include)
-   ✅ Checks /admin/me ONCE on page load
+   ✅ Checks /admin/me ONCE on page load via window.checkAuth()
    ✅ Uses window.apiFetch (adds CSRF header automatically for non-GET)
    ✅ CRUD:
       GET    /admin/products
       POST   /admin/products
       PUT    /admin/products/:id
       DELETE /admin/products/:id
-
-   FIXES:
-   ✅ Edit/Delete always clickable (bind handlers directly per card)
-   ✅ Upload works for BOTH file picker + drag-drop (pickedFile stored)
 =============================================================================== */
 
 (async function () {
@@ -20,8 +16,9 @@
   const ok = await window.checkAuth?.();
   if (!ok) return;
 
-  const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
+  const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
+
   if (typeof apiFetch !== "function") {
     console.error("apiFetch missing. Make sure auth.js is loaded before admin-products.js");
     return;
@@ -45,11 +42,14 @@
   const saveBtn = $("saveBtn");
 
   const editTitle = $("editTitle");
+  const editHelp = $("editHelp");
+
   const pid = $("pid");
   const nameIpt = $("name");
   const priceIpt = $("price");
   const desc = $("desc");
   const descCount = $("descCount");
+
   const activeSel = $("active");
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
 
@@ -65,6 +65,7 @@
   const grid = $("grid");
   const empty = $("empty");
   const status = $("status");
+
   const q = $("q");
   const sort = $("sort");
   const filterBtns = Array.from(document.querySelectorAll("[data-filter]"));
@@ -73,10 +74,10 @@
   let lastFocus = null;
   let products = [];
   let activeFilter = "all"; // all | active | inactive
-  let previewObjectUrl = ""; // revoke on change
-  let pickedFile = null; // ✅ always upload what user picked/dropped
+  let previewObjectUrl = "";
+  let pickedFile = null;
 
-  /* ================= NETWORK (AUTHED) ================= */
+  /* ================= NETWORK ================= */
   async function api(path, options = {}) {
     return apiFetch(path, options);
   }
@@ -89,6 +90,18 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function setHelp(type, text) {
+    if (!editHelp) return;
+    editHelp.textContent = text || "";
+    editHelp.dataset.type = type || "";
+    if (!text) {
+      editHelp.removeAttribute("data-type");
+      editHelp.style.display = "none";
+    } else {
+      editHelp.style.display = "block";
+    }
   }
 
   function toast(type, title, body) {
@@ -193,13 +206,14 @@
 
     modal.classList.remove("show");
     setAria(modal, false);
-
     lockBody(false);
 
     if (lastFocus && typeof lastFocus.focus === "function") {
       window.requestAnimationFrame(() => lastFocus?.focus?.());
     }
     lastFocus = null;
+
+    setHelp("", "");
   }
 
   function bindOutsideClose(modal) {
@@ -216,9 +230,11 @@
       if (isOpen(editModal)) closeModal(editModal);
     }
   });
+
   document.addEventListener("keydown", (e) => {
     if (isOpen(editModal)) trapFocus(editModal, e);
   });
+
   bindOutsideClose(editModal);
 
   /* ================= UI SMALLS ================= */
@@ -260,7 +276,7 @@
     revokePreviewUrl();
     pickedFile = null;
     if (imageIpt) imageIpt.value = "";
-    if (removeImage) removeImage.value = "true";
+    if (removeImage) removeImage.value = "true"; // remove existing on update
     showPreview("");
   }
 
@@ -269,24 +285,25 @@
     return /^image\/(png|jpeg|webp)$/.test(f.type) && f.size <= 8 * 1024 * 1024;
   }
 
-  imageIpt?.addEventListener("change", () => {
-    const f = imageIpt.files && imageIpt.files[0];
+  function setPickedFile(f) {
     if (!f) return;
-
     if (!isValidImageFile(f)) {
-      toast("err", "Invalid image", "Please select PNG/JPG/WEBP (max 8MB).");
-      imageIpt.value = "";
-      pickedFile = null;
+      toast("err", "Invalid image", "Please use PNG/JPG/WEBP (max 8MB).");
       return;
     }
 
     pickedFile = f;
-
     revokePreviewUrl();
     previewObjectUrl = URL.createObjectURL(f);
 
-    if (removeImage) removeImage.value = "false";
+    if (removeImage) removeImage.value = "false"; // uploading replaces, so do not remove
     showPreview(previewObjectUrl);
+  }
+
+  imageIpt?.addEventListener("change", () => {
+    const f = imageIpt.files && imageIpt.files[0];
+    if (!f) return;
+    setPickedFile(f);
   });
 
   clearImgBtn?.addEventListener("click", (e) => {
@@ -312,7 +329,7 @@
       dropBox.addEventListener(evt, (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (imgDropOverlay) imgDropOverlay.style.display = "grid";
+        dropBox.classList.add("is-drag");
       });
     });
 
@@ -320,25 +337,14 @@
       dropBox.addEventListener(evt, (e) => {
         e.preventDefault();
         e.stopPropagation();
+        dropBox.classList.remove("is-drag");
       });
     });
 
     dropBox.addEventListener("drop", (e) => {
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
-
-      if (!isValidImageFile(file)) {
-        toast("err", "Invalid image", "Please drop PNG/JPG/WEBP (max 8MB).");
-        return;
-      }
-
-      pickedFile = file;
-
-      revokePreviewUrl();
-      previewObjectUrl = URL.createObjectURL(file);
-
-      if (removeImage) removeImage.value = "false";
-      showPreview(previewObjectUrl);
+      setPickedFile(file);
       toast("ok", "Image added", "Preview updated.");
     });
   }
@@ -355,14 +361,9 @@
     updateDescCount();
     setActiveUI(true);
 
-    if (removeImage) removeImage.value = "false";
+    if (removeImage) removeImage.value = "false"; // new product: don't remove
     showPreview("");
-
-    const help = $("editHelp");
-    if (help) {
-      help.textContent = "";
-      help.removeAttribute("data-type");
-    }
+    setHelp("", "");
   }
 
   function resolveImage(url) {
@@ -387,6 +388,7 @@
 
     if (removeImage) removeImage.value = "false";
     showPreview(p.image_url ? resolveImage(p.image_url) : "");
+    setHelp("", "");
   }
 
   function setBusy(on) {
@@ -396,9 +398,17 @@
     if (logoutBtn) logoutBtn.disabled = !!on;
   }
 
-  /* ================= PRODUCTS API (AUTHED) ================= */
+  /* ================= PRODUCTS API ================= */
   async function fetchAdminProducts() {
     const r = await api("/admin/products", { method: "GET" });
+
+    // If your session is missing, backend returns 401 -> checkAuth will redirect next refresh
+    if (r.status === 401) {
+      toast("err", "Session expired", "Please login again.");
+      window.adminLogout?.();
+      throw new Error("Unauthorized");
+    }
+
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to load products");
     return Array.isArray(data.products) ? data.products : [];
@@ -633,10 +643,12 @@
     const name = String(nameIpt?.value || "").trim();
     const price = Number(priceIpt?.value || 0);
 
-    if (!name) return toast("err", "Missing", "Product name is required.");
-    if (!Number.isFinite(price) || price < 0) return toast("err", "Invalid", "Price must be 0 or more.");
+    if (!name) return setHelp("err", "Product name is required.");
+    if (!Number.isFinite(price) || price < 0) return setHelp("err", "Price must be 0 or more.");
 
+    setHelp("", "");
     setBusy(true);
+
     try {
       if (id) {
         await updateProduct(id);
@@ -649,7 +661,9 @@
       closeModal(editModal);
       await loadProducts();
     } catch (err) {
-      toast("err", "Save failed", String(err.message || err));
+      const msg = String(err.message || err);
+      setHelp("err", msg);
+      toast("err", "Save failed", msg);
     } finally {
       setBusy(false);
     }

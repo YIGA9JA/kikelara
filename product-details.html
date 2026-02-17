@@ -5,62 +5,52 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Product Details</title>
 
-  <!-- ✅ CSS -->
+  <!-- Shared -->
+  <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="footer.css" />
+
+  <!-- Page -->
   <link rel="stylesheet" href="product-details.css" />
 
-  <!-- ✅ MUST load config first (sets window.API_BASE) -->
+  <!-- ✅ config first -->
   <script src="config.js"></script>
-
-  <!-- ✅ Defer ensures DOM exists + config already set -->
-  <script defer src="product-details.js"></script>
-
-  <noscript>
-    <style>
-      body { padding: 20px; font-family: system-ui, Arial, sans-serif; }
-    </style>
-  </noscript>
 </head>
 
 <body>
+  <!-- Liquid motion background -->
+  <div class="liquid-bg" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+    <span class="grain"></span>
+  </div>
 
   <noscript>
-    <h2>JavaScript is disabled</h2>
-    <p>Please enable JavaScript to view product details and reviews.</p>
+    <h2 style="padding:20px;font-family:system-ui">JavaScript is disabled</h2>
+    <p style="padding:0 20px;font-family:system-ui">Please enable JavaScript to view product details and reviews.</p>
   </noscript>
 
-  <!-- ================= HEADER ================= -->
-  <header class="site-header">
-    <a class="brand" href="index.html" aria-label="Go to homepage">
-      <span class="brand-name">KÍKÉLÁRÁ</span>
-    </a>
+  <!-- HEADER INJECT MOUNT -->
+  <div id="siteHeader"></div>
 
-    <nav class="top-nav" aria-label="Top navigation">
-      <a class="nav-link" href="products.html">Shop</a>
-      <a class="nav-link" href="cart.html">Cart <span class="badge" id="cartCount">0</span></a>
-      <a class="nav-link" href="#" aria-disabled="true">Wishlist <span class="badge" id="wishlistCount">0</span></a>
-    </nav>
-  </header>
+  <!-- MAIN -->
+  <main class="pd" aria-label="Product details page">
+    <a class="pd-back glass" href="products.html" aria-label="Back to products">← Back to products</a>
 
-  <!-- ================= MAIN ================= -->
-  <main class="pd">
-
-    <!-- ================= PRODUCT GRID ================= -->
+    <!-- PRODUCT -->
     <section class="pd-grid" aria-label="Product details">
-
-      <!-- LEFT: images -->
-      <div class="pd-left">
-        <div class="pd-image-wrap">
+      <!-- LEFT -->
+      <div class="pd-left glass">
+        <div class="pd-image-wrap" id="tiltMain">
           <img id="productImage" alt="Product image" loading="eager" />
         </div>
 
-        <!-- Thumbnails -->
         <div id="productThumbs" class="pd-thumbs" aria-label="Product thumbnails"></div>
       </div>
 
-      <!-- RIGHT: info -->
-      <div class="pd-right">
+      <!-- RIGHT -->
+      <div class="pd-right glass">
         <div id="productCategory" class="pd-category"></div>
-
         <h1 id="productName" class="pd-title"></h1>
 
         <div class="pd-price-row">
@@ -71,18 +61,19 @@
 
         <div class="pd-actions">
           <button id="cartBtn" class="pd-cart-btn" type="button">ADD TO CART</button>
-
           <span id="productInCart" class="pd-in-cart" style="display:none;">IN CART</span>
-
           <a id="viewCartLink" class="pd-view-cart" href="cart.html" style="display:none;">View Cart</a>
+        </div>
+
+        <div class="pd-note">
+          <span>Tip</span> Tap the image to switch views. Reviews help others choose better.
         </div>
       </div>
     </section>
 
-    <!-- ================= REVIEWS ================= -->
-    <section class="reviews" aria-label="Product reviews">
-
-      <!-- Top summary row -->
+    <!-- REVIEWS -->
+    <section class="reviews glass" aria-label="Product reviews">
+      <!-- Summary top row -->
       <div class="rv-top">
         <div class="rv-summary">
           <div class="rv-score-line">
@@ -92,14 +83,13 @@
           <div class="rv-count" id="rvCount">0 ratings</div>
         </div>
 
-        <!-- Admin controls -->
         <div class="rv-admin">
           <button id="rvAdminBtn" class="rv-admin-btn" type="button">Admin</button>
-          <button id="rvAdminLogoutBtn" class="rv-admin-btn" type="button" hidden>Logout</button>
+          <button id="rvAdminLogoutBtn" class="rv-admin-btn is-logout" type="button" hidden>Logout</button>
         </div>
       </div>
 
-      <!-- Breakdown bars -->
+      <!-- Breakdown -->
       <div id="rvBreakdown" class="rv-breakdown" aria-label="Ratings breakdown"></div>
 
       <!-- Filters -->
@@ -123,7 +113,7 @@
         </select>
       </div>
 
-      <!-- Reviews list -->
+      <!-- List -->
       <div id="reviewsList" class="rv-list" aria-label="Reviews list"></div>
 
       <!-- Load more -->
@@ -132,11 +122,10 @@
       <!-- Toggle form -->
       <button id="rvToggleForm" class="rv-toggle-form" type="button">Write a review</button>
 
-      <!-- Review form -->
+      <!-- Form -->
       <div id="rvFormWrap" class="rv-form-wrap" hidden>
         <form id="reviewForm" class="rv-form" autocomplete="off">
 
-          <!-- Star input -->
           <div id="starInput" class="rv-stars-input" aria-label="Select star rating">
             <button class="star" data-value="1" type="button" aria-label="1 star">★</button>
             <button class="star" data-value="2" type="button" aria-label="2 stars">★</button>
@@ -146,34 +135,28 @@
             <span id="rvHint" class="rv-hint">Select a rating</span>
           </div>
 
-          <!-- Hidden rating value (JS sets this) -->
           <input id="reviewRating" type="hidden" value="0" />
 
-          <!-- Inputs -->
           <div class="rv-fields">
             <input id="reviewName" class="rv-input" placeholder="Your name (optional)" />
             <input id="reviewTitle" class="rv-input" placeholder="Review title" required minlength="3" />
             <textarea id="reviewText" class="rv-textarea" placeholder="Write your review..." required minlength="10"></textarea>
           </div>
 
-          <!-- Error message -->
-          <div id="reviewError" class="rv-error" style="color:#b00020;"></div>
+          <div id="reviewError" class="rv-error"></div>
 
-          <!-- Submit -->
           <button type="submit" class="rv-submit">Submit review</button>
         </form>
       </div>
-
     </section>
   </main>
 
-  <!-- ✅ Optional debug (remove anytime) -->
-  <script>
-    console.log("API_BASE =", window.API_BASE);
-    if (!window.API_BASE) {
-      try { sessionStorage.removeItem("allProducts"); } catch {}
-    }
-  </script>
+  <!-- FOOTER INJECT MOUNT -->
+  <div id="siteFooter"></div>
 
+  <!-- Scripts -->
+  <script src="header.js"></script>
+  <script src="footer.js"></script>
+  <script src="product-details.js"></script>
 </body>
 </html>

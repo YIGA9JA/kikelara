@@ -3,112 +3,166 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>KÍKÉLÁRÁ — Admin Login</title>
+  <title>KÍKÉLÁRÁ — Products Admin</title>
 
+  <!-- Must define window.API_BASE + admin constants -->
   <script src="config.js"></script>
-  <script src="auth.js"></script>
 
-  <style>
-    :root{
-      --bg:#fff4da;
-      --line:rgba(43,29,18,.12);
-      --text:#2b1d12;
-      --muted:rgba(43,29,18,.64);
-      --brand:#EDCC9F;
-      --brand2:#d9b07c;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; min-height:100vh; display:grid; place-items:center;
-      background: radial-gradient(1200px 600px at 20% -10%, rgba(237,204,159,.40), transparent 60%),
-                  radial-gradient(900px 500px at 100% 0%, rgba(217,176,124,.25), transparent 60%),
-                  var(--bg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color:var(--text);
-      padding:18px;
-    }
-    .card{
-      width:min(460px,100%);
-      background:rgba(255,255,255,.92);
-      border:1px solid var(--line);
-      border-radius:20px;
-      box-shadow:0 22px 60px rgba(0,0,0,.10);
-      padding:18px;
-    }
-    .brand{
-      display:flex; align-items:center; gap:12px; margin-bottom:12px;
-    }
-    .logo{
-      width:46px; height:46px; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:#fff;
-    }
-    .logo img{width:100%;height:100%;object-fit:cover;display:block}
-    .title{font-weight:950; letter-spacing:.02em}
-    .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    label{display:block;font-weight:900;margin:12px 0 6px}
-    input{
-      width:100%; padding:12px 12px; border-radius:16px;
-      border:1px solid var(--line); background:rgba(255,255,255,.75);
-      font-weight:700;
-    }
-    button{
-      margin-top:14px; width:100%;
-      border:1px solid rgba(43,29,18,.14);
-      background:linear-gradient(180deg,var(--brand),var(--brand2));
-      padding:12px 12px; border-radius:16px;
-      cursor:pointer; font-weight:950;
-    }
-    .msg{margin-top:10px;color:var(--muted);font-weight:650}
-    .err{color:#b3261e}
-  </style>
+  <link rel="stylesheet" href="admin-products.css" />
+
+  <!-- auth.js must load BEFORE admin-products.js -->
+  <script src="auth.js" defer></script>
+  <script src="admin-products.js" defer></script>
 </head>
-
 <body>
-  <div class="card">
-    <div class="brand">
-      <div class="logo"><img src="images/logo.jpg" alt="KÍKÉLÁRÁ"></div>
-      <div>
-        <div class="title">KÍKÉLÁRÁ</div>
-        <div class="sub">Admin Login</div>
+
+  <noscript>
+    <div class="noscript">
+      This admin page requires JavaScript to work.
+    </div>
+  </noscript>
+
+  <main class="ad">
+
+    <!-- TOP BAR -->
+    <header class="ad-top">
+      <a class="ad-brand" href="admin-dashboard.html" aria-label="Go to dashboard">
+        <div class="ad-logo">
+          <img src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
+        </div>
+        <div>
+          <div class="ad-title">KÍKÉLÁRÁ</div>
+          <div class="ad-sub">Products Admin</div>
+        </div>
+      </a>
+
+      <div class="ad-actions">
+        <a class="ad-btn ghost" href="admin-dashboard.html">Dashboard</a>
+        <button class="ad-btn" id="refreshBtn" type="button">Refresh</button>
+        <button class="ad-btn" id="newBtn" type="button">Add Product</button>
+        <button class="ad-btn danger" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </header>
+
+    <!-- CONTROLS -->
+    <section class="ad-controls">
+      <div class="ctrl-row">
+        <div class="search">
+          <input id="q" type="search" placeholder="Search products…" autocomplete="off" />
+          <button id="clearSearchBtn" class="icon-btn" type="button" aria-label="Clear search">✕</button>
+        </div>
+
+        <select id="sort" class="select" aria-label="Sort">
+          <option value="new">Newest</option>
+          <option value="old">Oldest</option>
+          <option value="name">Name A–Z</option>
+          <option value="priceHigh">Price High → Low</option>
+          <option value="priceLow">Price Low → High</option>
+        </select>
+      </div>
+
+      <div class="filter-row" role="tablist" aria-label="Filter">
+        <button class="pill is-active" type="button" data-filter="all" aria-selected="true">All</button>
+        <button class="pill" type="button" data-filter="active" aria-selected="false">Active</button>
+        <button class="pill" type="button" data-filter="inactive" aria-selected="false">Hidden</button>
+      </div>
+
+      <div id="status" class="status" data-type="info">Loading…</div>
+    </section>
+
+    <!-- GRID -->
+    <section class="ad-grid" id="grid" aria-label="Products"></section>
+
+    <!-- EMPTY -->
+    <section class="empty" id="empty" style="display:none;">
+      <div class="empty-card">
+        <div class="empty-title">No products found</div>
+        <div class="empty-sub">Try clearing search/filter or add a new product.</div>
+        <button id="emptyAddBtn" class="ad-btn" type="button">Add Product</button>
+      </div>
+    </section>
+
+    <!-- TOASTS -->
+    <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- EDIT MODAL -->
+    <div class="modal" id="editModal" aria-hidden="true" inert>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+
+        <div class="modal-top">
+          <div class="modal-title" id="editTitle">Add Product</div>
+          <button class="icon-btn" id="editClose" type="button" aria-label="Close">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div id="editHelp" class="help" data-type=""></div>
+
+          <form id="editForm" class="form" autocomplete="off">
+            <input type="hidden" id="pid" />
+            <input type="hidden" id="removeImage" value="false" />
+
+            <div class="two">
+              <div class="field">
+                <label for="name">Name</label>
+                <input id="name" type="text" maxlength="200" placeholder="e.g. Baby Body Butter" required />
+              </div>
+
+              <div class="field">
+                <label for="price">Price (₦)</label>
+                <input id="price" type="number" min="0" step="1" placeholder="e.g. 12000" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label-row">
+                <label for="desc">Description</label>
+                <div class="count" id="descCount">0 / 600</div>
+              </div>
+              <textarea id="desc" rows="4" maxlength="600" placeholder="Short, clear, premium description…"></textarea>
+            </div>
+
+            <!-- ACTIVE SEGMENT -->
+            <div class="field">
+              <label>Status</label>
+              <input type="hidden" id="active" value="true" />
+              <div class="seg" role="group" aria-label="Active">
+                <button class="segBtn is-on" type="button" data-seg="true">Active</button>
+                <button class="segBtn" type="button" data-seg="false">Hidden</button>
+              </div>
+            </div>
+
+            <!-- IMAGE -->
+            <div class="field">
+              <label>Image</label>
+
+              <div class="drop" id="dropBox" tabindex="0" role="button" aria-label="Choose or drop an image">
+                <div class="drop-overlay" id="imgDropOverlay">
+                  <div class="drop-ico">⬆</div>
+                  <div class="drop-title">Drop an image here</div>
+                  <div class="drop-sub">or click to upload • PNG/JPG/WEBP • max 8MB</div>
+                </div>
+
+                <img id="previewImg" class="preview" alt="Preview" style="display:none;" />
+
+                <input id="image" class="file" type="file" accept="image/png,image/jpeg,image/webp" />
+              </div>
+
+              <div class="img-actions">
+                <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove image</button>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="ad-btn ghost" id="cancelEdit" type="button">Cancel</button>
+              <button class="ad-btn" id="saveBtn" type="submit">Save</button>
+            </div>
+          </form>
+
+        </div>
       </div>
     </div>
 
-    <form id="loginForm" autocomplete="off">
-      <label for="password">Admin password</label>
-      <input id="password" type="password" placeholder="Enter admin password" required />
+  </main>
 
-      <button id="loginBtn" type="submit">Login</button>
-      <div id="msg" class="msg"></div>
-    </form>
-  </div>
-
-  <script>
-    (function(){
-      const form = document.getElementById("loginForm");
-      const pass = document.getElementById("password");
-      const btn = document.getElementById("loginBtn");
-      const msg = document.getElementById("msg");
-
-      function setMsg(text, isErr){
-        msg.textContent = text || "";
-        msg.classList.toggle("err", !!isErr);
-      }
-
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        setMsg("");
-        btn.disabled = true;
-
-        try {
-          await window.adminLogin(String(pass.value || ""));
-          setMsg("✅ Logged in. Redirecting…");
-          location.href = "admin-products.html";
-        } catch (err) {
-          setMsg(String(err.message || err), true);
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    })();
-  </script>
 </body>
 </html>
