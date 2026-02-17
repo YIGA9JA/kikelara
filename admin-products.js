@@ -1,4 +1,4 @@
-/* ================= admin-products.js (AUTHED — ONE LOGIN ONLY)
+/* ================= admin-products.js (AUTHED — FIXED CLICK + FIXED UPLOAD)
    ✅ Uses cookie session from admin-login.html (credentials: include)
    ✅ Checks /admin/me ONCE on page load
    ✅ Uses window.apiFetch (adds CSRF header automatically for non-GET)
@@ -7,6 +7,10 @@
       POST   /admin/products
       PUT    /admin/products/:id
       DELETE /admin/products/:id
+
+   FIXES:
+   ✅ Edit/Delete always clickable (bind handlers directly per card)
+   ✅ Supabase upload fixed (pickedFile stored and appended to FormData)
 =============================================================================== */
 
 (async function () {
@@ -18,6 +22,10 @@
 
   const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
+  if (typeof apiFetch !== "function") {
+    console.error("apiFetch missing. Make sure auth.js is loaded before admin-products.js");
+    return;
+  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -66,6 +74,7 @@
   let products = [];
   let activeFilter = "all"; // all | active | inactive
   let previewObjectUrl = ""; // revoke on change
+  let pickedFile = null; // ✅ FIX: always upload what user picked/dropped
 
   /* ================= NETWORK (AUTHED) ================= */
   async function api(path, options = {}) {
@@ -93,7 +102,10 @@
       </div>
       <div class="t-body">${escapeHtml(body || "")}</div>
     `;
-    el.querySelector(".t-close")?.addEventListener("click", () => el.remove());
+    el.querySelector(".t-close")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      el.remove();
+    });
     toastWrap.appendChild(el);
     setTimeout(() => { if (el.isConnected) el.remove(); }, 4500);
   }
@@ -225,9 +237,9 @@
       b.classList.toggle("is-on", isOn);
     });
   }
-  segBtns.forEach((b) =>
-    b.addEventListener("click", () => setActiveUI(b.getAttribute("data-seg") === "true"))
-  );
+  segBtns.forEach((b) => b.addEventListener("click", () => {
+    setActiveUI(b.getAttribute("data-seg") === "true");
+  }));
   setActiveUI(true);
 
   function revokePreviewUrl() {
@@ -240,27 +252,35 @@
   function showPreview(src) {
     if (!previewImg) return;
     previewImg.src = src || "";
-    const has = !!src;
-    if (imgDropOverlay) imgDropOverlay.style.display = has ? "none" : "grid";
+    previewImg.style.display = src ? "block" : "none";
+    if (imgDropOverlay) imgDropOverlay.style.display = src ? "none" : "grid";
   }
 
   function resetImage() {
     revokePreviewUrl();
+    pickedFile = null;                 // ✅ FIX
     if (imageIpt) imageIpt.value = "";
     if (removeImage) removeImage.value = "true";
     showPreview("");
+  }
+
+  function isValidImageFile(f) {
+    if (!f) return false;
+    return /^image\/(png|jpeg|webp)$/.test(f.type) && f.size <= 8 * 1024 * 1024;
   }
 
   imageIpt?.addEventListener("change", () => {
     const f = imageIpt.files && imageIpt.files[0];
     if (!f) return;
 
-    const okType = /^image\/(png|jpeg|webp)$/.test(f.type);
-    if (!okType) {
-      toast("err", "Invalid image", "Please select a PNG, JPG or WEBP.");
+    if (!isValidImageFile(f)) {
+      toast("err", "Invalid image", "Please select PNG/JPG/WEBP (max 8MB).");
       imageIpt.value = "";
+      pickedFile = null;
       return;
     }
+
+    pickedFile = f; // ✅ FIX: store file reliably
 
     revokePreviewUrl();
     previewObjectUrl = URL.createObjectURL(f);
@@ -269,13 +289,25 @@
     showPreview(previewObjectUrl);
   });
 
-  clearImgBtn?.addEventListener("click", () => {
+  clearImgBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
     resetImage();
     toast("warn", "Removed", "Image cleared.");
   });
 
   // Click drop box to open file picker
-  dropBox?.addEventListener("click", () => imageIpt?.click());
+  dropBox?.addEventListener("click", (e) => {
+    e.preventDefault();
+    imageIpt?.click();
+  });
+
+  // Keyboard access for dropBox
+  dropBox?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      imageIpt?.click();
+    }
+  });
 
   if (dropBox) {
     ["dragenter", "dragover"].forEach((evt) => {
@@ -297,16 +329,12 @@
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
 
-      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
-        toast("err", "Invalid image", "Please drop a PNG, JPG or WEBP file.");
+      if (!isValidImageFile(file)) {
+        toast("err", "Invalid image", "Please drop PNG/JPG/WEBP (max 8MB).");
         return;
       }
 
-      try {
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        imageIpt.files = dt.files;
-      } catch {}
+      pickedFile = file; // ✅ FIX: store file (don’t rely on input.files assignment)
 
       revokePreviewUrl();
       previewObjectUrl = URL.createObjectURL(file);
@@ -319,14 +347,19 @@
 
   function resetEditForm() {
     revokePreviewUrl();
+    pickedFile = null;               // ✅
+    if (imageIpt) imageIpt.value = "";
+
     if (pid) pid.value = "";
     if (nameIpt) nameIpt.value = "";
     if (priceIpt) priceIpt.value = "";
     if (desc) desc.value = "";
     updateDescCount();
     setActiveUI(true);
+
     if (removeImage) removeImage.value = "false";
     showPreview("");
+
     const help = $("editHelp");
     if (help) {
       help.textContent = "";
@@ -344,12 +377,16 @@
 
   function fillEditForm(p) {
     revokePreviewUrl();
+    pickedFile = null;                // ✅ don’t accidentally re-upload old selection
+    if (imageIpt) imageIpt.value = "";
+
     if (pid) pid.value = String(p.id);
     if (nameIpt) nameIpt.value = String(p.name || "");
     if (priceIpt) priceIpt.value = String(Number(p.price || 0));
     if (desc) desc.value = String(p.description || "");
     updateDescCount();
     setActiveUI(Boolean(p.is_active));
+
     if (removeImage) removeImage.value = "false";
     showPreview(p.image_url ? resolveImage(p.image_url) : "");
   }
@@ -358,6 +395,7 @@
     if (saveBtn) saveBtn.disabled = !!on;
     if (newBtn) newBtn.disabled = !!on;
     if (refreshBtn) refreshBtn.disabled = !!on;
+    if (logoutBtn) logoutBtn.disabled = !!on;
   }
 
   /* ================= PRODUCTS API (AUTHED) ================= */
@@ -377,7 +415,8 @@
 
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
-    const file = imageIpt?.files?.[0];
+    // ✅ FIX: always append stored file (works for drag-drop reliably)
+    const file = pickedFile || imageIpt?.files?.[0];
     if (file) fd.append("image", file);
 
     return fd;
@@ -422,7 +461,6 @@
     }
 
     const mode = String(sort?.value || "new");
-
     if (mode === "old") out.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     if (mode === "new") out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     if (mode === "name") out.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
@@ -433,8 +471,29 @@
   }
 
   function fallbackImg() {
-    // Use your existing placeholder if present; otherwise empty (browser will show broken image icon)
     return "images_brown/bodyButter.png";
+  }
+
+  function openEditById(id) {
+    const p = products.find((x) => String(x.id) === String(id));
+    if (!p) return;
+    fillEditForm(p);
+    if (editTitle) editTitle.textContent = `Edit Product #${id}`;
+    openModal(editModal, nameIpt);
+  }
+
+  async function confirmDeleteById(id) {
+    if (!confirm(`Delete product #${id}? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await deleteProduct(id);
+      toast("ok", "Deleted", "Product removed.");
+      await loadProducts();
+    } catch (err) {
+      toast("err", "Delete failed", String(err.message || err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function render() {
@@ -452,13 +511,14 @@
     list.forEach((p) => {
       const img = resolveImage(p.image_url) || fallbackImg();
       const isOn = Boolean(p.is_active);
+      const idStr = String(p.id);
 
       const card = document.createElement("article");
       card.className = "ad-item";
       card.setAttribute("tabindex", "0");
       card.setAttribute("role", "button");
       card.setAttribute("aria-label", `Edit ${String(p.name || "product")}`);
-      card.dataset.cardEdit = String(p.id);
+      card.setAttribute("data-card-edit", idStr);
 
       card.innerHTML = `
         <div class="ad-item-img">
@@ -475,15 +535,41 @@
           }</div>
 
           <div class="ad-item-actions" aria-label="Actions">
-            <button type="button" class="ad-mini" data-edit="${escapeHtml(p.id)}">Edit</button>
-            <button type="button" class="ad-mini danger" data-del="${escapeHtml(p.id)}">Delete</button>
+            <button type="button" class="ad-mini" data-edit="${escapeHtml(idStr)}">Edit</button>
+            <button type="button" class="ad-mini danger" data-del="${escapeHtml(idStr)}">Delete</button>
           </div>
         </div>
       `;
 
-      // Prevent card click when clicking buttons
-      card.querySelectorAll("button").forEach((btn) => {
-        btn.addEventListener("click", (ev) => ev.stopPropagation());
+      // ✅ FIX: bind clicks directly (works even if CSS overlays break delegation)
+      const editBtn = card.querySelector("[data-edit]");
+      const delBtn = card.querySelector("[data-del]");
+
+      editBtn?.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openEditById(idStr);
+      });
+
+      delBtn?.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        confirmDeleteById(idStr);
+      });
+
+      // Card click opens edit (but not when clicking the action buttons)
+      card.addEventListener("click", (ev) => {
+        const insideActions = ev.target.closest(".ad-item-actions");
+        if (insideActions) return;
+        openEditById(idStr);
+      });
+
+      // Keyboard: Enter/Space opens edit
+      card.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          openEditById(idStr);
+        }
       });
 
       grid.appendChild(card);
@@ -498,7 +584,7 @@
       setStatus(`Loaded ${products.length} product(s).`, "ok");
       render();
 
-      // helpful for your storefront pages
+      // helpful for storefront pages
       try { sessionStorage.setItem("allProducts", JSON.stringify(products)); } catch {}
     } catch (e) {
       console.warn(e);
@@ -508,25 +594,40 @@
   }
 
   /* ================= EVENTS ================= */
-  logoutBtn?.addEventListener("click", () => window.adminLogout?.());
+  logoutBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    window.adminLogout?.();
+  });
 
-  newBtn?.addEventListener("click", () => {
+  newBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
     resetEditForm();
     if (editTitle) editTitle.textContent = "Add Product";
     openModal(editModal, nameIpt);
   });
 
-  emptyAddBtn?.addEventListener("click", () => {
+  emptyAddBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
     newBtn?.click();
   });
 
-  refreshBtn?.addEventListener("click", loadProducts);
+  refreshBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    loadProducts();
+  });
 
-  editClose?.addEventListener("click", () => closeModal(editModal));
-  cancelEdit?.addEventListener("click", () => closeModal(editModal));
+  editClose?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeModal(editModal);
+  });
 
-  // Clear search
-  clearSearchBtn?.addEventListener("click", () => {
+  cancelEdit?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeModal(editModal);
+  });
+
+  clearSearchBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
     if (q) q.value = "";
     render();
     q?.focus?.();
@@ -561,67 +662,12 @@
     }
   });
 
-  // Click card to edit + button actions
-  grid?.addEventListener("click", async (e) => {
-    const delBtn = e.target.closest("[data-del]");
-    const editBtn = e.target.closest("[data-edit]");
-    const cardEdit = e.target.closest("[data-card-edit]");
-
-    if (editBtn) {
-      const id = String(editBtn.getAttribute("data-edit") || "");
-      const p = products.find((x) => String(x.id) === id);
-      if (!p) return;
-      fillEditForm(p);
-      if (editTitle) editTitle.textContent = `Edit Product #${id}`;
-      openModal(editModal, nameIpt);
-      return;
-    }
-
-    if (cardEdit && !delBtn) {
-      const id = String(cardEdit.getAttribute("data-card-edit") || "");
-      const p = products.find((x) => String(x.id) === id);
-      if (!p) return;
-      fillEditForm(p);
-      if (editTitle) editTitle.textContent = `Edit Product #${id}`;
-      openModal(editModal, nameIpt);
-      return;
-    }
-
-    if (delBtn) {
-      const id = String(delBtn.getAttribute("data-del") || "");
-      if (!confirm(`Delete product #${id}? This cannot be undone.`)) return;
-
-      setBusy(true);
-      try {
-        await deleteProduct(id);
-        toast("ok", "Deleted", "Product removed.");
-        await loadProducts();
-      } catch (err) {
-        toast("err", "Delete failed", String(err.message || err));
-      } finally {
-        setBusy(false);
-      }
-    }
-  });
-
-  // Keyboard: Enter on focused card opens edit
-  grid?.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    const card = e.target.closest("[data-card-edit]");
-    if (!card) return;
-    const id = String(card.getAttribute("data-card-edit") || "");
-    const p = products.find((x) => String(x.id) === id);
-    if (!p) return;
-    fillEditForm(p);
-    if (editTitle) editTitle.textContent = `Edit Product #${id}`;
-    openModal(editModal, nameIpt);
-  });
-
   q?.addEventListener("input", render);
   sort?.addEventListener("change", render);
 
   filterBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
       filterBtns.forEach((b) => {
         b.classList.remove("is-active");
         b.setAttribute("aria-selected", "false");

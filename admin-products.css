@@ -572,3 +572,7 @@ body.modal-open{
   .ad-item{ grid-column: span 12; }
   .ad-actions{ width:100%; justify-content:space-between; }
 }
+/* ensure action buttons are always clickable above overlays */
+.ad-item-actions { position: relative; z-index: 5; }
+.ad-mini, .ad-item-actions button { pointer-events: auto; }
+.ad-item { cursor: pointer; }

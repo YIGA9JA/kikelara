@@ -39,7 +39,7 @@
   }
 
   function authRequired() {
-    if (authAlreadyTriggered) return; // ✅ prevents double prompt/redirect storms
+    if (authAlreadyTriggered) return;
     authAlreadyTriggered = true;
 
     if (AUTH_MODE === "modal") {
@@ -49,8 +49,6 @@
     location.replace(LOGIN_URL);
   }
 
-
-  
   async function apiFetch(path, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     const needsCsrf = !["GET", "HEAD", "OPTIONS"].includes(method);
@@ -58,18 +56,30 @@
     const headersBase = { ...(options.headers || {}) };
     if (!("Accept" in headersBase)) headersBase["Accept"] = "application/json";
 
+    // ❌ Remove this unless server explicitly allows it:
+    // headersBase["X-Requested-With"] = "XMLHttpRequest";
+
     const headers = needsCsrf ? withCsrfHeaders(headersBase) : headersBase;
 
     const res = await fetch(`${API_BASE}${path}`, {
       ...options,
       method,
       headers,
-      credentials: "include", // ✅ REQUIRED for cookie session
+      credentials: "include",
       cache: "no-store",
     });
 
     // ✅ Only treat 401 as "login needed"
     if (res.status === 401) authRequired();
+
+    // ✅ If CSRF blocked (403), force re-login to refresh CSRF cookie/token
+    if (res.status === 403) {
+      try {
+        const data = await res.clone().json();
+        const msg = String(data?.message || "");
+        if (msg.toLowerCase().includes("csrf")) authRequired();
+      } catch {}
+    }
 
     return res;
   }
@@ -78,7 +88,7 @@
     try {
       const res = await apiFetch("/admin/me", { method: "GET" });
       if (!res.ok) throw new Error("not authed");
-      authAlreadyTriggered = false; // ✅ reset if authenticated
+      authAlreadyTriggered = false;
       return true;
     } catch {
       authRequired();

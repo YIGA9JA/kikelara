@@ -1,17 +1,20 @@
-// footer.js — premium footer (newsletter + hCaptcha + uses window.API_BASE)
-(() => {
+// footer.js — PREMIUM footer (newsletter + hCaptcha + uses window.API_BASE)
+// Requires:
+// 1) <div id="siteFooter"></div>
+// 2) <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
+// 3) config.js sets: window.API_BASE and window.HCAPTCHA_SITE_KEY
+
+document.addEventListener("DOMContentLoaded", () => {
   const mount = document.getElementById("siteFooter");
   if (!mount) return;
 
   const year = new Date().getFullYear();
 
-  // ✅ Use config.js base (no hardcode)
-  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
-  const SUBSCRIBE_ENDPOINT = `${API_BASE}/api/newsletter/subscribe`;
+  const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
+  const SUBSCRIBE_ENDPOINT = API_BASE ? `${API_BASE}/api/newsletter/subscribe` : "";
 
   const SITE_KEY = String(window.HCAPTCHA_SITE_KEY || "").trim();
 
-  // Small inline SVG icons
   const ICONS = {
     bag: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3v14H4V7h3Zm2 0h6V6a3 3 0 0 0-6 0v1Zm-3 2v10h14V9H6Zm4 3h2v5h-2v-5Zm4 0h2v5h-2v-5Z"/></svg>`,
     heart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 21s-7.2-4.6-9.5-8.6C.6 9.1 2.5 5.9 6 5.5c1.7-.2 3.4.6 4.4 2c1-1.4 2.7-2.2 4.4-2c3.5.4 5.4 3.6 3.5 6.9C19.2 16.4 12 21 12 21Z"/></svg>`,
@@ -30,80 +33,84 @@
         { href: "products.html", label: "All Products", icon: ICONS.bag },
         { href: "wishlist.html", label: "Wishlist", icon: ICONS.heart },
         { href: "cart.html", label: "Cart", icon: ICONS.cart },
-        { href: "product-details.html", label: "Product Details", icon: ICONS.bag }
       ]
     },
     {
       title: "Company",
       items: [
-        { href: "about.html", label: "About Us", icon: ICONS.info },
+        { href: "about.html", label: "About", icon: ICONS.info },
         { href: "contact.html", label: "Contact", icon: ICONS.mail },
-        { href: "privacy.html", label: "Privacy Policy", icon: ICONS.lock }
+        { href: "privacy.html", label: "Privacy", icon: ICONS.lock },
       ]
     }
   ];
 
   mount.innerHTML = `
-    <footer class="main-footer">
-      <div class="footer-wrap">
+    <footer class="k-footer">
+      <div class="k-footer-glow" aria-hidden="true"></div>
 
-        <div class="footer-newsletter">
-          <div class="footer-newsletter-text">
-            <h3>Sign up to subscribe</h3>
-            <p>Get product drops, restocks and skincare tips — no spam.</p>
+      <div class="k-footer-wrap">
+        <div class="k-footer-top">
+          <div class="k-footer-big">
+            <div class="k-footer-eyebrow">KÍKÉLÁRÁ</div>
+            <h2 class="k-footer-headline">Glow. Nourish. Restore.</h2>
+            <p class="k-footer-sub">
+              Premium skincare inspired by nature — crafted to nourish, glow and restore confidence.
+            </p>
           </div>
 
-          <form class="footer-form" id="footerNewsletter" autocomplete="on">
-            <label class="sr-only" for="footerEmail">Email address</label>
-            <input id="footerEmail" name="email" type="email" placeholder="Email address" required />
-            <button type="submit" id="footerSubmitBtn">Submit</button>
+          <div class="k-footer-news">
+            <div class="k-news-card">
+              <div class="k-news-title">Get drops & restocks</div>
+              <div class="k-news-copy">Skincare tips + product releases. No spam.</div>
 
-            <!-- ✅ hCaptcha widget for newsletter -->
-            <div class="footer-captcha">
-              <div id="footerHcaptcha" class="h-captcha"></div>
+              <form class="k-news-form" id="footerNewsletter" autocomplete="on">
+                <label class="sr-only" for="footerEmail">Email address</label>
+
+                <div class="k-input-pill">
+                  <input id="footerEmail" name="email" type="email" placeholder="Email address" required />
+                  <button type="submit" id="footerSubmitBtn">Subscribe</button>
+                </div>
+
+                <div class="k-captcha">
+                  <div id="footerHcaptcha" class="h-captcha"></div>
+                </div>
+
+                <div class="k-form-status" id="footerFormStatus" aria-live="polite"></div>
+              </form>
             </div>
-
-            <div class="footer-form-status" id="footerFormStatus" aria-live="polite"></div>
-          </form>
+          </div>
         </div>
 
-        <div class="footer-divider"></div>
-
-        <div class="footer-grid">
-          <div class="footer-brand">
-            <a href="index.html" class="footer-logo" aria-label="Kíke Lárá Home">
-              <img src="/images/logo.jpg" alt="Kíke Lárá Logo">
+        <div class="k-footer-mid">
+          <div class="k-brand">
+            <a href="index.html" class="k-logo" aria-label="KÍKÉLÁRÁ Home">
+              <img src="images/logo.jpg" alt="KÍKÉLÁRÁ Logo">
             </a>
 
-            <h4 class="footer-brand-name">KÍKÉLÁRÁ</h4>
-            <p class="footer-brand-desc">
-              Luxury skincare inspired by nature. Crafted to nourish, glow and restore confidence.
-            </p>
+            <div class="k-brand-name">KÍKÉLÁRÁ</div>
 
-            <div class="footer-follow">
-              <div class="footer-follow-title">Follow us</div>
-              <div class="footer-socials">
-                <a class="social-icon-btn" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
-                  <span class="ico">${ICONS.instagram}</span>
-                  <span class="handle">@_kikelara</span>
-                </a>
-                <a class="social-icon-btn" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
-                  <span class="ico">${ICONS.tiktok}</span>
-                  <span class="handle">@_kikelara</span>
-                </a>
-              </div>
+            <div class="k-socials">
+              <a class="k-social" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
+                <span class="k-ico">${ICONS.instagram}</span>
+                <span>@_kikelara</span>
+              </a>
+              <a class="k-social" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
+                <span class="k-ico">${ICONS.tiktok}</span>
+                <span>@_kikelara</span>
+              </a>
             </div>
           </div>
 
-          <div class="footer-columns">
+          <div class="k-cols">
             ${sections.map((sec) => `
-              <details class="footer-col" open>
+              <details class="k-col" open>
                 <summary>${sec.title}</summary>
-                <div class="footer-links">
+                <div class="k-links">
                   ${sec.items.map(i => `
-                    <a href="${i.href}" class="footer-link">
-                      <span class="link-ico">${i.icon}</span>
-                      <span class="link-text">${i.label}</span>
+                    <a href="${i.href}" class="k-link">
+                      <span class="k-link-ico">${i.icon}</span>
+                      <span>${i.label}</span>
                     </a>
                   `).join("")}
                 </div>
@@ -112,10 +119,11 @@
           </div>
         </div>
 
-        <div class="footer-bottom">
-          <span>© ${year} KÍKÉLÁRÁ Skincare. All Rights Reserved.</span>
+        <div class="k-footer-bottom">
+          <span>© ${year} KÍKÉLÁRÁ. All Rights Reserved.</span>
+          <span class="k-dot">•</span>
+          <span>Made with care.</span>
         </div>
-
       </div>
     </footer>
   `;
@@ -130,7 +138,7 @@
 
   const isValidEmail = (email) => /^\S+@\S+\.\S+$/.test(String(email || "").trim());
 
-  // ===================== hCaptcha for footer =====================
+  // ===================== hCaptcha =====================
   const captchaEl = document.getElementById("footerHcaptcha");
   let footerWidgetId = null;
 
@@ -143,9 +151,7 @@
     if (!window.hcaptcha) return;
 
     if (footerWidgetId === null) {
-      try {
-        footerWidgetId = window.hcaptcha.render(captchaEl, { sitekey: SITE_KEY });
-      } catch {}
+      try { footerWidgetId = window.hcaptcha.render(captchaEl, { sitekey: SITE_KEY }); } catch {}
     }
   }
 
@@ -153,9 +159,7 @@
     if (!window.hcaptcha) return "";
     try {
       return footerWidgetId !== null ? window.hcaptcha.getResponse(footerWidgetId) : window.hcaptcha.getResponse();
-    } catch {
-      return "";
-    }
+    } catch { return ""; }
   }
 
   function resetFooterCaptcha() {
@@ -181,8 +185,13 @@
 
     const input = document.getElementById("footerEmail");
     const btn = document.getElementById("footerSubmitBtn");
-
     const email = input?.value?.trim();
+
+    if (!SUBSCRIBE_ENDPOINT) {
+      setStatus("API_BASE missing in config.js (newsletter disabled).", "error");
+      return;
+    }
+
     if (!email) return;
 
     if (!isValidEmail(email)) {
@@ -200,7 +209,7 @@
     setStatus("Subscribing…", "loading");
     if (btn) {
       btn.disabled = true;
-      btn.dataset.prevText = btn.textContent || "Submit";
+      btn.dataset.prevText = btn.textContent || "Subscribe";
       btn.textContent = "Submitting…";
     }
 
@@ -220,7 +229,6 @@
       }
 
       localStorage.setItem("newsletterEmail", email);
-
       form.reset();
       resetFooterCaptcha();
 
@@ -230,22 +238,22 @@
           : "✅ Subscribed! Check your inbox for a welcome message.",
         "success"
       );
-    } catch (err) {
+    } catch {
       resetFooterCaptcha();
       setStatus("Network error. Please try again.", "error");
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = btn.dataset.prevText || "Submit";
+        btn.textContent = btn.dataset.prevText || "Subscribe";
         delete btn.dataset.prevText;
       }
     }
   });
 
-  // Mobile accordion
-  const mq = window.matchMedia("(max-width: 600px)");
+  // Mobile accordion behavior
+  const mq = window.matchMedia("(max-width: 700px)");
   const applyAccordion = () => {
-    document.querySelectorAll(".footer-col").forEach((d) => {
+    document.querySelectorAll(".k-col").forEach((d) => {
       if (!(d instanceof HTMLDetailsElement)) return;
       if (mq.matches) d.removeAttribute("open");
       else d.setAttribute("open", "");
@@ -253,4 +261,4 @@
   };
   applyAccordion();
   mq.addEventListener?.("change", applyAccordion);
-})();
+});
