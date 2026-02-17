@@ -10,7 +10,7 @@
 
    FIXES:
    ✅ Edit/Delete always clickable (bind handlers directly per card)
-   ✅ Supabase upload fixed (pickedFile stored and appended to FormData)
+   ✅ Upload works for BOTH file picker + drag-drop (pickedFile stored)
 =============================================================================== */
 
 (async function () {
@@ -74,7 +74,7 @@
   let products = [];
   let activeFilter = "all"; // all | active | inactive
   let previewObjectUrl = ""; // revoke on change
-  let pickedFile = null; // ✅ FIX: always upload what user picked/dropped
+  let pickedFile = null; // ✅ always upload what user picked/dropped
 
   /* ================= NETWORK (AUTHED) ================= */
   async function api(path, options = {}) {
@@ -258,7 +258,7 @@
 
   function resetImage() {
     revokePreviewUrl();
-    pickedFile = null;                 // ✅ FIX
+    pickedFile = null;
     if (imageIpt) imageIpt.value = "";
     if (removeImage) removeImage.value = "true";
     showPreview("");
@@ -280,7 +280,7 @@
       return;
     }
 
-    pickedFile = f; // ✅ FIX: store file reliably
+    pickedFile = f;
 
     revokePreviewUrl();
     previewObjectUrl = URL.createObjectURL(f);
@@ -295,13 +295,11 @@
     toast("warn", "Removed", "Image cleared.");
   });
 
-  // Click drop box to open file picker
   dropBox?.addEventListener("click", (e) => {
     e.preventDefault();
     imageIpt?.click();
   });
 
-  // Keyboard access for dropBox
   dropBox?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -334,7 +332,7 @@
         return;
       }
 
-      pickedFile = file; // ✅ FIX: store file (don’t rely on input.files assignment)
+      pickedFile = file;
 
       revokePreviewUrl();
       previewObjectUrl = URL.createObjectURL(file);
@@ -347,7 +345,7 @@
 
   function resetEditForm() {
     revokePreviewUrl();
-    pickedFile = null;               // ✅
+    pickedFile = null;
     if (imageIpt) imageIpt.value = "";
 
     if (pid) pid.value = "";
@@ -372,12 +370,12 @@
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u; // could be signed url already
+    return u;
   }
 
   function fillEditForm(p) {
     revokePreviewUrl();
-    pickedFile = null;                // ✅ don’t accidentally re-upload old selection
+    pickedFile = null;
     if (imageIpt) imageIpt.value = "";
 
     if (pid) pid.value = String(p.id);
@@ -415,7 +413,6 @@
 
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
-    // ✅ FIX: always append stored file (works for drag-drop reliably)
     const file = pickedFile || imageIpt?.files?.[0];
     if (file) fd.append("image", file);
 
@@ -541,7 +538,6 @@
         </div>
       `;
 
-      // ✅ FIX: bind clicks directly (works even if CSS overlays break delegation)
       const editBtn = card.querySelector("[data-edit]");
       const delBtn = card.querySelector("[data-del]");
 
@@ -557,14 +553,12 @@
         confirmDeleteById(idStr);
       });
 
-      // Card click opens edit (but not when clicking the action buttons)
       card.addEventListener("click", (ev) => {
         const insideActions = ev.target.closest(".ad-item-actions");
         if (insideActions) return;
         openEditById(idStr);
       });
 
-      // Keyboard: Enter/Space opens edit
       card.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter" || ev.key === " ") {
           ev.preventDefault();
@@ -584,7 +578,6 @@
       setStatus(`Loaded ${products.length} product(s).`, "ok");
       render();
 
-      // helpful for storefront pages
       try { sessionStorage.setItem("allProducts", JSON.stringify(products)); } catch {}
     } catch (e) {
       console.warn(e);

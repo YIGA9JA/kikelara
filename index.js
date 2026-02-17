@@ -1,83 +1,84 @@
-/* ================= INDEX.JS (PREMIUM + HERO VIDEO) =================
-   ✅ Preloader per-tab
-   ✅ Hero background video (loads only when allowed)
+/* ================= INDEX.JS (PREMIUM) =================
+   ✅ Preloader (per-tab sessionStorage)
+   ✅ Hero video lazy-load (reduced-motion safe)
    ✅ Featured slider kept
-   ✅ Products from sessionStorage(allProducts), backend fallback
-   ✅ Latest = newest products
-   ✅ Most loved = more products (stable pick)
-=========================================================== */
+   ✅ Reads products from sessionStorage(allProducts)
+   ✅ If empty, fetches from backend and saves into sessionStorage(allProducts)
+   ✅ Cards navigate to product-details.html?id=ID
+======================================================== */
 
-const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
+const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const PRODUCTS_KEY = "allProducts";
 
 /* ================= PRELOADER – PER TAB ================= */
 window.addEventListener("load", () => {
   const preloader = document.getElementById("preloader");
+
   if (!sessionStorage.getItem("visited")) {
     sessionStorage.setItem("visited", "true");
     setTimeout(() => {
       if (preloader) {
         preloader.style.opacity = "0";
-        preloader.style.transition = "opacity .45s ease";
-        setTimeout(() => preloader.remove(), 480);
+        setTimeout(() => preloader.remove(), 550);
       }
-    }, 950);
+    }, 900);
   } else {
     if (preloader) preloader.remove();
   }
 });
 
-/* ================= HERO VIDEO (SMART LOAD) ================= */
-(function setupHeroVideo() {
-  const vid = document.getElementById("heroBgVideo");
-  if (!vid) return;
+/* ================= HERO VIDEO (LAZY + SAFE) ================= */
+(function initHeroVideo(){
+  const v = document.getElementById("heroBgVideo");
+  if (!v) return;
 
-  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const saveData = !!(navigator.connection && navigator.connection.saveData);
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (reduce) return; // keep poster only
 
-  if (reduceMotion || saveData) {
-    // Leave poster visible (no video load)
-    return;
-  }
+  const webm = v.dataset.webm || "";
+  const mp4  = v.dataset.mp4  || "";
+  if (!webm && !mp4) return;
 
-  const webm = vid.getAttribute("data-webm");
-  const mp4 = vid.getAttribute("data-mp4");
+  function attachSources(){
+    if (v.querySelector("source")) return;
 
-  // Add sources only when allowed (prevents loading on save-data / reduced-motion)
-  if (webm) {
-    const s1 = document.createElement("source");
-    s1.src = webm;
-    s1.type = "video/webm";
-    vid.appendChild(s1);
-  }
-  if (mp4) {
-    const s2 = document.createElement("source");
-    s2.src = mp4;
-    s2.type = "video/mp4";
-    vid.appendChild(s2);
-  }
-
-  vid.preload = "metadata";
-
-  const tryPlay = async () => {
-    try {
-      await vid.play();
-    } catch {
-      // If autoplay blocked, user will still see poster (fine)
+    // Prefer webm when possible
+    if (webm) {
+      const s = document.createElement("source");
+      s.src = webm;
+      s.type = "video/webm";
+      v.appendChild(s);
     }
-  };
+    if (mp4) {
+      const s = document.createElement("source");
+      s.src = mp4;
+      s.type = "video/mp4";
+      v.appendChild(s);
+    }
+    v.load();
 
-  // Pause video when hero is not visible (performance)
-  const hero = document.querySelector(".hero");
-  if ("IntersectionObserver" in window && hero) {
+    const play = () => v.play().catch(() => {});
+    if (document.visibilityState === "visible") play();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") play();
+      else v.pause();
+    });
+  }
+
+  // Load only when hero is near viewport
+  if ("IntersectionObserver" in window) {
     const io = new IntersectionObserver((entries) => {
-      const isInView = entries.some(e => e.isIntersecting);
-      if (isInView) tryPlay();
-      else { try { vid.pause(); } catch {} }
-    }, { threshold: 0.2 });
-    io.observe(hero);
+      const ent = entries[0];
+      if (ent && ent.isIntersecting) {
+        attachSources();
+        io.disconnect();
+      }
+    }, { root: null, threshold: 0.12, rootMargin: "200px" });
+
+    io.observe(v);
   } else {
-    tryPlay();
+    // fallback
+    attachSources();
   }
 })();
 
@@ -100,22 +101,16 @@ function safeParseJSONSession(key, fallback) {
 function safeSetJSONSession(key, value) {
   try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
-
-/* ================= IMAGE URL RESOLVER ================= */
-function resolveImageUrl(src) {
-  const s = String(src || "").trim();
-  if (!s) return "images_brown/bodyButter.png";
-  if (/^https?:\/\//i.test(s)) return s;
-  if (API_BASE && s.startsWith("/uploads/")) return API_BASE + s;
-  return s;
+function normalizeName(str) {
+  return String(str || "").trim().toLowerCase();
 }
 
 /* ================= FEATURED SLIDER ================= */
 const featuredProducts = [
-  { name: "", img: "images_brown/ad4.png" },
-  { name: "", img: "images_brown/ad7.png" },
-  { name: "", img: "images_brown/ad8.png" },
-  { name: "", img: "images_brown/ad9.png" },
+  { name: "Body Butter", img: "images_brown/bodyButter.png" },
+  { name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
+  { name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
+  { name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
 ];
 
 let featuredIndex = 0;
@@ -126,7 +121,7 @@ function preloadImage(src, callback) {
   const img = new Image();
   img.src = src;
   img.onload = callback;
-  img.onerror = callback;
+  img.onerror = callback; // still switch even if image missing
 }
 
 function switchFeatured() {
@@ -136,23 +131,36 @@ function switchFeatured() {
   if (featuredName) featuredName.style.opacity = "0";
 
   const next = featuredProducts[featuredIndex];
+
   preloadImage(next.img, () => {
     setTimeout(() => {
       featuredImg.src = next.img;
       if (featuredName) featuredName.textContent = next.name || "";
+
       featuredImg.style.opacity = "1";
       if (featuredName) featuredName.style.opacity = "1";
+
       featuredIndex = (featuredIndex + 1) % featuredProducts.length;
-    }, 280);
+    }, 260);
   });
 }
 switchFeatured();
-setInterval(switchFeatured, 4500);
+setInterval(switchFeatured, 4200);
 
 /* ================= PRODUCTS (SESSION + BACKEND FALLBACK) ================= */
 function getAllProducts() {
   const list = safeParseJSONSession(PRODUCTS_KEY, []);
   return Array.isArray(list) ? list : [];
+}
+
+function resolveImageUrl(img) {
+  const val = String(img || "").trim();
+  if (!val) return "images_brown/bodyButter.png";
+  if (/^https?:\/\//i.test(val)) return val;
+
+  // if backend returns /uploads/... then prefix API_BASE
+  if (val.startsWith("/uploads/") && API_BASE) return `${API_BASE}${val}`;
+  return val; // local file path
 }
 
 function normalizeProduct(p) {
@@ -165,7 +173,6 @@ function normalizeProduct(p) {
     image: resolveImageUrl(image),
     category: String(p?.category || p?.payload?.category || "Product").trim(),
     price: Number(p?.price || 0),
-    active: p?.active ?? p?.is_active ?? true
   };
 }
 
@@ -182,44 +189,79 @@ async function fetchProductsFromBackend() {
   }
 }
 
-/* ================= CARD RENDER ================= */
-function renderCards(container, items, cardClass) {
-  if (!container) return;
-  container.innerHTML = "";
-
-  items.forEach((p) => {
-    const card = document.createElement("div");
-    card.className = cardClass;
-
-    const img = document.createElement("img");
-    img.src = resolveImageUrl(p.img);
-    img.alt = p.name;
-    img.loading = "lazy";
-
-    const title = document.createElement("h4");
-    title.textContent = p.name;
-
-    card.addEventListener("click", () => goToProduct(p.id));
-    img.addEventListener("click", (e) => { e.stopPropagation(); goToProduct(p.id); });
-
-    card.appendChild(img);
-    card.appendChild(title);
-    container.appendChild(card);
-  });
+function findProductIdByName(name) {
+  const all = getAllProducts();
+  const target = normalizeName(name);
+  const found = all.find(p => normalizeName(p?.name) === target);
+  return found?.id ?? null;
 }
 
-/* ================= DEFAULT FALLBACK LISTS ================= */
+/* ================= RENDER HELPERS ================= */
+function makeCard({ id, name, img, kind }) {
+  const card = document.createElement("a");
+  card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
+  card.href = "javascript:void(0)";
+  card.setAttribute("role", "link");
+  card.style.textDecoration = "none";
+
+  const media = document.createElement("div");
+  media.className = "p-media";
+
+  const image = document.createElement("img");
+  image.loading = "lazy";
+  image.alt = name;
+  image.src = resolveImageUrl(img);
+  media.appendChild(image);
+
+  const body = document.createElement("div");
+  body.className = "p-body";
+
+  const title = document.createElement("div");
+  title.className = "p-title";
+  title.textContent = name;
+
+  const meta = document.createElement("div");
+  meta.className = "p-meta";
+  meta.textContent = kind === "latest" ? "New in" : "Customer favorite";
+
+  body.appendChild(title);
+  body.appendChild(meta);
+
+  card.appendChild(media);
+  card.appendChild(body);
+
+  card.addEventListener("click", () => {
+    const realId = findProductIdByName(name);
+    goToProduct(realId ?? id);
+  });
+
+  return card;
+}
+
+function renderLatest(container, items) {
+  if (!container) return;
+  container.innerHTML = "";
+  items.forEach(p => container.appendChild(makeCard({ ...p, kind: "latest" })));
+}
+
+function renderLoved(container, items) {
+  if (!container) return;
+  container.innerHTML = "";
+  items.forEach(p => container.appendChild(makeCard({ ...p, kind: "loved" })));
+}
+
+/* ================= DATA (your display list) ================= */
 const latestGrid = document.getElementById("latestProducts");
 const lovedRail = document.getElementById("homeProducts");
 
-const fallbackLatest = [
+const latestProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
   { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
   { id: 6, name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
 ];
 
-const fallbackLoved = [
+const lovedProducts = [
   { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
   { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
   { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
@@ -227,42 +269,16 @@ const fallbackLoved = [
   { id: 5, name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
 ];
 
-function renderFallback() {
-  if (latestGrid) renderCards(latestGrid, fallbackLatest, "latest-card");
-  if (lovedRail) renderCards(lovedRail, fallbackLoved, "home-card");
-}
-
-/* ================= BUILD “MAKES SENSE” LISTS FROM BACKEND ================= */
-function buildLatestFromBackend(all) {
-  // newest by ID (works if IDs increment)
-  const sorted = [...all].filter(p => p.active !== false).sort((a,b) => Number(b.id) - Number(a.id));
-  return sorted.slice(0, 4).map(p => ({ id: p.id, name: p.name, img: p.image }));
-}
-function buildLovedFromBackend(all) {
-  // stable pick: first 10 active products (or fewer)
-  const active = all.filter(p => p.active !== false);
-  const sorted = [...active].sort((a,b) => Number(a.id) - Number(b.id));
-  return sorted.slice(0, 10).map(p => ({ id: p.id, name: p.name, img: p.image }));
-}
-
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
-  renderFallback();
+  // First render (fast)
+  renderLatest(latestGrid, latestProducts);
+  renderLoved(lovedRail, lovedProducts);
 
-  let existing = getAllProducts();
+  // Ensure products in session (for correct IDs)
+  const existing = getAllProducts();
   if (!existing.length) {
     const fetched = await fetchProductsFromBackend();
-    if (fetched.length) {
-      safeSetJSONSession(PRODUCTS_KEY, fetched);
-      existing = fetched;
-    }
-  }
-
-  if (existing.length) {
-    const latest = buildLatestFromBackend(existing);
-    const loved = buildLovedFromBackend(existing);
-
-    if (latestGrid && latest.length) renderCards(latestGrid, latest, "latest-card");
-    if (lovedRail && loved.length) renderCards(lovedRail, loved, "home-card");
+    if (fetched.length) safeSetJSONSession(PRODUCTS_KEY, fetched);
   }
 });

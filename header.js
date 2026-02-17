@@ -1,58 +1,54 @@
-// header.js — Premium capsule header (Osmo/Jeton/Gufram-inspired)
-// - Injects into <div id="siteHeader"></div>
-// - Center pill nav with sliding active indicator
-// - Sticky glass header, better scroll behavior
-// - Mobile drawer with overlay + scroll lock
-// - Cart badge reads sessionStorage("cart")
-
+// header.js — Liquid Glass + 3D + scroll pulse + centered capsule nav + SVG cart
 document.addEventListener("DOMContentLoaded", () => {
   const mount = document.getElementById("siteHeader");
   if (!mount) return;
 
+  const ICON_CART = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M7 18a2 2 0 1 0 0 4a2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 0 4a2 2 0 0 0 0-4ZM6.2 6h15.1l-1.6 8.1a2 2 0 0 1-2 1.6H8a2 2 0 0 1-2-1.6L4.3 2H2V0h3.9l.3 2H22v2H6.2Z"/>
+    </svg>
+  `;
+
   mount.innerHTML = `
-    <header class="cap-header" id="capHeader">
-      <div class="cap-inner">
-        <a class="cap-brand" href="index.html" aria-label="KÍKÉLÁRÁ home">
+    <a class="k-skip" href="#shopPanels">Skip to content</a>
+
+    <header class="k-header" id="kHeader">
+      <div class="k-header-inner">
+
+        <a class="k-brand" href="index.html" aria-label="KÍKÉLÁRÁ Home">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
           <span>KÍKÉLÁRÁ</span>
         </a>
 
-        <nav class="cap-nav" id="capNav" aria-label="Primary navigation">
-          <span class="cap-indicator" id="capIndicator" aria-hidden="true"></span>
+        <nav class="k-nav" aria-label="Primary navigation">
           <a href="index.html" data-nav="index.html">Home</a>
           <a href="products.html" data-nav="products.html">Products</a>
           <a href="about.html" data-nav="about.html">About</a>
           <a href="contact.html" data-nav="contact.html">Contact</a>
         </nav>
 
-        <div class="cap-actions">
-          <a class="cap-cta" href="products.html">Shop</a>
+        <div class="k-actions">
+          <a class="k-icon" href="cart.html" aria-label="Cart">${ICON_CART}</a>
 
-          <a class="cap-icon" href="cart.html" aria-label="Cart">
-            <span class="cap-ico">🛒</span>
-            <span class="cap-badge" id="cartCountBadge">0</span>
-          </a>
-
-          <button class="cap-menu" id="menuToggle"
-            type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobileDrawer">
+          <button id="kMenuBtn" class="k-menu" aria-label="Open menu" aria-expanded="false">
             <span></span><span></span><span></span>
           </button>
         </div>
       </div>
     </header>
 
-    <div class="cap-overlay" id="capOverlay" aria-hidden="true"></div>
+    <div class="k-overlay" id="kOverlay"></div>
 
-    <aside class="cap-drawer" id="mobileDrawer" aria-label="Mobile navigation" aria-hidden="true">
-      <div class="drawer-top">
-        <a class="drawer-brand" href="index.html" data-nav="index.html">
+    <nav id="kDrawer" class="k-drawer" aria-label="Mobile navigation">
+      <div class="k-drawer-top">
+        <div class="k-drawer-brand">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
           <span>KÍKÉLÁRÁ</span>
-        </a>
-        <button class="drawer-close" id="drawerClose" type="button" aria-label="Close menu">✕</button>
+        </div>
+        <button class="k-drawer-close" id="kDrawerClose" aria-label="Close menu">✕</button>
       </div>
 
-      <div class="drawer-links">
+      <div class="k-drawer-links">
         <a href="index.html" data-nav="index.html">Home</a>
         <a href="products.html" data-nav="products.html">Products</a>
         <a href="cart.html" data-nav="cart.html">Cart</a>
@@ -60,150 +56,113 @@ document.addEventListener("DOMContentLoaded", () => {
         <a href="contact.html" data-nav="contact.html">Contact</a>
       </div>
 
-      <div class="drawer-bottom">
-        <div class="drawer-note">Luxury skincare inspired by nature.</div>
-        <a class="drawer-cta" href="products.html">Shop Collection</a>
+      <div class="k-drawer-bottom">
+        <div class="k-drawer-note">Luxury skincare inspired by nature.</div>
+        <a class="k-drawer-cta" href="products.html">Shop Now</a>
       </div>
-    </aside>
+    </nav>
   `;
 
-  const header = document.getElementById("capHeader");
-  const nav = document.getElementById("capNav");
-  const indicator = document.getElementById("capIndicator");
+  const header = document.getElementById("kHeader");
+  const menuBtn = document.getElementById("kMenuBtn");
+  const drawer = document.getElementById("kDrawer");
+  const overlay = document.getElementById("kOverlay");
+  const closeBtn = document.getElementById("kDrawerClose");
 
-  const toggleBtn = document.getElementById("menuToggle");
-  const overlay = document.getElementById("capOverlay");
-  const drawer = document.getElementById("mobileDrawer");
-  const closeBtn = document.getElementById("drawerClose");
-
-  const cartBadge = document.getElementById("cartCountBadge");
-
-  // ---- Active link
+  // Active link
   const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   mount.querySelectorAll("[data-nav]").forEach(a => {
-    const href = String(a.getAttribute("data-nav") || "").toLowerCase();
+    const href = (a.getAttribute("data-nav") || "").toLowerCase();
     if (href === current) a.classList.add("active");
   });
 
-  // ---- Sliding indicator (Osmo-style pill)
-  function positionIndicator() {
-    if (!nav || !indicator) return;
-    const active = nav.querySelector("a.active") || nav.querySelector("a");
-    if (!active) return;
-
-    const navRect = nav.getBoundingClientRect();
-    const aRect = active.getBoundingClientRect();
-
-    const x = Math.round(aRect.left - navRect.left);
-    const w = Math.round(aRect.width);
-
-    indicator.style.transform = `translateX(${x}px)`;
-    indicator.style.width = `${w}px`;
-  }
-
-  positionIndicator();
-  window.addEventListener("resize", positionIndicator, { passive: true });
-
-  // Update indicator on hover/focus (feels premium)
-  nav?.addEventListener("mouseover", (e) => {
-    const a = e.target.closest("a");
-    if (!a) return;
-    const navRect = nav.getBoundingClientRect();
-    const aRect = a.getBoundingClientRect();
-    indicator.style.transform = `translateX(${Math.round(aRect.left - navRect.left)}px)`;
-    indicator.style.width = `${Math.round(aRect.width)}px`;
-  });
-
-  nav?.addEventListener("mouseleave", positionIndicator);
-
-  // ---- Scroll polish (shadow + slight tighten)
-  function onScroll() {
-    if (!header) return;
-    header.classList.toggle("is-scrolled", window.scrollY > 8);
-  }
-  onScroll();
-  window.addEventListener("scroll", onScroll, { passive: true });
-
-  // ---- Cart badge
-  function safeParse(key, fallback) {
-    try {
-      const raw = sessionStorage.getItem(key);
-      if (!raw) return fallback;
-      return JSON.parse(raw);
-    } catch {
-      return fallback;
-    }
-  }
-
-  function getCartCount() {
-    const cart = safeParse("cart", []);
-    if (!Array.isArray(cart)) return 0;
-
-    let total = 0;
-    for (const item of cart) {
-      const q = Number(item?.qty ?? item?.quantity ?? 1);
-      total += Number.isFinite(q) ? q : 1;
-    }
-    return total;
-  }
-
-  function renderCart() {
-    if (!cartBadge) return;
-    const n = getCartCount();
-    cartBadge.textContent = String(n);
-    cartBadge.classList.toggle("show", n > 0);
-  }
-
-  renderCart();
-  window.addEventListener("storage", renderCart);
-  window.addEventListener("focus", renderCart);
-
-  // ---- Drawer controls
-  function openDrawer() {
-    toggleBtn.classList.add("active");
+  // Drawer
+  const openDrawer = () => {
+    menuBtn.classList.add("active");
     drawer.classList.add("show");
     overlay.classList.add("show");
+    menuBtn.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  };
 
-    toggleBtn.setAttribute("aria-expanded", "true");
-    drawer.setAttribute("aria-hidden", "false");
-    overlay.setAttribute("aria-hidden", "false");
-
-    document.documentElement.classList.add("cap-no-scroll");
-    closeBtn?.focus?.();
-  }
-
-  function closeDrawer() {
-    toggleBtn.classList.remove("active");
+  const closeDrawer = () => {
+    menuBtn.classList.remove("active");
     drawer.classList.remove("show");
     overlay.classList.remove("show");
+    menuBtn.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  };
 
-    toggleBtn.setAttribute("aria-expanded", "false");
-    drawer.setAttribute("aria-hidden", "true");
-    overlay.setAttribute("aria-hidden", "true");
-
-    document.documentElement.classList.remove("cap-no-scroll");
-    toggleBtn?.focus?.();
-  }
-
-  toggleBtn.addEventListener("click", () => {
+  menuBtn.addEventListener("click", () => {
     if (drawer.classList.contains("show")) closeDrawer();
     else openDrawer();
   });
 
   overlay.addEventListener("click", closeDrawer);
   closeBtn.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  drawer.addEventListener("click", (e) => { if (e.target.closest("a")) closeDrawer(); });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && drawer.classList.contains("show")) closeDrawer();
-  });
+  // Scroll state + pulse
+  let pulseTimer = null;
+  const onScroll = () => {
+    if (!header) return;
+    header.classList.toggle("scrolled", window.scrollY > 12);
 
-  drawer.addEventListener("click", (e) => {
-    const link = e.target.closest("a");
-    if (link) closeDrawer();
-  });
+    // pulse while user is scrolling
+    header.classList.add("pulse");
+    clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(() => header.classList.remove("pulse"), 220);
+  };
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
 
-  // Close drawer automatically on desktop
-  window.addEventListener("resize", () => {
-    if (window.innerWidth > 900 && drawer.classList.contains("show")) closeDrawer();
-  });
+  // Close drawer when switching to desktop
+  window.addEventListener("resize", () => { if (window.innerWidth > 900) closeDrawer(); });
+
+  // ================= LIQUID + 3D PARALLAX =================
+  const isTouch = matchMedia?.("(pointer: coarse)")?.matches;
+  const reduceMotion = matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+  if (!isTouch && !reduceMotion && header) {
+    const MAX_TILT = 8; // more 3D
+    let raf = null;
+    let lastX = 0, lastY = 0;
+
+    const apply = () => {
+      raf = null;
+      const r = header.getBoundingClientRect();
+
+      const x = lastX - r.left;
+      const y = lastY - r.top;
+
+      const px = Math.max(0, Math.min(r.width, x)) / r.width;   // 0..1
+      const py = Math.max(0, Math.min(r.height, y)) / r.height; // 0..1
+
+      header.style.setProperty("--mx", `${px * 100}%`);
+      header.style.setProperty("--my", `${py * 100}%`);
+
+      const dx = (px - 0.5) * 2; // -1..1
+      const dy = (py - 0.5) * 2; // -1..1
+
+      const ry = dx * MAX_TILT;
+      const rx = -dy * MAX_TILT;
+
+      header.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
+      header.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
+    };
+
+    header.addEventListener("mousemove", (ev) => {
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      if (!raf) raf = requestAnimationFrame(apply);
+    }, { passive: true });
+
+    header.addEventListener("mouseleave", () => {
+      header.style.setProperty("--mx", "50%");
+      header.style.setProperty("--my", "50%");
+      header.style.setProperty("--rx", "0deg");
+      header.style.setProperty("--ry", "0deg");
+    }, { passive: true });
+  }
 });

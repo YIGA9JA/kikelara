@@ -6,14 +6,17 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<link rel="stylesheet" href="header.css">
-<script src="header.js"></script>
-
+  <!-- Styles -->
+  <link rel="stylesheet" href="header.css" />
   <link rel="stylesheet" href="index.css" />
+  <link rel="stylesheet" href="footer.css" />
+
+  <!-- Config first (API_BASE + HCAPTCHA_SITE_KEY) -->
+  <script src="config.js"></script>
 </head>
 
 <body>
-  <!-- HEADER INJECT -->
+  <!-- HEADER INJECT MOUNT -->
   <div id="siteHeader"></div>
 
   <!-- PRELOADER -->
@@ -27,7 +30,6 @@
 
   <!-- HERO -->
   <section class="hero" aria-label="Hero">
-    <!-- Background video (loads only if allowed) -->
     <video
       id="heroBgVideo"
       class="hero-bg-video"
@@ -70,7 +72,6 @@
       </div>
 
       <div class="hero-right">
-        <!-- Featured visual card (kept) -->
         <div class="feature-card">
           <div class="feature-top">
             <div class="dots"><span></span><span></span><span></span></div>
@@ -94,7 +95,9 @@
 
         <div class="float-card">
           <div class="float-title">Glow Tip</div>
-          <div class="float-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
+          <div class="float-text">
+            Apply oil on damp skin, then seal with butter for an all-day glow.
+          </div>
         </div>
       </div>
     </div>
@@ -213,10 +216,19 @@
     </div>
   </section>
 
-  <!-- FOOTER INJECT -->
+  <!-- FOOTER INJECT MOUNT -->
   <div id="siteFooter"></div>
 
-  <script src="config.js"></script>
+  <!-- ✅ hCaptcha explicit onload (fixes warning) -->
+  <script>
+    window.__hcaptchaOnLoad = function () {
+      window.__HCAPTCHA_READY__ = true;
+      document.dispatchEvent(new Event("hcaptcha:ready"));
+    };
+  </script>
+  <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=__hcaptchaOnLoad" async defer></script>
+
+  <!-- Scripts (load once) -->
   <script src="header.js"></script>
   <script src="footer.js"></script>
   <script src="index.js"></script>

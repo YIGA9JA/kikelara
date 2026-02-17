@@ -1,7 +1,7 @@
-// footer.js — PREMIUM footer (newsletter + hCaptcha + uses window.API_BASE)
+// footer.js — BUTTER CREAM LIQUID GLASS footer (newsletter + hCaptcha + uses window.API_BASE)
 // Requires:
 // 1) <div id="siteFooter"></div>
-// 2) <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
+// 2) hCaptcha script using: render=explicit&onload=hcaptchaOnload (dispatches "hcaptcha:ready")
 // 3) config.js sets: window.API_BASE and window.HCAPTCHA_SITE_KEY
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -9,10 +9,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!mount) return;
 
   const year = new Date().getFullYear();
-
   const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
   const SUBSCRIBE_ENDPOINT = API_BASE ? `${API_BASE}/api/newsletter/subscribe` : "";
-
   const SITE_KEY = String(window.HCAPTCHA_SITE_KEY || "").trim();
 
   const ICONS = {
@@ -33,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
         { href: "products.html", label: "All Products", icon: ICONS.bag },
         { href: "wishlist.html", label: "Wishlist", icon: ICONS.heart },
         { href: "cart.html", label: "Cart", icon: ICONS.cart },
-      ]
+      ],
     },
     {
       title: "Company",
@@ -41,94 +39,102 @@ document.addEventListener("DOMContentLoaded", () => {
         { href: "about.html", label: "About", icon: ICONS.info },
         { href: "contact.html", label: "Contact", icon: ICONS.mail },
         { href: "privacy.html", label: "Privacy", icon: ICONS.lock },
-      ]
-    }
+      ],
+    },
   ];
 
   mount.innerHTML = `
-    <footer class="k-footer">
-      <div class="k-footer-glow" aria-hidden="true"></div>
+    <footer class="bc-footer" role="contentinfo">
+      <div class="bc-bg" aria-hidden="true"></div>
 
-      <div class="k-footer-wrap">
-        <div class="k-footer-top">
-          <div class="k-footer-big">
-            <div class="k-footer-eyebrow">KÍKÉLÁRÁ</div>
-            <h2 class="k-footer-headline">Glow. Nourish. Restore.</h2>
-            <p class="k-footer-sub">
-              Premium skincare inspired by nature — crafted to nourish, glow and restore confidence.
-            </p>
-          </div>
+      <div class="bc-wrap">
+        <div class="bc-panel" id="bcPanel">
+          <div class="bc-top">
+            <div class="bc-copy">
+              <div class="bc-eyebrow">KÍKÉLÁRÁ</div>
+              <h2 class="bc-headline">Glow, Nourish, Restore.</h2>
+              <p class="bc-sub">
+                Premium skincare inspired by nature — crafted to nourish, glow and restore confidence.
+              </p>
 
-          <div class="k-footer-news">
-            <div class="k-news-card">
-              <div class="k-news-title">Get drops & restocks</div>
-              <div class="k-news-copy">Skincare tips + product releases. No spam.</div>
-
-              <form class="k-news-form" id="footerNewsletter" autocomplete="on">
-                <label class="sr-only" for="footerEmail">Email address</label>
-
-                <div class="k-input-pill">
-                  <input id="footerEmail" name="email" type="email" placeholder="Email address" required />
-                  <button type="submit" id="footerSubmitBtn">Subscribe</button>
-                </div>
-
-                <div class="k-captcha">
-                  <div id="footerHcaptcha" class="h-captcha"></div>
-                </div>
-
-                <div class="k-form-status" id="footerFormStatus" aria-live="polite"></div>
-              </form>
+              <div class="bc-chips">
+                <span class="bc-chip">🌿 Natural</span>
+                <span class="bc-chip">✨ Luxury feel</span>
+                <span class="bc-chip">💛 Made with care</span>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div class="k-footer-mid">
-          <div class="k-brand">
-            <a href="index.html" class="k-logo" aria-label="KÍKÉLÁRÁ Home">
-              <img src="images/logo.jpg" alt="KÍKÉLÁRÁ Logo">
-            </a>
+            <div class="bc-news">
+              <div class="bc-card">
+                <div class="bc-card-title">Get drops & restocks</div>
+                <div class="bc-card-copy">Skincare tips + product releases. No spam.</div>
 
-            <div class="k-brand-name">KÍKÉLÁRÁ</div>
+                <form class="bc-form" id="footerNewsletter" autocomplete="on">
+                  <label class="sr-only" for="footerEmail">Email address</label>
 
-            <div class="k-socials">
-              <a class="k-social" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
-                <span class="k-ico">${ICONS.instagram}</span>
-                <span>@_kikelara</span>
-              </a>
-              <a class="k-social" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
-                <span class="k-ico">${ICONS.tiktok}</span>
-                <span>@_kikelara</span>
-              </a>
+                  <div class="bc-pill">
+                    <input id="footerEmail" name="email" type="email" placeholder="Email address" required />
+                    <button type="submit" id="footerSubmitBtn">Subscribe</button>
+                  </div>
+
+                  <div class="bc-captcha">
+                    <div id="footerHcaptcha" class="h-captcha"></div>
+                  </div>
+
+                  <div class="bc-status" id="footerFormStatus" aria-live="polite"></div>
+                </form>
+              </div>
             </div>
           </div>
 
-          <div class="k-cols">
-            ${sections.map((sec) => `
-              <details class="k-col" open>
-                <summary>${sec.title}</summary>
-                <div class="k-links">
-                  ${sec.items.map(i => `
-                    <a href="${i.href}" class="k-link">
-                      <span class="k-link-ico">${i.icon}</span>
-                      <span>${i.label}</span>
-                    </a>
-                  `).join("")}
-                </div>
-              </details>
-            `).join("")}
-          </div>
-        </div>
+          <div class="bc-mid">
+            <div class="bc-brand">
+              <a href="index.html" class="bc-logo" aria-label="KÍKÉLÁRÁ Home">
+                <img src="images/logo.jpg" alt="KÍKÉLÁRÁ Logo" />
+              </a>
 
-        <div class="k-footer-bottom">
-          <span>© ${year} KÍKÉLÁRÁ. All Rights Reserved.</span>
-          <span class="k-dot">•</span>
-          <span>Made with care.</span>
+              <div class="bc-brand-name">KÍKÉLÁRÁ</div>
+
+              <div class="bc-socials">
+                <a class="bc-social" href="https://instagram.com/_kikelara" target="_blank" rel="noopener" aria-label="Instagram @_kikelara">
+                  <span class="bc-ico">${ICONS.instagram}</span>
+                  <span>@_kikelara</span>
+                </a>
+                <a class="bc-social" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener" aria-label="TikTok @_kikelara">
+                  <span class="bc-ico">${ICONS.tiktok}</span>
+                  <span>@_kikelara</span>
+                </a>
+              </div>
+            </div>
+
+            <div class="bc-cols">
+              ${sections.map((sec) => `
+                <details class="bc-col" open>
+                  <summary>${sec.title}</summary>
+                  <div class="bc-links">
+                    ${sec.items.map(i => `
+                      <a href="${i.href}" class="bc-link">
+                        <span class="bc-link-ico">${i.icon}</span>
+                        <span>${i.label}</span>
+                      </a>
+                    `).join("")}
+                  </div>
+                </details>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="bc-bottom">
+            <span>© ${year} KÍKÉLÁRÁ. All Rights Reserved.</span>
+            <span class="bc-dot">•</span>
+            <span>Made with care.</span>
+          </div>
         </div>
       </div>
     </footer>
   `;
 
-  // ===================== STATUS =====================
+  // ===== STATUS
   const statusEl = document.getElementById("footerFormStatus");
   const setStatus = (msg, type = "") => {
     if (!statusEl) return;
@@ -138,47 +144,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const isValidEmail = (email) => /^\S+@\S+\.\S+$/.test(String(email || "").trim());
 
-  // ===================== hCaptcha =====================
+  // ===== hCaptcha (wait for explicit onload)
   const captchaEl = document.getElementById("footerHcaptcha");
   let footerWidgetId = null;
 
-  function renderFooterCaptchaIfReady() {
+  function renderCaptcha() {
     if (!captchaEl) return;
     if (!SITE_KEY) {
-      setStatus("Missing hCaptcha site key in config.js", "error");
+      setStatus("Missing HCAPTCHA_SITE_KEY in config.js", "error");
       return;
     }
     if (!window.hcaptcha) return;
 
     if (footerWidgetId === null) {
-      try { footerWidgetId = window.hcaptcha.render(captchaEl, { sitekey: SITE_KEY }); } catch {}
+      try {
+        footerWidgetId = window.hcaptcha.render(captchaEl, { sitekey: SITE_KEY });
+      } catch {}
     }
   }
 
-  function footerCaptchaToken() {
+  function captchaToken() {
     if (!window.hcaptcha) return "";
     try {
-      return footerWidgetId !== null ? window.hcaptcha.getResponse(footerWidgetId) : window.hcaptcha.getResponse();
-    } catch { return ""; }
+      return footerWidgetId !== null ? window.hcaptcha.getResponse(footerWidgetId) : "";
+    } catch {
+      return "";
+    }
   }
 
-  function resetFooterCaptcha() {
+  function resetCaptcha() {
     if (!window.hcaptcha) return;
     try {
       if (footerWidgetId !== null) window.hcaptcha.reset(footerWidgetId);
-      else window.hcaptcha.reset();
     } catch {}
   }
 
-  renderFooterCaptchaIfReady();
-  let tries = 0;
-  const it = setInterval(() => {
-    renderFooterCaptchaIfReady();
-    tries += 1;
-    if (window.hcaptcha || tries > 30) clearInterval(it);
-  }, 500);
+  document.addEventListener("hcaptcha:ready", renderCaptcha);
+  if (window.__HCAPTCHA_READY__ === true) renderCaptcha();
 
-  // ===================== SUBMIT =====================
+  // ===== SUBMIT
   const form = document.getElementById("footerNewsletter");
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -191,7 +195,6 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("API_BASE missing in config.js (newsletter disabled).", "error");
       return;
     }
-
     if (!email) return;
 
     if (!isValidEmail(email)) {
@@ -200,8 +203,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const captchaToken = footerCaptchaToken();
-    if (!captchaToken) {
+    const token = captchaToken();
+    if (!token) {
       setStatus("❌ Please complete the captcha.", "error");
       return;
     }
@@ -217,20 +220,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(SUBSCRIBE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, captchaToken }),
+        body: JSON.stringify({ email, captchaToken: token }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        resetFooterCaptcha();
+        resetCaptcha();
         setStatus(data.message || "Subscription failed. Please try again.", "error");
         return;
       }
 
       localStorage.setItem("newsletterEmail", email);
       form.reset();
-      resetFooterCaptcha();
+      resetCaptcha();
 
       setStatus(
         data.already
@@ -239,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "success"
       );
     } catch {
-      resetFooterCaptcha();
+      resetCaptcha();
       setStatus("Network error. Please try again.", "error");
     } finally {
       if (btn) {
@@ -250,10 +253,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Mobile accordion behavior
-  const mq = window.matchMedia("(max-width: 700px)");
+  // ===== MOBILE ACCORDION
+  const mq = window.matchMedia("(max-width: 720px)");
   const applyAccordion = () => {
-    document.querySelectorAll(".k-col").forEach((d) => {
+    document.querySelectorAll(".bc-col").forEach((d) => {
       if (!(d instanceof HTMLDetailsElement)) return;
       if (mq.matches) d.removeAttribute("open");
       else d.setAttribute("open", "");
@@ -261,4 +264,40 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   applyAccordion();
   mq.addEventListener?.("change", applyAccordion);
+
+  // ===== 3D LIQUID TILT (desktop only, respects reduced motion)
+  const panel = document.getElementById("bcPanel");
+  const canHover = window.matchMedia("(hover: hover)").matches;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (panel && canHover && !reduce) {
+    let raf = 0;
+    let tx = 0, ty = 0;
+
+    const onMove = (e) => {
+      const r = panel.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width;
+      const py = (e.clientY - r.top) / r.height;
+
+      // subtle premium tilt
+      tx = (py - 0.5) * -6; // rotateX
+      ty = (px - 0.5) * 8;  // rotateY
+
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          panel.style.setProperty("--rx", tx.toFixed(2) + "deg");
+          panel.style.setProperty("--ry", ty.toFixed(2) + "deg");
+          raf = 0;
+        });
+      }
+    };
+
+    const onLeave = () => {
+      panel.style.setProperty("--rx", "0deg");
+      panel.style.setProperty("--ry", "0deg");
+    };
+
+    panel.addEventListener("mousemove", onMove);
+    panel.addEventListener("mouseleave", onLeave);
+  }
 });
