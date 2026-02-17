@@ -1,14 +1,18 @@
-/* ================= INDEX.JS (PREMIUM) =================
+/* ================= INDEX.JS (BACKEND ONLY — matches your server.js) =================
    ✅ Preloader (per-tab sessionStorage)
    ✅ Hero video lazy-load (reduced-motion safe)
-   ✅ Featured slider kept
-   ✅ Reads products from sessionStorage(allProducts)
-   ✅ If empty, fetches from backend and saves into sessionStorage(allProducts)
+   ✅ Fetch ALL products from backend /api/products (already created_at DESC)
+   ✅ Latest Drops = newest 4 (slice(0,4))
+   ✅ Most Loved = top 4 by rating using /api/products/:id/reviews/summary
+   ✅ Caches rating summaries in sessionStorage (TTL) + concurrency limit
    ✅ Cards navigate to product-details.html?id=ID
-======================================================== */
+==================================================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const PRODUCTS_KEY = "allProducts";
+const RATINGS_CACHE_KEY = "ratingsSummary_v1";
+const RATINGS_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+const RATINGS_CONCURRENCY = 6;
 
 /* ================= PRELOADER – PER TAB ================= */
 window.addEventListener("load", () => {
@@ -28,21 +32,20 @@ window.addEventListener("load", () => {
 });
 
 /* ================= HERO VIDEO (LAZY + SAFE) ================= */
-(function initHeroVideo(){
+(function initHeroVideo() {
   const v = document.getElementById("heroBgVideo");
   if (!v) return;
 
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  if (reduce) return; // keep poster only
+  if (reduce) return;
 
   const webm = v.dataset.webm || "";
-  const mp4  = v.dataset.mp4  || "";
+  const mp4 = v.dataset.mp4 || "";
   if (!webm && !mp4) return;
 
-  function attachSources(){
+  function attachSources() {
     if (v.querySelector("source")) return;
 
-    // Prefer webm when possible
     if (webm) {
       const s = document.createElement("source");
       s.src = webm;
@@ -55,29 +58,30 @@ window.addEventListener("load", () => {
       s.type = "video/mp4";
       v.appendChild(s);
     }
-    v.load();
 
+    v.load();
     const play = () => v.play().catch(() => {});
     if (document.visibilityState === "visible") play();
+
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") play();
       else v.pause();
     });
   }
 
-  // Load only when hero is near viewport
   if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver((entries) => {
-      const ent = entries[0];
-      if (ent && ent.isIntersecting) {
-        attachSources();
-        io.disconnect();
-      }
-    }, { root: null, threshold: 0.12, rootMargin: "200px" });
-
+    const io = new IntersectionObserver(
+      (entries) => {
+        const ent = entries[0];
+        if (ent && ent.isIntersecting) {
+          attachSources();
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12, rootMargin: "200px" }
+    );
     io.observe(v);
   } else {
-    // fallback
     attachSources();
   }
 })();
@@ -88,116 +92,164 @@ function goToProduct(id) {
   window.location.href = `product-details.html?id=${encodeURIComponent(id)}`;
 }
 
-/* ================= SAFE JSON HELPERS ================= */
-function safeParseJSONSession(key, fallback) {
+/* ================= SAFE STORAGE ================= */
+function safeGetSessionJSON(key, fallback) {
   try {
     const raw = sessionStorage.getItem(key);
     if (!raw) return fallback;
-    return JSON.parse(raw);
+    const val = JSON.parse(raw);
+    return val ?? fallback;
   } catch {
     return fallback;
   }
 }
-function safeSetJSONSession(key, value) {
-  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
-}
-function normalizeName(str) {
-  return String(str || "").trim().toLowerCase();
-}
-
-/* ================= FEATURED SLIDER ================= */
-const featuredProducts = [
-  { name: "Body Butter", img: "images_brown/bodyButter.png" },
-  { name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
-  { name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
-  { name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
-];
-
-let featuredIndex = 0;
-const featuredImg = document.getElementById("featuredImage");
-const featuredName = document.getElementById("featuredName");
-
-function preloadImage(src, callback) {
-  const img = new Image();
-  img.src = src;
-  img.onload = callback;
-  img.onerror = callback; // still switch even if image missing
+function safeSetSessionJSON(key, val) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(val));
+  } catch {}
 }
 
-function switchFeatured() {
-  if (!featuredImg) return;
-
-  featuredImg.style.opacity = "0";
-  if (featuredName) featuredName.style.opacity = "0";
-
-  const next = featuredProducts[featuredIndex];
-
-  preloadImage(next.img, () => {
-    setTimeout(() => {
-      featuredImg.src = next.img;
-      if (featuredName) featuredName.textContent = next.name || "";
-
-      featuredImg.style.opacity = "1";
-      if (featuredName) featuredName.style.opacity = "1";
-
-      featuredIndex = (featuredIndex + 1) % featuredProducts.length;
-    }, 260);
-  });
-}
-switchFeatured();
-setInterval(switchFeatured, 4200);
-
-/* ================= PRODUCTS (SESSION + BACKEND FALLBACK) ================= */
-function getAllProducts() {
-  const list = safeParseJSONSession(PRODUCTS_KEY, []);
-  return Array.isArray(list) ? list : [];
-}
-
+/* ================= IMAGE URL RESOLVER ================= */
 function resolveImageUrl(img) {
   const val = String(img || "").trim();
   if (!val) return "images_brown/bodyButter.png";
+
+  // signed url from your backend -> already https://...
   if (/^https?:\/\//i.test(val)) return val;
 
-  // if backend returns /uploads/... then prefix API_BASE
+  // /uploads/... from backend
   if (val.startsWith("/uploads/") && API_BASE) return `${API_BASE}${val}`;
-  return val; // local file path
+
+  // uploads/... from backend
+  if (val.startsWith("uploads/") && API_BASE) return `${API_BASE}/${val}`;
+
+  // local relative file
+  return val;
 }
 
-function normalizeProduct(p) {
-  const image =
-    p?.image || p?.image_url || (Array.isArray(p?.images) && p.images[0]) || "images_brown/bodyButter.png";
+/* ================= NORMALIZE PRODUCT (your DB row shape) ================= */
+function normalizeProduct(row) {
+  const createdAtRaw = row?.created_at || row?.createdAt || null;
+  const created_at = createdAtRaw ? new Date(createdAtRaw).getTime() : null;
 
   return {
-    id: p?.id,
-    name: String(p?.name || "").trim(),
-    image: resolveImageUrl(image),
-    category: String(p?.category || p?.payload?.category || "Product").trim(),
-    price: Number(p?.price || 0),
+    id: row?.id,
+    name: String(row?.name || "").trim(),
+    price: Number(row?.price || 0),
+    description: String(row?.description || ""),
+    image_url: resolveImageUrl(row?.image_url || row?.image || row?.img || ""),
+    is_active: row?.is_active !== undefined ? Boolean(row.is_active) : true,
+    created_at, // timestamp number or null
   };
 }
 
-async function fetchProductsFromBackend() {
+/* ================= FETCH PRODUCTS ================= */
+async function fetchProducts() {
   if (!API_BASE) return [];
   try {
     const res = await fetch(`${API_BASE}/api/products`, { cache: "no-store" });
     if (!res.ok) return [];
-    const data = await res.json();
+    const data = await res.json().catch(() => []);
     if (!Array.isArray(data)) return [];
-    return data.map(normalizeProduct).filter(p => p.id && p.name);
+    return data.map(normalizeProduct).filter((p) => p.id && p.name);
   } catch {
     return [];
   }
 }
 
-function findProductIdByName(name) {
-  const all = getAllProducts();
-  const target = normalizeName(name);
-  const found = all.find(p => normalizeName(p?.name) === target);
-  return found?.id ?? null;
+/* ================= RATINGS CACHE ================= */
+function loadRatingsCache() {
+  const cached = safeGetSessionJSON(RATINGS_CACHE_KEY, {});
+  if (!cached || typeof cached !== "object") return {};
+  return cached;
+}
+function saveRatingsCache(cacheObj) {
+  safeSetSessionJSON(RATINGS_CACHE_KEY, cacheObj);
+}
+function getCachedRating(cache, productId) {
+  const k = String(productId);
+  const v = cache[k];
+  if (!v) return null;
+  if (!v.ts || Date.now() - v.ts > RATINGS_TTL_MS) return null;
+  return { avg: Number(v.avg || 0), count: Number(v.count || 0) };
+}
+function setCachedRating(cache, productId, avg, count) {
+  cache[String(productId)] = { avg: Number(avg || 0), count: Number(count || 0), ts: Date.now() };
 }
 
-/* ================= RENDER HELPERS ================= */
-function makeCard({ id, name, img, kind }) {
+/* ================= FETCH REVIEW SUMMARY (your endpoint) ================= */
+async function fetchReviewSummary(productId) {
+  if (!API_BASE) return { avg: 0, count: 0 };
+  try {
+    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews/summary`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return { avg: 0, count: 0 };
+    const data = await res.json().catch(() => null);
+    const avg = Number(data?.summary?.avg || 0);
+    const count = Number(data?.summary?.count || 0);
+    return { avg: Number.isFinite(avg) ? avg : 0, count: Number.isFinite(count) ? count : 0 };
+  } catch {
+    return { avg: 0, count: 0 };
+  }
+}
+
+/* ================= CONCURRENCY LIMIT ================= */
+async function runWithLimit(items, limit, worker) {
+  const out = new Array(items.length);
+  let i = 0;
+
+  async function runner() {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await worker(items[idx], idx);
+    }
+  }
+
+  const n = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: n }, () => runner()));
+  return out;
+}
+
+/* ================= SORT HELPERS ================= */
+function sortLatestDesc(a, b) {
+  // your API already returns created_at DESC,
+  // but we still sort safely if missing fields
+  const ta = a.created_at ?? -1;
+  const tb = b.created_at ?? -1;
+  if (tb !== ta) return tb - ta;
+
+  const ia = Number(a.id), ib = Number(b.id);
+  if (Number.isFinite(ia) && Number.isFinite(ib)) return ib - ia;
+  return 0;
+}
+
+function sortLovedDesc(a, b) {
+  const ar = a.avg_rating ?? 0;
+  const br = b.avg_rating ?? 0;
+  if (br !== ar) return br - ar;
+
+  const ac = a.review_count ?? 0;
+  const bc = b.review_count ?? 0;
+  if (bc !== ac) return bc - ac;
+
+  return sortLatestDesc(a, b);
+}
+
+function lovedMetaText(p) {
+  const avg = Number(p.avg_rating ?? 0);
+  const count = Number(p.review_count ?? 0);
+
+  if (!count) return "Customer favorite";
+
+  const clamped = Math.max(0, Math.min(5, avg));
+  const rounded = Math.round(clamped);
+  const stars = "★".repeat(rounded) + "☆".repeat(5 - rounded);
+  return `${stars} ${clamped.toFixed(1)} (${count})`;
+}
+
+/* ================= RENDER ================= */
+function makeCard(p, kind) {
   const card = document.createElement("a");
   card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
   card.href = "javascript:void(0)";
@@ -207,22 +259,22 @@ function makeCard({ id, name, img, kind }) {
   const media = document.createElement("div");
   media.className = "p-media";
 
-  const image = document.createElement("img");
-  image.loading = "lazy";
-  image.alt = name;
-  image.src = resolveImageUrl(img);
-  media.appendChild(image);
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.alt = p.name;
+  img.src = resolveImageUrl(p.image_url);
+  media.appendChild(img);
 
   const body = document.createElement("div");
   body.className = "p-body";
 
   const title = document.createElement("div");
   title.className = "p-title";
-  title.textContent = name;
+  title.textContent = p.name;
 
   const meta = document.createElement("div");
   meta.className = "p-meta";
-  meta.textContent = kind === "latest" ? "New in" : "Customer favorite";
+  meta.textContent = kind === "latest" ? "New in" : lovedMetaText(p);
 
   body.appendChild(title);
   body.appendChild(meta);
@@ -230,55 +282,123 @@ function makeCard({ id, name, img, kind }) {
   card.appendChild(media);
   card.appendChild(body);
 
-  card.addEventListener("click", () => {
-    const realId = findProductIdByName(name);
-    goToProduct(realId ?? id);
-  });
-
+  card.addEventListener("click", () => goToProduct(p.id));
   return card;
 }
 
-function renderLatest(container, items) {
+function renderList(container, items, kind) {
   if (!container) return;
   container.innerHTML = "";
-  items.forEach(p => container.appendChild(makeCard({ ...p, kind: "latest" })));
+  items.forEach((p) => container.appendChild(makeCard(p, kind)));
 }
 
-function renderLoved(container, items) {
-  if (!container) return;
-  container.innerHTML = "";
-  items.forEach(p => container.appendChild(makeCard({ ...p, kind: "loved" })));
+/* ================= FEATURED AUTO SWITCH ================= */
+let featuredIndex = 0;
+let featuredPool = [];
+const featuredImg = document.getElementById("featuredImage");
+const featuredName = document.getElementById("featuredName");
+
+function preloadImage(src, cb) {
+  const i = new Image();
+  i.src = src;
+  i.onload = cb;
+  i.onerror = cb;
 }
 
-/* ================= DATA (your display list) ================= */
-const latestGrid = document.getElementById("latestProducts");
-const lovedRail = document.getElementById("homeProducts");
+function switchFeatured() {
+  if (!featuredImg || !featuredPool.length) return;
 
-const latestProducts = [
-  { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
-  { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
-  { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
-  { id: 6, name: "Body Butter (Fruity)", img: "images_brown/bodyButter(Fruity).png" },
-];
+  featuredImg.style.opacity = "0";
+  if (featuredName) featuredName.style.opacity = "0";
 
-const lovedProducts = [
-  { id: 1, name: "Body Butter", img: "images_brown/bodyButter.png" },
-  { id: 2, name: "Bright Aura Oil", img: "images_brown/bodyOil.png" },
-  { id: 3, name: "Hair Butter", img: "images_brown/hairButterfeat.png" },
-  { id: 4, name: "Hair Oil", img: "images_brown/hairOil.png" },
-  { id: 5, name: "Baby Body Butter", img: "images_brown/BabyBodyButter.png" },
-];
+  const next = featuredPool[featuredIndex];
+  const src = resolveImageUrl(next.image_url);
+
+  preloadImage(src, () => {
+    setTimeout(() => {
+      featuredImg.src = src;
+      if (featuredName) featuredName.textContent = next.name || "";
+      featuredImg.style.opacity = "1";
+      if (featuredName) featuredName.style.opacity = "1";
+      featuredIndex = (featuredIndex + 1) % featuredPool.length;
+    }, 240);
+  });
+}
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
-  // First render (fast)
-  renderLatest(latestGrid, latestProducts);
-  renderLoved(lovedRail, lovedProducts);
+  const latestGrid = document.getElementById("latestProducts");
+  const lovedRail = document.getElementById("homeProducts");
 
-  // Ensure products in session (for correct IDs)
-  const existing = getAllProducts();
-  if (!existing.length) {
-    const fetched = await fetchProductsFromBackend();
-    if (fetched.length) safeSetJSONSession(PRODUCTS_KEY, fetched);
+  // 1) Get products from backend only
+  const products = await fetchProducts();
+
+  // Save for other pages (product-details lookup, etc.)
+  safeSetSessionJSON(PRODUCTS_KEY, products);
+
+  // If none, render nothing
+  if (!products.length) {
+    renderList(latestGrid, [], "latest");
+    renderList(lovedRail, [], "loved");
+    return;
+  }
+
+  // 2) Latest Drops = newest 4 (your API already returns newest first)
+  const sortedLatest = [...products].sort(sortLatestDesc);
+  const latest = sortedLatest.slice(0, 4);
+
+  // If you truly meant "oldest 4", switch to:
+  // const latest = sortedLatest.slice(-4);
+
+  renderList(latestGrid, latest, "latest");
+
+  // 3) Render loved quickly (temporary) then upgrade after ratings load
+  renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
+
+  // 4) Build "Most Loved" using review summaries (cached + limited concurrency)
+  const cache = loadRatingsCache();
+
+  const ratedProducts = [...products].map((p) => {
+    const c = getCachedRating(cache, p.id);
+    return {
+      ...p,
+      avg_rating: c ? c.avg : null,
+      review_count: c ? c.count : null,
+    };
+  });
+
+  const needsFetch = ratedProducts.filter((p) => p.avg_rating === null || p.review_count === null);
+
+  if (needsFetch.length) {
+    await runWithLimit(needsFetch, RATINGS_CONCURRENCY, async (p) => {
+      const s = await fetchReviewSummary(p.id);
+      setCachedRating(cache, p.id, s.avg, s.count);
+      p.avg_rating = s.avg;
+      p.review_count = s.count;
+      return p;
+    });
+
+    saveRatingsCache(cache);
+  }
+
+  // 5) Most Loved = top 4 highest rated (avg desc, then count desc)
+  const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
+  renderList(lovedRail, loved, "loved");
+
+  // 6) Featured pool: loved then latest then rest (unique)
+  const seen = new Set();
+  featuredPool = [];
+  [...loved, ...latest, ...sortedLatest].forEach((p) => {
+    const k = String(p.id);
+    if (!p.id || seen.has(k)) return;
+    seen.add(k);
+    featuredPool.push(p);
+  });
+  featuredPool = featuredPool.slice(0, 6);
+
+  if (featuredPool.length) {
+    featuredIndex = 0;
+    switchFeatured();
+    setInterval(switchFeatured, 4200);
   }
 });

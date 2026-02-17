@@ -1,6 +1,6 @@
 /* ================= auth.js (COOKIE AUTH + CSRF WRAPPER)
    ✅ Works with your server.js (cookie session + csrf)
-   ✅ window.apiFetch(path, options) -> always credentials:include + CSRF on non-GET
+   ✅ window.apiFetch(path, options) -> credentials:include + CSRF on non-GET
    ✅ window.checkAuth() -> checks /admin/me once
    ✅ window.adminLogout() -> POST /admin/logout
    ✅ window.adminLogin(password) -> POST /admin/login then stores csrf
@@ -10,9 +10,8 @@
   "use strict";
 
   const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
-
   const CSRF_STORAGE_KEY = "admin_csrf_token";
-  const LOGIN_PAGE = "admin-login.html";
+  const LOGIN_PAGE = window.ADMIN_LOGIN_URL || "admin-login.html";
 
   function readCookie(name) {
     try {
@@ -25,17 +24,14 @@
   }
 
   function getCsrfToken() {
-    // Prefer sessionStorage
     const ss = sessionStorage.getItem(CSRF_STORAGE_KEY);
     if (ss) return ss;
 
-    // Fallback: read csrf cookie set by backend (must be non-httpOnly)
-    const ck = readCookie("admin_csrf");
+    const ck = readCookie(window.ADMIN_CSRF_COOKIE || "admin_csrf");
     if (ck) {
       try { sessionStorage.setItem(CSRF_STORAGE_KEY, ck); } catch {}
       return ck;
     }
-
     return "";
   }
 
@@ -68,26 +64,20 @@
   async function apiFetch(path, options = {}) {
     const url = toUrl(path);
     const method = String(options.method || "GET").toUpperCase();
-
     const headers = new Headers(options.headers || {});
 
-    // ✅ If body is a plain object, send JSON
     let body = options.body;
     if (isPlainObject(body)) {
       if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
       body = JSON.stringify(body);
     }
 
-    // ✅ CSRF header for non-GET requests (server.js requires it)
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       const csrf = getCsrfToken();
       if (csrf) headers.set("X-CSRF-Token", csrf);
     }
 
-    // ✅ DO NOT set Content-Type for FormData (browser sets boundary)
-    if (isFormData(body)) {
-      headers.delete("Content-Type");
-    }
+    if (isFormData(body)) headers.delete("Content-Type");
 
     const res = await fetch(url, {
       ...options,
@@ -95,15 +85,13 @@
       headers,
       body,
       credentials: "include",
+      cache: "no-store",
     });
 
-    // ✅ Auto-redirect to login if auth is gone
     if (res.status === 401) {
-      // don't infinite loop if already on login page
       const onLogin = String(location.pathname || "").toLowerCase().includes("admin-login");
       if (!onLogin) location.href = LOGIN_PAGE;
     }
-
     return res;
   }
 
@@ -116,8 +104,7 @@
         return false;
       }
 
-      // ✅ keep csrf token synced (cookie -> sessionStorage)
-      const ck = readCookie("admin_csrf");
+      const ck = readCookie(window.ADMIN_CSRF_COOKIE || "admin_csrf");
       if (ck) setCsrfToken(ck);
 
       return true;
@@ -128,35 +115,27 @@
   }
 
   async function adminLogout() {
-    try {
-      await apiFetch("/admin/logout", { method: "POST" });
-    } catch {}
+    try { await apiFetch("/admin/logout", { method: "POST" }); } catch {}
     clearCsrfToken();
     location.href = LOGIN_PAGE;
   }
 
-  async function adminLogin(password, otp) {
+  async function adminLogin(password) {
     const payload = { password: String(password || "") };
-    if (otp) payload.otp = String(otp);
 
     const res = await apiFetch("/admin/login", { method: "POST", body: payload });
     const data = await res.json().catch(() => ({}));
 
-    if (!res.ok || !data?.success) {
-      throw new Error(data?.message || "Login failed");
-    }
+    if (!res.ok || !data?.success) throw new Error(data?.message || "Login failed");
 
-    // ✅ backend also sets admin_csrf cookie + returns csrfToken
     if (data.csrfToken) setCsrfToken(data.csrfToken);
 
-    // keep cookie token too (if present)
-    const ck = readCookie("admin_csrf");
+    const ck = readCookie(window.ADMIN_CSRF_COOKIE || "admin_csrf");
     if (ck) setCsrfToken(ck);
 
     return true;
   }
 
-  // expose
   window.apiFetch = apiFetch;
   window.checkAuth = checkAuth;
   window.adminLogout = adminLogout;
