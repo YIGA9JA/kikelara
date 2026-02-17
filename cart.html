@@ -5,36 +5,44 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Cart</title>
 
-  <link rel="stylesheet" href="header.css" />
-  <link rel="stylesheet" href="footer.css" />
-  <link rel="stylesheet" href="cart.css" />
+  <meta name="description" content="Review your KÍKÉLÁRÁ cart and proceed to checkout." />
 
+  <!-- Styles -->
+  <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="cart.css" />
+  <link rel="stylesheet" href="footer.css" />
+
+  <!-- Config -->
   <script src="config.js"></script>
 
-  <!-- shared -->
+  <!-- Shared (KStore) -->
   <script defer src="store.js"></script>
 
-  <!-- injected header/footer -->
+  <!-- Injected header/footer -->
   <script defer src="header.js"></script>
   <script defer src="footer.js"></script>
 
-  <!-- page -->
+  <!-- Page -->
   <script defer src="cart.js"></script>
 </head>
 
 <body>
+  <!-- Header mount -->
   <div id="siteHeader"></div>
 
-  <main class="cart-page">
-    <div class="cart-top">
+  <!-- ✅ Skip link target used by header.js -->
+  <main id="mainContent" class="cart-page">
+    <header class="cart-top">
       <h1>Your Cart</h1>
       <p class="cart-sub">Review your items and proceed to checkout.</p>
-    </div>
+    </header>
 
-    <section class="cart-grid">
-      <div class="cart-items" id="cartItems"></div>
+    <section class="cart-grid" aria-label="Cart content">
+      <!-- Items -->
+      <div class="cart-items" id="cartItems" aria-live="polite"></div>
 
-      <aside class="cart-summary">
+      <!-- Summary -->
+      <aside class="cart-summary" aria-label="Order summary">
         <div class="sum-head">
           <h3>Summary</h3>
           <span class="sum-hint">Delivery at checkout</span>
@@ -55,7 +63,7 @@
           <span id="total">₦0</span>
         </div>
 
-        <button id="checkoutBtn" class="checkout-btn" type="button">
+        <button id="checkoutBtn" class="checkout-btn" type="button" disabled>
           <span>Checkout</span>
           <span class="btn-total" id="checkoutBtnTotal">₦0</span>
         </button>
@@ -65,14 +73,15 @@
     </section>
   </main>
 
-  <!-- Sticky Mobile Checkout -->
+  <!-- ✅ Sticky Mobile Checkout -->
   <div id="mobileCheckout" class="mobile-checkout" style="display:none;">
-    <button id="mobileCheckoutBtn" class="mobile-checkout-btn" type="button">
+    <button id="mobileCheckoutBtn" class="mobile-checkout-btn" type="button" disabled>
       <span>Checkout</span>
       <span id="mobileCheckoutTotal">₦0</span>
     </button>
   </div>
 
+  <!-- Footer mount -->
   <div id="siteFooter"></div>
 </body>
 </html>
