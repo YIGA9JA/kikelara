@@ -1,33 +1,30 @@
-/* ================= admin-products.js (AUTHED — FULL PAGE)
-   ✅ Uses cookie session from admin-login.html (credentials: include)
-   ✅ Checks /admin/me ONCE on page load via window.checkAuth()
-   ✅ Uses window.apiFetch (adds CSRF header automatically for non-GET)
-   ✅ CRUD:
-      GET    /admin/products
-      POST   /admin/products
-      PUT    /admin/products/:id
-      DELETE /admin/products/:id
+/* ================= admin-products.js (Vercel ↔ Render cookie auth + working upload click)
+   ✅ Uses cookie session (credentials: include)
+   ✅ Uses window.apiFetch (adds CSRF header for non-GET)
+   ✅ Upload click FIX: real file input overlay (no blocked clicks)
 =============================================================================== */
 
 (async function () {
   "use strict";
 
-  // ✅ Must be authed (cookie session created on admin-login.html)
-  const ok = await window.checkAuth?.();
-  if (!ok) return;
-
-  const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
+  const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
 
+  // If auth.js is missing or broken, fail loudly.
   if (typeof apiFetch !== "function") {
-    console.error("apiFetch missing. Make sure auth.js is loaded before admin-products.js");
+    alert("auth.js not loaded (apiFetch missing). Make sure you included auth.js before admin-products.js");
     return;
   }
+
+  // ✅ Must be authed
+  const ok = await window.checkAuth?.();
+  if (!ok) return;
 
   const $ = (id) => document.getElementById(id);
 
   /* ================= ELEMENTS ================= */
-  const editModal = $("editModal");
+  const apiPill = $("apiPill");
+  const status = $("status");
 
   const newBtn = $("newBtn");
   const refreshBtn = $("refreshBtn");
@@ -36,13 +33,18 @@
   const clearSearchBtn = $("clearSearchBtn");
   const emptyAddBtn = $("emptyAddBtn");
 
+  const grid = $("grid");
+  const empty = $("empty");
+  const q = $("q");
+  const sort = $("sort");
+  const filterBtns = Array.from(document.querySelectorAll("[data-filter]"));
+
+  const editModal = $("editModal");
+  const editTitle = $("editTitle");
   const editClose = $("editClose");
   const cancelEdit = $("cancelEdit");
   const editForm = $("editForm");
   const saveBtn = $("saveBtn");
-
-  const editTitle = $("editTitle");
-  const editHelp = $("editHelp");
 
   const pid = $("pid");
   const nameIpt = $("name");
@@ -55,32 +57,22 @@
 
   const imageIpt = $("image");
   const previewImg = $("previewImg");
+  const imgDropOverlay = $("imgDropOverlay");
   const clearImgBtn = $("clearImgBtn");
   const removeImage = $("removeImage");
-  const imgDropOverlay = $("imgDropOverlay");
   const dropBox = $("dropBox");
 
   const toastWrap = $("toastWrap");
+  const editHelp = $("editHelp");
 
-  const grid = $("grid");
-  const empty = $("empty");
-  const status = $("status");
-
-  const q = $("q");
-  const sort = $("sort");
-  const filterBtns = Array.from(document.querySelectorAll("[data-filter]"));
+  if (apiPill) apiPill.textContent = `API: ${API_BASE || "—"}`;
 
   /* ================= STATE ================= */
-  let lastFocus = null;
   let products = [];
-  let activeFilter = "all"; // all | active | inactive
-  let previewObjectUrl = "";
+  let activeFilter = "all";
+  let lastFocus = null;
   let pickedFile = null;
-
-  /* ================= NETWORK ================= */
-  async function api(path, options = {}) {
-    return apiFetch(path, options);
-  }
+  let previewObjectUrl = "";
 
   /* ================= HELPERS ================= */
   function escapeHtml(str) {
@@ -90,18 +82,6 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
-  }
-
-  function setHelp(type, text) {
-    if (!editHelp) return;
-    editHelp.textContent = text || "";
-    editHelp.dataset.type = type || "";
-    if (!text) {
-      editHelp.removeAttribute("data-type");
-      editHelp.style.display = "none";
-    } else {
-      editHelp.style.display = "block";
-    }
   }
 
   function toast(type, title, body) {
@@ -115,10 +95,7 @@
       </div>
       <div class="t-body">${escapeHtml(body || "")}</div>
     `;
-    el.querySelector(".t-close")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      el.remove();
-    });
+    el.querySelector(".t-close")?.addEventListener("click", () => el.remove());
     toastWrap.appendChild(el);
     setTimeout(() => { if (el.isConnected) el.remove(); }, 4500);
   }
@@ -126,137 +103,18 @@
   function setStatus(text, type) {
     if (!status) return;
     status.textContent = text || "";
-    status.dataset.type = type || "";
+    status.dataset.type = type || "info";
   }
 
-  function isOpen(modal) {
-    return modal && modal.classList.contains("show");
-  }
-
-  function setAria(modal, open) {
-    if (!modal) return;
-    modal.setAttribute("aria-hidden", open ? "false" : "true");
-    if (open) modal.removeAttribute("inert");
-    else modal.setAttribute("inert", "");
-  }
-
-  function lockBody(open) {
-    document.body.classList.toggle("modal-open", open);
-  }
-
-  function getFocusable(container) {
-    if (!container) return [];
-    return Array.from(
-      container.querySelectorAll(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter((el) => el.offsetParent !== null);
-  }
-
-  function trapFocus(modal, e) {
-    if (!isOpen(modal)) return;
-    if (e.key !== "Tab") return;
-
-    const card = modal.querySelector(".modal-card");
-    const focusables = getFocusable(card);
-    if (!focusables.length) return;
-
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
+  function setHelp(text, type) {
+    if (!editHelp) return;
+    editHelp.textContent = text || "";
+    if (!text) {
+      editHelp.removeAttribute("data-type");
+    } else {
+      editHelp.dataset.type = type || "info";
     }
   }
-
-  function openModal(modal, focusEl) {
-    if (!modal) return;
-
-    lastFocus = document.activeElement;
-
-    modal.classList.add("show");
-    setAria(modal, true);
-    lockBody(true);
-
-    const card = modal.querySelector(".modal-card");
-    if (card) card.scrollTop = 0;
-
-    window.requestAnimationFrame(() => {
-      if (focusEl && typeof focusEl.focus === "function") {
-        focusEl.focus();
-        return;
-      }
-      const focusables = getFocusable(card);
-      focusables[0]?.focus?.();
-    });
-  }
-
-  function closeModal(modal) {
-    if (!modal) return;
-
-    try {
-      if (document.activeElement && modal.contains(document.activeElement)) {
-        document.activeElement.blur?.();
-      }
-    } catch {}
-
-    modal.classList.remove("show");
-    setAria(modal, false);
-    lockBody(false);
-
-    if (lastFocus && typeof lastFocus.focus === "function") {
-      window.requestAnimationFrame(() => lastFocus?.focus?.());
-    }
-    lastFocus = null;
-
-    setHelp("", "");
-  }
-
-  function bindOutsideClose(modal) {
-    if (!modal) return;
-    modal.addEventListener("mousedown", (e) => {
-      const card = modal.querySelector(".modal-card");
-      if (!card) return;
-      if (!card.contains(e.target)) closeModal(modal);
-    });
-  }
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (isOpen(editModal)) closeModal(editModal);
-    }
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (isOpen(editModal)) trapFocus(editModal, e);
-  });
-
-  bindOutsideClose(editModal);
-
-  /* ================= UI SMALLS ================= */
-  function updateDescCount() {
-    if (!desc || !descCount) return;
-    const v = desc.value || "";
-    if (v.length > 600) desc.value = v.slice(0, 600);
-    descCount.textContent = `${desc.value.length} / 600`;
-  }
-  desc?.addEventListener("input", updateDescCount);
-
-  function setActiveUI(valBool) {
-    if (activeSel) activeSel.value = valBool ? "true" : "false";
-    segBtns.forEach((b) => {
-      const isOn = (b.getAttribute("data-seg") === (valBool ? "true" : "false"));
-      b.classList.toggle("is-on", isOn);
-    });
-  }
-  segBtns.forEach((b) => b.addEventListener("click", () => {
-    setActiveUI(b.getAttribute("data-seg") === "true");
-  }));
-  setActiveUI(true);
 
   function revokePreviewUrl() {
     if (previewObjectUrl) {
@@ -272,98 +130,37 @@
     if (imgDropOverlay) imgDropOverlay.style.display = src ? "none" : "grid";
   }
 
-  function resetImage() {
-    revokePreviewUrl();
-    pickedFile = null;
-    if (imageIpt) imageIpt.value = "";
-    if (removeImage) removeImage.value = "true"; // remove existing on update
-    showPreview("");
-  }
-
   function isValidImageFile(f) {
     if (!f) return false;
-    return /^image\/(png|jpeg|webp)$/.test(f.type) && f.size <= 8 * 1024 * 1024;
+    const okType = /^image\/(png|jpeg|webp)$/.test(f.type);
+    const okSize = f.size <= 8 * 1024 * 1024;
+    return okType && okSize;
   }
 
-  function setPickedFile(f) {
-    if (!f) return;
-    if (!isValidImageFile(f)) {
-      toast("err", "Invalid image", "Please use PNG/JPG/WEBP (max 8MB).");
-      return;
-    }
-
-    pickedFile = f;
-    revokePreviewUrl();
-    previewObjectUrl = URL.createObjectURL(f);
-
-    if (removeImage) removeImage.value = "false"; // uploading replaces, so do not remove
-    showPreview(previewObjectUrl);
-  }
-
-  imageIpt?.addEventListener("change", () => {
-    const f = imageIpt.files && imageIpt.files[0];
-    if (!f) return;
-    setPickedFile(f);
-  });
-
-  clearImgBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    resetImage();
-    toast("warn", "Removed", "Image cleared.");
-  });
-
-  dropBox?.addEventListener("click", (e) => {
-    e.preventDefault();
-    imageIpt?.click();
-  });
-
-  dropBox?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      imageIpt?.click();
-    }
-  });
-
-  if (dropBox) {
-    ["dragenter", "dragover"].forEach((evt) => {
-      dropBox.addEventListener(evt, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropBox.classList.add("is-drag");
-      });
-    });
-
-    ["dragleave", "drop"].forEach((evt) => {
-      dropBox.addEventListener(evt, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropBox.classList.remove("is-drag");
-      });
-    });
-
-    dropBox.addEventListener("drop", (e) => {
-      const file = e.dataTransfer?.files?.[0];
-      if (!file) return;
-      setPickedFile(file);
-      toast("ok", "Image added", "Preview updated.");
-    });
-  }
-
-  function resetEditForm() {
+  function resetImage({ markRemove } = { markRemove: true }) {
     revokePreviewUrl();
     pickedFile = null;
-    if (imageIpt) imageIpt.value = "";
 
-    if (pid) pid.value = "";
-    if (nameIpt) nameIpt.value = "";
-    if (priceIpt) priceIpt.value = "";
-    if (desc) desc.value = "";
-    updateDescCount();
-    setActiveUI(true);
+    // clear picker (safe)
+    try { if (imageIpt) imageIpt.value = ""; } catch {}
 
-    if (removeImage) removeImage.value = "false"; // new product: don't remove
+    if (removeImage && markRemove) removeImage.value = "true";
     showPreview("");
-    setHelp("", "");
+  }
+
+  function updateDescCount() {
+    if (!desc || !descCount) return;
+    const v = desc.value || "";
+    if (v.length > 600) desc.value = v.slice(0, 600);
+    descCount.textContent = `${desc.value.length} / 600`;
+  }
+
+  function setActiveUI(valBool) {
+    if (activeSel) activeSel.value = valBool ? "true" : "false";
+    segBtns.forEach((b) => {
+      const isOn = (b.getAttribute("data-seg") === (valBool ? "true" : "false"));
+      b.classList.toggle("is-on", isOn);
+    });
   }
 
   function resolveImage(url) {
@@ -374,21 +171,140 @@
     return u;
   }
 
-  function fillEditForm(p) {
-    revokePreviewUrl();
-    pickedFile = null;
-    if (imageIpt) imageIpt.value = "";
+  function fallbackImg() {
+    return "images_brown/bodyButter.png";
+  }
 
-    if (pid) pid.value = String(p.id);
-    if (nameIpt) nameIpt.value = String(p.name || "");
-    if (priceIpt) priceIpt.value = String(Number(p.price || 0));
-    if (desc) desc.value = String(p.description || "");
-    updateDescCount();
-    setActiveUI(Boolean(p.is_active));
+  function isOpen(modal) {
+    return modal && modal.classList.contains("show");
+  }
 
+  function setAria(modal, open) {
+    if (!modal) return;
+    modal.setAttribute("aria-hidden", open ? "false" : "true");
+    if (open) modal.removeAttribute("inert");
+    else modal.setAttribute("inert", "");
+  }
+
+  function openModal(modal, focusEl) {
+    if (!modal) return;
+    lastFocus = document.activeElement;
+    modal.classList.add("show");
+    setAria(modal, true);
+    document.body.classList.add("modal-open");
+    const card = modal.querySelector(".modal-card");
+    if (card) card.scrollTop = 0;
+
+    requestAnimationFrame(() => {
+      (focusEl || card?.querySelector("input,textarea,button,select"))?.focus?.();
+    });
+  }
+
+  function closeModal(modal) {
+    if (!modal) return;
+    modal.classList.remove("show");
+    setAria(modal, false);
+    document.body.classList.remove("modal-open");
+    requestAnimationFrame(() => lastFocus?.focus?.());
+    lastFocus = null;
+  }
+
+  function getFocusable(container) {
+    if (!container) return [];
+    return Array.from(
+      container.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => el.offsetParent !== null);
+  }
+
+  function trapFocus(modal, e) {
+    if (!isOpen(modal) || e.key !== "Tab") return;
+    const card = modal.querySelector(".modal-card");
+    const focusables = getFocusable(card);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isOpen(editModal)) closeModal(editModal);
+  });
+  document.addEventListener("keydown", (e) => trapFocus(editModal, e));
+
+  editClose?.addEventListener("click", () => closeModal(editModal));
+  cancelEdit?.addEventListener("click", () => closeModal(editModal));
+
+  /* ================= UI EVENTS ================= */
+  desc?.addEventListener("input", updateDescCount);
+
+  segBtns.forEach((b) =>
+    b.addEventListener("click", () => setActiveUI(b.getAttribute("data-seg") === "true"))
+  );
+
+  clearImgBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    resetImage({ markRemove: true });
+    toast("warn", "Removed", "Image cleared.");
+  });
+
+  // ✅ File chooser (works because input is clickable overlay)
+  imageIpt?.addEventListener("change", () => {
+    const f = imageIpt.files && imageIpt.files[0];
+    if (!f) return;
+
+    if (!isValidImageFile(f)) {
+      toast("err", "Invalid image", "Use PNG/JPG/WEBP (max 8MB).");
+      try { imageIpt.value = ""; } catch {}
+      pickedFile = null;
+      return;
+    }
+
+    pickedFile = f;
     if (removeImage) removeImage.value = "false";
-    showPreview(p.image_url ? resolveImage(p.image_url) : "");
-    setHelp("", "");
+
+    revokePreviewUrl();
+    previewObjectUrl = URL.createObjectURL(f);
+    showPreview(previewObjectUrl);
+  });
+
+  // ✅ Drag & drop support
+  if (dropBox) {
+    ["dragenter", "dragover"].forEach((evt) => {
+      dropBox.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropBox.classList.add("drag");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      dropBox.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropBox.classList.remove("drag");
+      });
+    });
+
+    dropBox.addEventListener("drop", (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+
+      if (!isValidImageFile(file)) {
+        toast("err", "Invalid image", "Use PNG/JPG/WEBP (max 8MB).");
+        return;
+      }
+
+      pickedFile = file;
+      if (removeImage) removeImage.value = "false";
+
+      revokePreviewUrl();
+      previewObjectUrl = URL.createObjectURL(file);
+      showPreview(previewObjectUrl);
+      toast("ok", "Image added", "Preview updated.");
+    });
   }
 
   function setBusy(on) {
@@ -398,17 +314,9 @@
     if (logoutBtn) logoutBtn.disabled = !!on;
   }
 
-  /* ================= PRODUCTS API ================= */
+  /* ================= API ================= */
   async function fetchAdminProducts() {
-    const r = await api("/admin/products", { method: "GET" });
-
-    // If your session is missing, backend returns 401 -> checkAuth will redirect next refresh
-    if (r.status === 401) {
-      toast("err", "Session expired", "Please login again.");
-      window.adminLogout?.();
-      throw new Error("Unauthorized");
-    }
-
+    const r = await apiFetch("/admin/products", { method: "GET" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to load products");
     return Array.isArray(data.products) ? data.products : [];
@@ -423,7 +331,7 @@
 
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
-    const file = pickedFile || imageIpt?.files?.[0];
+    const file = pickedFile || (imageIpt?.files?.[0] || null);
     if (file) fd.append("image", file);
 
     return fd;
@@ -431,7 +339,7 @@
 
   async function createProduct() {
     const fd = buildFormData({ isUpdate: false });
-    const r = await api("/admin/products", { method: "POST", body: fd });
+    const r = await apiFetch("/admin/products", { method: "POST", body: fd });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Create failed");
     return data.product;
@@ -439,14 +347,14 @@
 
   async function updateProduct(id) {
     const fd = buildFormData({ isUpdate: true });
-    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "PUT", body: fd });
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(id)}`, { method: "PUT", body: fd });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Update failed");
     return data.product;
   }
 
   async function deleteProduct(id) {
-    const r = await api(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success) throw new Error(data?.message || "Delete failed");
     return true;
@@ -477,8 +385,38 @@
     return out;
   }
 
-  function fallbackImg() {
-    return "images_brown/bodyButter.png";
+  function fillEditForm(p) {
+    revokePreviewUrl();
+    pickedFile = null;
+    try { if (imageIpt) imageIpt.value = ""; } catch {}
+
+    if (pid) pid.value = String(p.id);
+    if (nameIpt) nameIpt.value = String(p.name || "");
+    if (priceIpt) priceIpt.value = String(Number(p.price || 0));
+    if (desc) desc.value = String(p.description || "");
+    updateDescCount();
+
+    setActiveUI(Boolean(p.is_active));
+    if (removeImage) removeImage.value = "false";
+    showPreview(p.image_url ? resolveImage(p.image_url) : "");
+    setHelp("");
+  }
+
+  function resetEditForm() {
+    revokePreviewUrl();
+    pickedFile = null;
+    try { if (imageIpt) imageIpt.value = ""; } catch {}
+
+    if (pid) pid.value = "";
+    if (nameIpt) nameIpt.value = "";
+    if (priceIpt) priceIpt.value = "";
+    if (desc) desc.value = "";
+    updateDescCount();
+
+    setActiveUI(true);
+    if (removeImage) removeImage.value = "false";
+    showPreview("");
+    setHelp("");
   }
 
   function openEditById(id) {
@@ -525,7 +463,6 @@
       card.setAttribute("tabindex", "0");
       card.setAttribute("role", "button");
       card.setAttribute("aria-label", `Edit ${String(p.name || "product")}`);
-      card.setAttribute("data-card-edit", idStr);
 
       card.innerHTML = `
         <div class="ad-item-img">
@@ -548,24 +485,24 @@
         </div>
       `;
 
-      const editBtn = card.querySelector("[data-edit]");
-      const delBtn = card.querySelector("[data-del]");
+      // fallback image if signed URL fails
+      const imgEl = card.querySelector("img");
+      imgEl?.addEventListener("error", () => {
+        if (imgEl) imgEl.src = fallbackImg();
+      });
 
-      editBtn?.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+      card.querySelector("[data-edit]")?.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
         openEditById(idStr);
       });
 
-      delBtn?.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+      card.querySelector("[data-del]")?.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
         confirmDeleteById(idStr);
       });
 
       card.addEventListener("click", (ev) => {
-        const insideActions = ev.target.closest(".ad-item-actions");
-        if (insideActions) return;
+        if (ev.target.closest(".ad-item-actions")) return;
         openEditById(idStr);
       });
 
@@ -580,14 +517,12 @@
     });
   }
 
-  /* ================= LOAD/REFRESH ================= */
   async function loadProducts() {
     setStatus("Loading products…", "info");
     try {
       products = await fetchAdminProducts();
       setStatus(`Loaded ${products.length} product(s).`, "ok");
       render();
-
       try { sessionStorage.setItem("allProducts", JSON.stringify(products)); } catch {}
     } catch (e) {
       console.warn(e);
@@ -596,7 +531,7 @@
     }
   }
 
-  /* ================= EVENTS ================= */
+  /* ================= TOP EVENTS ================= */
   logoutBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     window.adminLogout?.();
@@ -619,54 +554,11 @@
     loadProducts();
   });
 
-  editClose?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeModal(editModal);
-  });
-
-  cancelEdit?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeModal(editModal);
-  });
-
   clearSearchBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     if (q) q.value = "";
     render();
     q?.focus?.();
-  });
-
-  editForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const id = String(pid?.value || "");
-    const name = String(nameIpt?.value || "").trim();
-    const price = Number(priceIpt?.value || 0);
-
-    if (!name) return setHelp("err", "Product name is required.");
-    if (!Number.isFinite(price) || price < 0) return setHelp("err", "Price must be 0 or more.");
-
-    setHelp("", "");
-    setBusy(true);
-
-    try {
-      if (id) {
-        await updateProduct(id);
-        toast("ok", "Updated", "✅ Product updated successfully!");
-      } else {
-        await createProduct();
-        toast("ok", "Created", "✅ Product added successfully!");
-      }
-
-      closeModal(editModal);
-      await loadProducts();
-    } catch (err) {
-      const msg = String(err.message || err);
-      setHelp("err", msg);
-      toast("err", "Save failed", msg);
-    } finally {
-      setBusy(false);
-    }
   });
 
   q?.addEventListener("input", render);
@@ -686,9 +578,41 @@
     });
   });
 
+  editForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = String(pid?.value || "");
+    const name = String(nameIpt?.value || "").trim();
+    const price = Number(priceIpt?.value || 0);
+
+    if (!name) return toast("err", "Missing", "Product name is required.");
+    if (!Number.isFinite(price) || price < 0) return toast("err", "Invalid", "Price must be 0 or more.");
+
+    setBusy(true);
+    setHelp("");
+
+    try {
+      if (id) {
+        await updateProduct(id);
+        toast("ok", "Updated", "✅ Product updated successfully!");
+      } else {
+        await createProduct();
+        toast("ok", "Created", "✅ Product added successfully!");
+      }
+
+      closeModal(editModal);
+      await loadProducts();
+    } catch (err) {
+      const msg = String(err.message || err);
+      setHelp(msg, "err");
+      toast("err", "Save failed", msg);
+    } finally {
+      setBusy(false);
+    }
+  });
+
   /* ================= INIT ================= */
-  (function init() {
-    updateDescCount();
-    loadProducts();
-  })();
+  setActiveUI(true);
+  updateDescCount();
+  loadProducts();
 })();
