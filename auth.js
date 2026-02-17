@@ -49,13 +49,14 @@
     location.replace(LOGIN_URL);
   }
 
+
+  
   async function apiFetch(path, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     const needsCsrf = !["GET", "HEAD", "OPTIONS"].includes(method);
 
     const headersBase = { ...(options.headers || {}) };
     if (!("Accept" in headersBase)) headersBase["Accept"] = "application/json";
-    headersBase["X-Requested-With"] = "XMLHttpRequest";
 
     const headers = needsCsrf ? withCsrfHeaders(headersBase) : headersBase;
 
