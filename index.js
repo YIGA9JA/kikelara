@@ -2,7 +2,7 @@
    ✅ Preloader (per-tab sessionStorage)
    ✅ Hero video lazy-load (reduced-motion safe)
    ✅ Fetch ALL products from backend /api/products (already created_at DESC)
-   ✅ Latest Drops = newest 4 (slice(0,4))
+   ✅ Latest Drops = newest 4
    ✅ Most Loved = top 4 by rating using /api/products/:id/reviews/summary
    ✅ Caches rating summaries in sessionStorage (TTL) + concurrency limit
    ✅ Cards navigate to product-details.html?id=ID
@@ -87,9 +87,9 @@ window.addEventListener("load", () => {
 })();
 
 /* ================= NAV HELPER ================= */
-function goToProduct(id) {
-  if (id === undefined || id === null || id === "") return;
-  window.location.href = `product-details.html?id=${encodeURIComponent(id)}`;
+function productUrl(id) {
+  if (id === undefined || id === null || id === "") return "products.html";
+  return `product-details.html?id=${encodeURIComponent(id)}`;
 }
 
 /* ================= SAFE STORAGE ================= */
@@ -104,30 +104,20 @@ function safeGetSessionJSON(key, fallback) {
   }
 }
 function safeSetSessionJSON(key, val) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify(val));
-  } catch {}
+  try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
 /* ================= IMAGE URL RESOLVER ================= */
 function resolveImageUrl(img) {
   const val = String(img || "").trim();
   if (!val) return "images_brown/bodyButter.png";
-
-  // signed url from your backend -> already https://...
   if (/^https?:\/\//i.test(val)) return val;
-
-  // /uploads/... from backend
   if (val.startsWith("/uploads/") && API_BASE) return `${API_BASE}${val}`;
-
-  // uploads/... from backend
   if (val.startsWith("uploads/") && API_BASE) return `${API_BASE}/${val}`;
-
-  // local relative file
   return val;
 }
 
-/* ================= NORMALIZE PRODUCT (your DB row shape) ================= */
+/* ================= NORMALIZE PRODUCT ================= */
 function normalizeProduct(row) {
   const createdAtRaw = row?.created_at || row?.createdAt || null;
   const created_at = createdAtRaw ? new Date(createdAtRaw).getTime() : null;
@@ -139,7 +129,7 @@ function normalizeProduct(row) {
     description: String(row?.description || ""),
     image_url: resolveImageUrl(row?.image_url || row?.image || row?.img || ""),
     is_active: row?.is_active !== undefined ? Boolean(row.is_active) : true,
-    created_at, // timestamp number or null
+    created_at,
   };
 }
 
@@ -163,9 +153,7 @@ function loadRatingsCache() {
   if (!cached || typeof cached !== "object") return {};
   return cached;
 }
-function saveRatingsCache(cacheObj) {
-  safeSetSessionJSON(RATINGS_CACHE_KEY, cacheObj);
-}
+function saveRatingsCache(cacheObj) { safeSetSessionJSON(RATINGS_CACHE_KEY, cacheObj); }
 function getCachedRating(cache, productId) {
   const k = String(productId);
   const v = cache[k];
@@ -177,7 +165,7 @@ function setCachedRating(cache, productId, avg, count) {
   cache[String(productId)] = { avg: Number(avg || 0), count: Number(count || 0), ts: Date.now() };
 }
 
-/* ================= FETCH REVIEW SUMMARY (your endpoint) ================= */
+/* ================= FETCH REVIEW SUMMARY ================= */
 async function fetchReviewSummary(productId) {
   if (!API_BASE) return { avg: 0, count: 0 };
   try {
@@ -213,8 +201,6 @@ async function runWithLimit(items, limit, worker) {
 
 /* ================= SORT HELPERS ================= */
 function sortLatestDesc(a, b) {
-  // your API already returns created_at DESC,
-  // but we still sort safely if missing fields
   const ta = a.created_at ?? -1;
   const tb = b.created_at ?? -1;
   if (tb !== ta) return tb - ta;
@@ -223,7 +209,6 @@ function sortLatestDesc(a, b) {
   if (Number.isFinite(ia) && Number.isFinite(ib)) return ib - ia;
   return 0;
 }
-
 function sortLovedDesc(a, b) {
   const ar = a.avg_rating ?? 0;
   const br = b.avg_rating ?? 0;
@@ -235,7 +220,6 @@ function sortLovedDesc(a, b) {
 
   return sortLatestDesc(a, b);
 }
-
 function lovedMetaText(p) {
   const avg = Number(p.avg_rating ?? 0);
   const count = Number(p.review_count ?? 0);
@@ -252,8 +236,7 @@ function lovedMetaText(p) {
 function makeCard(p, kind) {
   const card = document.createElement("a");
   card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
-  card.href = "javascript:void(0)";
-  card.setAttribute("role", "link");
+  card.href = productUrl(p.id);
   card.style.textDecoration = "none";
 
   const media = document.createElement("div");
@@ -282,7 +265,6 @@ function makeCard(p, kind) {
   card.appendChild(media);
   card.appendChild(body);
 
-  card.addEventListener("click", () => goToProduct(p.id));
   return card;
 }
 
@@ -300,9 +282,9 @@ const featuredName = document.getElementById("featuredName");
 
 function preloadImage(src, cb) {
   const i = new Image();
-  i.src = src;
   i.onload = cb;
   i.onerror = cb;
+  i.src = src;
 }
 
 function switchFeatured() {
@@ -330,41 +312,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   const latestGrid = document.getElementById("latestProducts");
   const lovedRail = document.getElementById("homeProducts");
 
-  // 1) Get products from backend only
   const products = await fetchProducts();
-
-  // Save for other pages (product-details lookup, etc.)
   safeSetSessionJSON(PRODUCTS_KEY, products);
 
-  // If none, render nothing
   if (!products.length) {
     renderList(latestGrid, [], "latest");
     renderList(lovedRail, [], "loved");
     return;
   }
 
-  // 2) Latest Drops = newest 4 (your API already returns newest first)
   const sortedLatest = [...products].sort(sortLatestDesc);
   const latest = sortedLatest.slice(0, 4);
 
-  // If you truly meant "oldest 4", switch to:
-  // const latest = sortedLatest.slice(-4);
-
   renderList(latestGrid, latest, "latest");
 
-  // 3) Render loved quickly (temporary) then upgrade after ratings load
+  // quick initial loved
   renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
 
-  // 4) Build "Most Loved" using review summaries (cached + limited concurrency)
   const cache = loadRatingsCache();
 
   const ratedProducts = [...products].map((p) => {
     const c = getCachedRating(cache, p.id);
-    return {
-      ...p,
-      avg_rating: c ? c.avg : null,
-      review_count: c ? c.count : null,
-    };
+    return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
   });
 
   const needsFetch = ratedProducts.filter((p) => p.avg_rating === null || p.review_count === null);
@@ -377,15 +346,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       p.review_count = s.count;
       return p;
     });
-
     saveRatingsCache(cache);
   }
 
-  // 5) Most Loved = top 4 highest rated (avg desc, then count desc)
   const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
   renderList(lovedRail, loved, "loved");
 
-  // 6) Featured pool: loved then latest then rest (unique)
+  // Featured pool
   const seen = new Set();
   featuredPool = [];
   [...loved, ...latest, ...sortedLatest].forEach((p) => {
@@ -394,6 +361,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     seen.add(k);
     featuredPool.push(p);
   });
+
   featuredPool = featuredPool.slice(0, 6);
 
   if (featuredPool.length) {

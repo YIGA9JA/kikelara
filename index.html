@@ -13,6 +13,16 @@
 
   <!-- Config first (API_BASE + HCAPTCHA_SITE_KEY) -->
   <script src="config.js"></script>
+
+  <!-- ✅ Cart store FIRST (cart-only, sessionStorage) -->
+  <script defer src="store.js"></script>
+
+  <!-- Injected header/footer -->
+  <script defer src="header.js"></script>
+  <script defer src="footer.js"></script>
+
+  <!-- Page script -->
+  <script defer src="index.js"></script>
 </head>
 
 <body>
@@ -28,209 +38,201 @@
     </div>
   </div>
 
-  <!-- HERO -->
-  <section class="hero" aria-label="Hero">
-    <video
-      id="heroBgVideo"
-      class="hero-bg-video"
-      muted
-      loop
-      playsinline
-      preload="none"
-      poster="images/hero-poster.jpg"
-      data-mp4="assets/hero.mp4"
-      data-webm="assets/hero.webm"
-      aria-hidden="true"
-    ></video>
+  <!-- ✅ Skip target for header.js -->
+  <main id="mainContent">
+    <!-- HERO -->
+    <section class="hero" aria-label="Hero">
+      <video
+        id="heroBgVideo"
+        class="hero-bg-video"
+        muted
+        loop
+        playsinline
+        preload="none"
+        poster="images/hero-poster.jpg"
+        data-mp4="assets/hero.mp4"
+        data-webm="assets/hero.webm"
+        aria-hidden="true"
+      ></video>
 
-    <div class="hero-overlay" aria-hidden="true"></div>
-    <div class="hero-grain" aria-hidden="true"></div>
+      <div class="hero-overlay" aria-hidden="true"></div>
+      <div class="hero-grain" aria-hidden="true"></div>
 
-    <div class="container hero-grid">
-      <div class="hero-left">
-        <div class="badge">✨ PREMIUM SKIN RITUAL</div>
+      <div class="container hero-grid">
+        <div class="hero-left">
+          <div class="badge">✨ PREMIUM SKIN RITUAL</div>
 
-        <h1 class="h1">
-          A <span>luxury glow</span><br/>
-          made for your skin.
-        </h1>
+          <h1 class="h1">
+            A <span>luxury glow</span><br/>
+            made for your skin.
+          </h1>
 
-        <p class="lead">
-          Premium butters & oils crafted to nourish, soften, and leave you radiant—without the greasy feel.
-        </p>
-
-        <div class="cta-row">
-          <a class="btn btn-gold" href="products.html">Shop Collection</a>
-          <a class="btn btn-ghost" href="#shopPanels">Explore Favorites</a>
-        </div>
-
-        <div class="mini-proof">
-          <span class="pill">⭐ Customer-loved</span>
-          <span class="pill">📦 Fast delivery</span>
-          <span class="pill">🧴 Non-greasy finish</span>
-        </div>
-      </div>
-
-      <div class="hero-right">
-        <div class="feature-card">
-          <div class="feature-top">
-            <div class="dots"><span></span><span></span><span></span></div>
-            <div class="feature-title">Featured</div>
-            <div class="feature-sub">Auto-switch</div>
-          </div>
-
-          <div class="feature-media">
-            <img id="featuredImage" alt="Featured visual" />
-          </div>
-
-          <div class="feature-bottom">
-            <div class="feature-name" id="featuredName"></div>
-            <div class="feature-actions">
-              <a class="chip" href="products.html">Shop</a>
-              <a class="chip" href="#shopPanels">Browse</a>
-              <a class="chip" href="contact.html">Contact</a>
-            </div>
-          </div>
-        </div>
-
-        <div class="float-card">
-          <div class="float-title">Glow Tip</div>
-          <div class="float-text">
-            Apply oil on damp skin, then seal with butter for an all-day glow.
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SHOP PANELS -->
-  <section class="section" id="shopPanels">
-    <div class="container">
-      <div class="section-head">
-        <div>
-          <h2>Shop what’s trending</h2>
-          <p>Swipe on mobile • tap to view details.</p>
-        </div>
-        <a class="link" href="products.html">View all →</a>
-      </div>
-
-      <div class="duo">
-        <!-- Latest -->
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Latest Drops</div>
-            <div class="panel-sub">New in</div>
-          </div>
-          <div class="latest-grid" id="latestProducts"></div>
-        </div>
-
-        <!-- Most Loved -->
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Most Loved</div>
-            <div class="panel-sub">Favorites</div>
-          </div>
-          <div class="loved-rail" id="homeProducts"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ROUTINE -->
-  <section class="section soft">
-    <div class="container">
-      <div class="section-head">
-        <div>
-          <h2>Simple routine. Real results.</h2>
-          <p>A premium ritual you can keep daily.</p>
-        </div>
-      </div>
-
-      <div class="how-grid">
-        <div class="how-card">
-          <div class="how-badge">01</div>
-          <h3>Cleanse</h3>
-          <p>Start clean so your skin can absorb better.</p>
-        </div>
-
-        <div class="how-card">
-          <div class="how-badge">02</div>
-          <h3>Treat</h3>
-          <p>Use oil to nourish and boost glow & tone.</p>
-        </div>
-
-        <div class="how-card">
-          <div class="how-badge">03</div>
-          <h3>Seal</h3>
-          <p>Butter locks in moisture for soft skin.</p>
-        </div>
-
-        <div class="how-card">
-          <div class="how-badge">04</div>
-          <h3>Repeat</h3>
-          <p>Consistency is the luxury—daily wins.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PROOF + CTA -->
-  <section class="section">
-    <div class="container">
-      <div class="duo duo-cta">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-title">Loved by customers</div>
-            <div class="panel-sub">Real feedback</div>
-          </div>
-
-          <div class="quotes">
-            <div class="quote">
-              <p>“My skin feels so soft and looks brighter. The scent is premium!”</p>
-              <div class="who">— A happy customer</div>
-            </div>
-            <div class="quote">
-              <p>“Body Butter is my favorite. It keeps my skin moisturized all day.”</p>
-              <div class="who">— Verified buyer</div>
-            </div>
-            <div class="quote">
-              <p>“The oils are not sticky at all. Clean glow, luxury feel.”</p>
-              <div class="who">— Returning customer</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel cta-panel">
-          <div class="cta-badge">KÍKÉLÁRÁ</div>
-          <h2 class="cta-title">Feed your skin with beauty.</h2>
-          <p class="cta-text">Shop the collection and start your glow ritual today.</p>
+          <p class="lead">
+            Premium butters & oils crafted to nourish, soften, and leave you radiant—without the greasy feel.
+          </p>
 
           <div class="cta-row">
             <a class="btn btn-gold" href="products.html">Shop Collection</a>
-            <a class="btn btn-ghost" href="contact.html">Contact Us</a>
+            <a class="btn btn-ghost" href="#shopPanels">Explore Favorites</a>
           </div>
 
-          <div class="cta-note">✨ Premium textures • 🌿 Natural ingredients • 💛 Made with care</div>
+          <div class="mini-proof">
+            <span class="pill">⭐ Customer-loved</span>
+            <span class="pill">📦 Fast delivery</span>
+            <span class="pill">🧴 Non-greasy finish</span>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="feature-card">
+            <div class="feature-top">
+              <div class="dots"><span></span><span></span><span></span></div>
+              <div class="feature-title">Featured</div>
+              <div class="feature-sub">Auto-switch</div>
+            </div>
+
+            <div class="feature-media">
+              <img id="featuredImage" alt="Featured visual" />
+            </div>
+
+            <div class="feature-bottom">
+              <div class="feature-name" id="featuredName"></div>
+              <div class="feature-actions">
+                <a class="chip" href="products.html">Shop</a>
+                <a class="chip" href="#shopPanels">Browse</a>
+                <a class="chip" href="contact.html">Contact</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="float-card">
+            <div class="float-title">Glow Tip</div>
+            <div class="float-text">
+              Apply oil on damp skin, then seal with butter for an all-day glow.
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <!-- SHOP PANELS -->
+    <section class="section" id="shopPanels">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2>Shop what’s trending</h2>
+            <p>Swipe on mobile • tap to view details.</p>
+          </div>
+          <a class="link" href="products.html">View all →</a>
+        </div>
+
+        <div class="duo">
+          <!-- Latest -->
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Latest Drops</div>
+              <div class="panel-sub">New in</div>
+            </div>
+            <div class="latest-grid" id="latestProducts"></div>
+          </div>
+
+          <!-- Most Loved -->
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Most Loved</div>
+              <div class="panel-sub">Favorites</div>
+            </div>
+            <div class="loved-rail" id="homeProducts"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROUTINE -->
+    <section class="section soft">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2>Simple routine. Real results.</h2>
+            <p>A premium ritual you can keep daily.</p>
+          </div>
+        </div>
+
+        <div class="how-grid">
+          <div class="how-card">
+            <div class="how-badge">01</div>
+            <h3>Cleanse</h3>
+            <p>Start clean so your skin can absorb better.</p>
+          </div>
+
+          <div class="how-card">
+            <div class="how-badge">02</div>
+            <h3>Treat</h3>
+            <p>Use oil to nourish and boost glow & tone.</p>
+          </div>
+
+          <div class="how-card">
+            <div class="how-badge">03</div>
+            <h3>Seal</h3>
+            <p>Butter locks in moisture for soft skin.</p>
+          </div>
+
+          <div class="how-card">
+            <div class="how-badge">04</div>
+            <h3>Repeat</h3>
+            <p>Consistency is the luxury—daily wins.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROOF + CTA -->
+    <section class="section">
+      <div class="container">
+        <div class="duo duo-cta">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Loved by customers</div>
+              <div class="panel-sub">Real feedback</div>
+            </div>
+
+            <div class="quotes">
+              <div class="quote">
+                <p>“My skin feels so soft and looks brighter. The scent is premium!”</p>
+                <div class="who">— A happy customer</div>
+              </div>
+              <div class="quote">
+                <p>“Body Butter is my favorite. It keeps my skin moisturized all day.”</p>
+                <div class="who">— Verified buyer</div>
+              </div>
+              <div class="quote">
+                <p>“The oils are not sticky at all. Clean glow, luxury feel.”</p>
+                <div class="who">— Returning customer</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel cta-panel">
+            <div class="cta-badge">KÍKÉLÁRÁ</div>
+            <h2 class="cta-title">Feed your skin with beauty.</h2>
+            <p class="cta-text">Shop the collection and start your glow ritual today.</p>
+
+            <div class="cta-row">
+              <a class="btn btn-gold" href="products.html">Shop Collection</a>
+              <a class="btn btn-ghost" href="contact.html">Contact Us</a>
+            </div>
+
+            <div class="cta-note">✨ Premium textures • 🌿 Natural ingredients • 💛 Made with care</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <!-- FOOTER INJECT MOUNT -->
   <div id="siteFooter"></div>
 
-  <!-- ✅ hCaptcha explicit onload (fixes warning) -->
-  <script>
-    window.__hcaptchaOnLoad = function () {
-      window.__HCAPTCHA_READY__ = true;
-      document.dispatchEvent(new Event("hcaptcha:ready"));
-    };
-  </script>
-  <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=__hcaptchaOnLoad" async defer></script>
-
-  <!-- Scripts (load once) -->
-  <script src="header.js"></script>
-  <script src="footer.js"></script>
-  <script src="index.js"></script>
+  <!-- ✅ NOTE: hCaptcha script is not needed on Home page.
+       Keep it ONLY on contact.html to reduce load time. -->
 </body>
 </html>

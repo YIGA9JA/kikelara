@@ -1,4 +1,4 @@
-// header.js — Liquid Glass + 3D + scroll pulse + centered capsule nav + SVG cart + cart badge sync
+// header.js — Modern Butter-Glass Header (NO wishlist) + cart badge sync (KStore/sessionStorage)
 document.addEventListener("DOMContentLoaded", () => {
   const mount = document.getElementById("siteHeader");
   if (!mount) return;
@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
     </svg>
   `;
 
-  // Use a universal skip target
   const SKIP_TARGET = "mainContent";
 
   mount.innerHTML = `
@@ -20,7 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <a class="k-brand" href="index.html" aria-label="KÍKÉLÁRÁ Home">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
-          <span>KÍKÉLÁRÁ</span>
+          <div class="k-brand-text">
+            <span class="k-brand-name">KÍKÉLÁRÁ</span>
+            <span class="k-brand-tag">Luxury Skincare</span>
+          </div>
         </a>
 
         <nav class="k-nav" aria-label="Primary navigation">
@@ -33,11 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="k-actions">
           <a class="k-icon k-cart" href="cart.html" aria-label="Cart">
             ${ICON_CART}
-            <span class="k-badge" id="cartCount" aria-label="Cart items">0</span>
+            <span class="k-badge" id="cartCount" aria-label="Cart items" hidden>0</span>
           </a>
-
-          <!-- optional wishlist badge support (kept for your other pages) -->
-          <span class="k-badge k-badge-ghost" id="wishlistCount" hidden>0</span>
 
           <button id="kMenuBtn" class="k-menu" aria-label="Open menu" aria-expanded="false">
             <span></span><span></span><span></span>
@@ -46,27 +45,37 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </header>
 
-    <div class="k-overlay" id="kOverlay"></div>
+    <div class="k-overlay" id="kOverlay" aria-hidden="true"></div>
 
     <nav id="kDrawer" class="k-drawer" aria-label="Mobile navigation" aria-hidden="true">
       <div class="k-drawer-top">
         <div class="k-drawer-brand">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
-          <span>KÍKÉLÁRÁ</span>
+          <div>
+            <div class="k-drawer-title">KÍKÉLÁRÁ</div>
+            <div class="k-drawer-sub">Luxury Skincare</div>
+          </div>
         </div>
-        <button class="k-drawer-close" id="kDrawerClose" aria-label="Close menu">✕</button>
+
+        <button class="k-drawer-close" id="kDrawerClose" aria-label="Close menu">
+          ✕
+        </button>
       </div>
 
       <div class="k-drawer-links">
         <a href="index.html" data-nav="index.html">Home</a>
         <a href="products.html" data-nav="products.html">Products</a>
-        <a href="cart.html" data-nav="cart.html">Cart <span class="k-mini-badge" id="cartCountMobile">0</span></a>
+        <a href="cart.html" data-nav="cart.html">
+          Cart <span class="k-mini-badge" id="cartCountMobile">0</span>
+        </a>
         <a href="about.html" data-nav="about.html">About</a>
         <a href="contact.html" data-nav="contact.html">Contact</a>
       </div>
 
       <div class="k-drawer-bottom">
-        <div class="k-drawer-note">Luxury skincare inspired by nature.</div>
+        <div class="k-drawer-note">
+          Premium butters & oils crafted to nourish, soften, and glow.
+        </div>
         <a class="k-drawer-cta" href="products.html">Shop Now</a>
       </div>
     </nav>
@@ -80,26 +89,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ========== ACTIVE LINK ========== */
   const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-  mount.querySelectorAll("[data-nav]").forEach(a => {
+  mount.querySelectorAll("[data-nav]").forEach((a) => {
     const href = (a.getAttribute("data-nav") || "").toLowerCase();
     if (href === current) a.classList.add("active");
   });
 
-  /* ========== CART COUNT SYNC ========== */
+  /* ========== CART COUNT SYNC (KStore -> sessionStorage fallback) ========== */
   const CART_KEY = "cart";
-  function safeCart() {
-    try {
-      const v = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
-      return Array.isArray(v) ? v : [];
-    } catch { return []; }
+
+  function safeParse(raw, fallback) {
+    try { return JSON.parse(raw) ?? fallback; } catch { return fallback; }
   }
+
+  function getCartArray() {
+    // Prefer your store.js (sessionStorage + broadcast)
+    if (window.KStore && typeof window.KStore.getCart === "function") {
+      const v = window.KStore.getCart();
+      return Array.isArray(v) ? v : [];
+    }
+
+    // Fallback: sessionStorage
+    const ss = safeParse(sessionStorage.getItem(CART_KEY), []);
+    if (Array.isArray(ss)) return ss;
+
+    // Final fallback: localStorage (older builds)
+    const ls = safeParse(localStorage.getItem(CART_KEY), []);
+    return Array.isArray(ls) ? ls : [];
+  }
+
   function cartQtyTotal() {
-    const cart = safeCart();
+    const cart = getCartArray();
     return cart.reduce((sum, it) => sum + (Number(it?.qty) || 0), 0);
   }
+
   function updateCounts() {
     const n = cartQtyTotal();
-
     const desktop = document.getElementById("cartCount");
     const mobile = document.getElementById("cartCountMobile");
 
@@ -109,38 +133,60 @@ document.addEventListener("DOMContentLoaded", () => {
       desktop.setAttribute("aria-label", `${n} items in cart`);
     }
     if (mobile) mobile.textContent = String(n);
-
-    // wishlist optional
-    const wish = document.getElementById("wishlistCount");
-    if (wish) {
-      wish.textContent = "0";
-      wish.hidden = true;
-    }
   }
 
   updateCounts();
+
+  // Your store.js fires this
+  document.addEventListener("cart:updated", updateCounts);
+
+  // storage event works across tabs for localStorage only (still ok as fallback)
   window.addEventListener("storage", (e) => {
     if (e.key === CART_KEY) updateCounts();
   });
-  document.addEventListener("cart:updated", updateCounts);
 
-  /* ========== DRAWER ========== */
+  // small retry (header inject / store load order)
+  let tries = 0;
+  const t = setInterval(() => {
+    updateCounts();
+    tries += 1;
+    if (tries > 10) clearInterval(t);
+  }, 150);
+
+  /* ========== DRAWER + ACCESSIBILITY ========== */
+  let lastFocus = null;
+
   const openDrawer = () => {
+    lastFocus = document.activeElement;
     menuBtn.classList.add("active");
     drawer.classList.add("show");
     overlay.classList.add("show");
+
     drawer.setAttribute("aria-hidden", "false");
+    overlay.setAttribute("aria-hidden", "false");
     menuBtn.setAttribute("aria-expanded", "true");
-    document.body.style.overflow = "hidden";
+
+    document.body.classList.add("k-lock");
+
+    // focus first link
+    const firstLink = drawer.querySelector("a");
+    if (firstLink) firstLink.focus({ preventScroll: true });
   };
 
   const closeDrawer = () => {
     menuBtn.classList.remove("active");
     drawer.classList.remove("show");
     overlay.classList.remove("show");
+
     drawer.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-hidden", "true");
     menuBtn.setAttribute("aria-expanded", "false");
-    document.body.style.overflow = "";
+
+    document.body.classList.remove("k-lock");
+
+    if (lastFocus && typeof lastFocus.focus === "function") {
+      lastFocus.focus({ preventScroll: true });
+    }
   };
 
   menuBtn.addEventListener("click", () => {
@@ -150,30 +196,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
   overlay.addEventListener("click", closeDrawer);
   closeBtn.addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
-  drawer.addEventListener("click", (e) => { if (e.target.closest("a")) closeDrawer(); });
 
-  window.addEventListener("resize", () => { if (window.innerWidth > 900) closeDrawer(); });
+  document.addEventListener("keydown", (e) => {
+    if (!drawer.classList.contains("show")) return;
 
-  /* ========== SCROLL STATE + PULSE ========== */
+    if (e.key === "Escape") closeDrawer();
+
+    // basic focus trap
+    if (e.key === "Tab") {
+      const focusables = drawer.querySelectorAll('a,button,[tabindex]:not([tabindex="-1"])');
+      if (!focusables.length) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+
+  drawer.addEventListener("click", (e) => {
+    if (e.target.closest("a")) closeDrawer();
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) closeDrawer();
+  });
+
+  /* ========== SCROLL STATE + MICRO PULSE ========== */
   let pulseTimer = null;
   const onScroll = () => {
     if (!header) return;
-    header.classList.toggle("scrolled", window.scrollY > 12);
+    header.classList.toggle("scrolled", window.scrollY > 10);
 
     header.classList.add("pulse");
     clearTimeout(pulseTimer);
-    pulseTimer = setTimeout(() => header.classList.remove("pulse"), 220);
+    pulseTimer = setTimeout(() => header.classList.remove("pulse"), 180);
   };
   onScroll();
   window.addEventListener("scroll", onScroll, { passive: true });
 
-  /* ========== LIQUID + 3D PARALLAX ========== */
+  /* ========== LIQUID SHEEN + SOFT 3D PARALLAX (desktop only) ========== */
   const isTouch = matchMedia?.("(pointer: coarse)")?.matches;
   const reduceMotion = matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   if (!isTouch && !reduceMotion && header) {
-    const MAX_TILT = 8;
+    const MAX_TILT = 7;
     let raf = null;
     let lastX = 0, lastY = 0;
 

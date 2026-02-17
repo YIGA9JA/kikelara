@@ -2,8 +2,12 @@
    ✅ Cookie session auth (credentials include) via apiFetch/auth.js
    ✅ Upload click FIX: real file input overlay
    ✅ Drag/drop + preview
-   ✅ NEW: Supabase “Media Library” picker (lists bucket files via backend)
-   ✅ NEW: Auto-sign storage keys (products/..webp) via /admin/media/sign + cache
+   ✅ Supabase “Media Library” picker (lists bucket files via backend)
+   ✅ Auto-sign storage keys (products/..webp) via /admin/media/sign + cache
+   ✅ FIXES:
+      - Better /admin/media/list pagination handling (no double offset bugs)
+      - openEdit waits for image signing before showing modal (no “blank preview” flash)
+      - More defensive sorting when created_at is missing/invalid
 =============================================================================== */
 
 (async function () {
@@ -64,7 +68,7 @@
   const removeImage = $("removeImage");
   const dropBox = $("dropBox");
 
-  // ✅ new hidden “selected existing key”
+  // ✅ hidden “selected existing key”
   const imageKeyIpt = $("imageKey");
   const imgPicked = $("imgPicked");
 
@@ -402,7 +406,6 @@
     if (!k) return "";
 
     if (signedCache.has(k)) return signedCache.get(k);
-
     if (inflightSigns.has(k)) return inflightSigns.get(k);
 
     const p = (async () => {
@@ -417,8 +420,7 @@
 
     inflightSigns.set(k, p);
     try {
-      const url = await p;
-      return url;
+      return await p;
     } finally {
       inflightSigns.delete(k);
     }
@@ -428,17 +430,12 @@
     const r = resolveImage(raw);
     if (!r) return "";
     if (looksLikeStorageKey(r)) {
-      try {
-        return await signStorageKey(r);
-      } catch {
-        return "";
-      }
+      try { return await signStorageKey(r); } catch { return ""; }
     }
     return r;
   }
 
   async function hydrateSignedImages() {
-    // find all images that still have storage keys
     const imgs = Array.from(document.querySelectorAll("img[data-sbkey]"));
     if (!imgs.length) return;
 
@@ -448,16 +445,14 @@
         const el = imgs[idx++];
         const key = el.getAttribute("data-sbkey");
         if (!key) continue;
-
-        // If already swapped, skip
         if (el.getAttribute("data-signed") === "1") continue;
 
         try {
           const url = await signStorageKey(key);
           el.src = url || fallbackImg();
-          el.setAttribute("data-signed", "1");
         } catch {
           el.src = fallbackImg();
+        } finally {
           el.setAttribute("data-signed", "1");
         }
       }
@@ -485,6 +480,7 @@
       if (key && imageKeyIpt) imageKeyIpt.value = "";
     } else if (key) {
       // ✅ choose existing image without uploading
+      // IMPORTANT: backend must support reading "image_key" from multipart/form-data
       fd.append("image_key", key);
     }
 
@@ -514,6 +510,11 @@
     return true;
   }
 
+  function parseDateMs(x) {
+    const t = new Date(String(x || "")).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
   function applyFilterSortSearch(list) {
     const term = String(q?.value || "").trim().toLowerCase();
     let out = [...list];
@@ -529,8 +530,8 @@
     }
 
     const mode = String(sort?.value || "new");
-    if (mode === "old") out.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    if (mode === "new") out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (mode === "old") out.sort((a, b) => parseDateMs(a.created_at) - parseDateMs(b.created_at));
+    if (mode === "new") out.sort((a, b) => parseDateMs(b.created_at) - parseDateMs(a.created_at));
     if (mode === "name") out.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
     if (mode === "priceHigh") out.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
     if (mode === "priceLow") out.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
@@ -552,7 +553,7 @@
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
 
-    // key stored in payload.__image_key (from backend)
+    // key stored in payload.__image_key (from backend) OR image_url itself is a key
     const key =
       (p?.payload && typeof p.payload === "object" && String(p.payload.__image_key || "").trim()) ||
       (looksLikeStorageKey(p.image_url) ? String(p.image_url || "").trim() : "");
@@ -586,12 +587,21 @@
     setHelp("");
   }
 
-  function openEditById(id) {
+  async function openEditById(id) {
     const p = products.find((x) => String(x.id) === String(id));
     if (!p) return;
-    fillEditForm(p);
-    if (editTitle) editTitle.textContent = `Edit Product #${id}`;
-    openModal(editModal, nameIpt);
+
+    // ✅ wait so preview doesn’t “flash blank”
+    setBusy(true);
+    try {
+      await fillEditForm(p);
+      if (editTitle) editTitle.textContent = `Edit Product #${id}`;
+      openModal(editModal, nameIpt);
+    } catch (e) {
+      toast("err", "Edit failed", String(e.message || e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function confirmDeleteById(id) {
@@ -664,25 +674,25 @@
       const imgEl = card.querySelector("img");
       imgEl?.addEventListener("error", () => { if (imgEl) imgEl.src = fallbackImg(); });
 
-      card.querySelector("[data-edit]")?.addEventListener("click", (ev) => {
+      card.querySelector("[data-edit]")?.addEventListener("click", async (ev) => {
         ev.preventDefault(); ev.stopPropagation();
-        openEditById(idStr);
+        await openEditById(idStr);
       });
 
-      card.querySelector("[data-del]")?.addEventListener("click", (ev) => {
+      card.querySelector("[data-del]")?.addEventListener("click", async (ev) => {
         ev.preventDefault(); ev.stopPropagation();
-        confirmDeleteById(idStr);
+        await confirmDeleteById(idStr);
       });
 
-      card.addEventListener("click", (ev) => {
+      card.addEventListener("click", async (ev) => {
         if (ev.target.closest(".ad-item-actions")) return;
-        openEditById(idStr);
+        await openEditById(idStr);
       });
 
-      card.addEventListener("keydown", (ev) => {
+      card.addEventListener("keydown", async (ev) => {
         if (ev.key === "Enter" || ev.key === " ") {
           ev.preventDefault();
-          openEditById(idStr);
+          await openEditById(idStr);
         }
       });
 
@@ -723,7 +733,6 @@
 
   async function fetchLibraryPage({ reset = false } = {}) {
     if (!libGrid) return;
-
     if (libLoading) return;
     libLoading = true;
 
@@ -739,7 +748,7 @@
     }
 
     setLibStatus("Loading media…", "info");
-    libLoadMore && (libLoadMore.disabled = true);
+    if (libLoadMore) libLoadMore.disabled = true;
 
     try {
       const url =
@@ -751,6 +760,10 @@
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok || !data?.success) {
+        // surface 404 clearly
+        if (r.status === 404) {
+          throw new Error("Backend route /admin/media/list not found (404). Deploy the updated server.js routes.");
+        }
         throw new Error(
           data?.message ||
             "Media list failed. Make sure backend has /admin/media/list and SUPABASE_SERVICE_ROLE_KEY set."
@@ -763,13 +776,13 @@
       if (!items.length && libOffset === 0) {
         setLibStatus("No media found in this folder.", "warn");
       } else {
-        setLibStatus(`Showing ${libOffset + items.length} file(s).`, "ok");
+        setLibStatus(`Showing ${Math.min(libOffset + items.length, (data.nextOffset ?? libOffset + items.length))} file(s).`, "ok");
       }
 
       items.forEach((it) => {
         const key = String(it.key || "");
         const name = String(it.name || key.split("/").pop() || "");
-        const url = String(it.url || "");
+        const signedUrl = String(it.url || "");
 
         const card = document.createElement("button");
         card.type = "button";
@@ -777,7 +790,7 @@
         card.setAttribute("aria-label", `Select ${name}`);
         card.innerHTML = `
           <div class="libThumbWrap">
-            <img class="libThumbImg" src="${escapeHtml(url || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy">
+            <img class="libThumbImg" src="${escapeHtml(signedUrl || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy">
           </div>
           <div class="libMeta">
             <div class="libName" title="${escapeHtml(key)}">${escapeHtml(name)}</div>
@@ -795,7 +808,7 @@
           setPickedLabel();
 
           // show in preview
-          showPreview(url || (await resolveToDisplayUrl(key)) || "");
+          showPreview(signedUrl || (await resolveToDisplayUrl(key)) || "");
           toast("ok", "Selected", "Image selected from Supabase library.");
           closeModal(libModal);
         });
@@ -803,11 +816,15 @@
         libGrid.appendChild(card);
       });
 
-      libOffset += items.length;
-      libHasMore = Boolean(data.nextOffset !== null && data.nextOffset !== undefined);
-      if (data.nextOffset !== null && data.nextOffset !== undefined) {
-        // if backend provides nextOffset, honor it
-        libOffset = Number(data.nextOffset) || libOffset;
+      // ✅ correct pagination:
+      // If backend gives nextOffset, use it. Otherwise move by items.length.
+      const nextOffset = data.nextOffset;
+      if (nextOffset !== null && nextOffset !== undefined) {
+        libHasMore = true;
+        libOffset = Number(nextOffset) || (libOffset + items.length);
+      } else {
+        libOffset = libOffset + items.length;
+        libHasMore = items.length === limit; // best guess
       }
 
       if (libLoadMore) {
@@ -825,13 +842,11 @@
   }
 
   function openLibrary() {
-    // open the modal and load
     openModal(libModal, libSearch || libClose);
     fetchLibraryPage({ reset: true });
   }
 
   libSearch?.addEventListener("input", () => {
-    // debounce-ish
     window.clearTimeout(libSearch.__t);
     libSearch.__t = window.setTimeout(() => fetchLibraryPage({ reset: true }), 250);
   });
