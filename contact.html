@@ -1,66 +1,90 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Contact | KÍKE LÁRÁ</title>
-  <meta name="description" content="Contact KÍKE LÁRÁ for orders, support, and collaborations." />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Contact | KÍKÉLÁRÁ</title>
+  <meta name="description" content="Contact KÍKÉLÁRÁ for orders, support, and collaborations." />
 
-  <link rel="stylesheet" href="contact.css" />
-  <link rel="stylesheet" href="footer.css" />
+  <!-- ✅ MUST load config first -->
+  <script src="config.js"></script>
+
+  <!-- ✅ hCaptcha ready hook (used by contact.js + footer.js) -->
+  <script>
+    window.hcaptchaOnload = function () {
+      window.__HCAPTCHA_READY__ = true;
+      document.dispatchEvent(new Event("hcaptcha:ready"));
+    };
+  </script>
+
+  <!-- ✅ Styles -->
   <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="footer.css" />
+  <link rel="stylesheet" href="contact.css" />
+
+  <!-- ✅ Header/Footer injectors -->
+  <script defer src="header.js"></script>
+  <script defer src="footer.js"></script>
+
+  <!-- ✅ hCaptcha (explicit render) -->
+  <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnload" async defer></script>
+
+  <!-- ✅ Page logic -->
+  <script defer src="contact.js"></script>
 </head>
 
 <body>
   <!-- Header mount -->
   <div id="siteHeader"></div>
 
-  <div class="mobile-nav" id="mobileNav">
-    <a href="index.html">Home</a>
-    <a href="products.html">Products</a>
-    <a href="wishlist.html">Wishlist</a>
-    <a href="cart.html">Cart</a>
-    <a href="contact.html">Contact</a>
-  </div>
-
-  <main class="contact-page">
-    <section class="contact-hero">
-      <div class="hero-inner">
-        <p class="kicker">CONTACT</p>
-        <h1>We’re here to help.</h1>
-        <p class="sub">
+  <main class="ct" id="mainContent">
+    <!-- HERO -->
+    <section class="ct-hero" aria-label="Contact hero">
+      <div class="ct-hero-inner">
+        <div class="ct-kicker">CONTACT</div>
+        <h1 class="ct-title">We’re here to help.</h1>
+        <p class="ct-sub">
           Orders, product questions, collaborations — send a message and we’ll get back to you.
         </p>
+
+        <div class="ct-chips" aria-label="Highlights">
+          <span class="ct-chip">⚡ Fast replies</span>
+          <span class="ct-chip">🔒 Secure form</span>
+          <span class="ct-chip">💛 Luxury care</span>
+        </div>
       </div>
     </section>
 
-    <section class="contact-grid">
-      <!-- FORM CARD -->
-      <div class="card form-card">
-        <h2>Send us a message</h2>
-        <p class="muted">We typically reply within 24–48 hours.</p>
+    <!-- GRID -->
+    <section class="ct-grid" aria-label="Contact content">
+      <!-- FORM -->
+      <section class="ct-card ct-form-card" aria-label="Contact form">
+        <div class="ct-card-top">
+          <h2 class="ct-card-title">Send us a message</h2>
+          <p class="ct-muted">We typically reply within 24–48 hours.</p>
+        </div>
 
-        <form id="contactForm" class="contact-form" autocomplete="on">
-          <div class="row">
-            <div class="field">
-              <label for="name">Full name</label>
+        <form id="contactForm" class="ct-form" autocomplete="on" novalidate>
+          <div class="ct-row">
+            <label class="ct-field">
+              <span class="ct-label">Full name</span>
               <input id="name" name="name" type="text" placeholder="Your name" required />
-            </div>
+            </label>
 
-            <div class="field">
-              <label for="email">Email</label>
+            <label class="ct-field">
+              <span class="ct-label">Email</span>
               <input id="email" name="email" type="email" placeholder="you@email.com" required />
-            </div>
+            </label>
           </div>
 
-          <div class="row">
-            <div class="field">
-              <label for="phone">Phone (optional)</label>
-              <input id="phone" name="phone" type="tel" placeholder="+234..." />
-            </div>
+          <div class="ct-row">
+            <label class="ct-field">
+              <span class="ct-label">Phone (optional)</span>
+              <input id="phone" name="phone" type="tel" placeholder="+234..." inputmode="tel" />
+            </label>
 
-            <div class="field">
-              <label for="topic">Topic</label>
+            <label class="ct-field">
+              <span class="ct-label">Topic</span>
               <select id="topic" name="topic" required>
                 <option value="">Choose one</option>
                 <option value="Order issue">Order issue</option>
@@ -69,87 +93,98 @@
                 <option value="Collaboration">Collaboration</option>
                 <option value="Other">Other</option>
               </select>
+            </label>
+          </div>
+
+          <label class="ct-field">
+            <span class="ct-label">Message</span>
+            <textarea id="message" name="message" rows="7" placeholder="Tell us how we can help…" required></textarea>
+          </label>
+
+          <!-- CAPTCHA -->
+          <div class="ct-captcha">
+            <div class="ct-captcha-top">
+              <div class="ct-captcha-title">Security check</div>
+              <div class="ct-captcha-note">Please complete the captcha before submitting.</div>
             </div>
+
+            <div id="hcaptchaWidget" class="ct-hcaptcha" aria-label="hCaptcha widget"></div>
           </div>
 
-          <div class="field">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" placeholder="Tell us how we can help…" rows="6" required></textarea>
-          </div>
-
-          <!-- ✅ hCaptcha -->
-          <div class="captcha-wrap">
-            <div id="hcaptchaWidget" class="h-captcha"></div>
-            <div class="captcha-note">Please complete the captcha before submitting.</div>
-          </div>
-
-          <button id="submitBtn" type="submit" class="submit-btn">
-            Submit
+          <button id="submitBtn" type="submit" class="ct-btn">
+            <span>Submit</span>
+            <span class="ct-btn-glow" aria-hidden="true"></span>
           </button>
 
-          <div id="formStatus" class="form-status" aria-live="polite"></div>
+          <div id="formStatus" class="ct-status" aria-live="polite"></div>
         </form>
-      </div>
 
-      <!-- INFO CARD -->
-      <aside class="card info-card">
-        <h2>Contact details</h2>
+        <div class="ct-fineprint">
+          By submitting, you agree we may contact you back using the details provided.
+        </div>
+      </section>
 
-        <div class="info-block">
-          <div class="info-title">Email</div>
-          <a class="info-link" href="mailto:hello@kikelara.com">hello@kikelara.com</a>
-          <div class="info-note">Replace with your real email.</div>
+      <!-- INFO -->
+      <aside class="ct-card ct-info-card" aria-label="Contact details">
+        <div class="ct-info-head">
+          <h2 class="ct-card-title">Contact details</h2>
+          <p class="ct-muted">Quick ways to reach us.</p>
         </div>
 
-        <div class="info-block">
-          <div class="info-title">Social</div>
-          <div class="socials">
-            <a class="social-pill" href="https://instagram.com/_kikelara" target="_blank" rel="noopener">
-              <span class="ico">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm-5 4a4 4 0 1 1 0 8a4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4a2 2 0 0 0 0-4Zm5.2-2.6a1 1 0 1 1 0 2a1 1 0 0 1 0-2Z"/>
-                </svg>
-              </span>
-              Instagram <span class="handle">@_kikelara</span>
-            </a>
+        <div class="ct-info-block">
+          <div class="ct-info-title">Email</div>
+          <a class="ct-info-link" href="mailto:hello@kikelara.com">hello@kikelara.com</a>
+          <div class="ct-info-mini">Replace with your real support email.</div>
+        </div>
 
-            <a class="social-pill" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener">
-              <span class="ico">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="currentColor" d="M15 3c.5 2.9 2.8 5.1 5.7 5.3v3c-2 0-3.8-.6-5.3-1.6V16c0 3.6-2.9 6.5-6.5 6.5S2.4 19.6 2.4 16S5.3 9.5 8.9 9.5c.3 0 .6 0 .9.1v3.2c-.3-.1-.6-.2-.9-.2c-1.8 0-3.3 1.5-3.3 3.3c0 1.8 1.5 3.3 3.3 3.3c1.9 0 3.4-1.5 3.4-3.4V3h2.7Z"/>
-                </svg>
-              </span>
-              TikTok <span class="handle">@_kikelara</span>
-            </a>
+        <div class="ct-info-block">
+          <div class="ct-info-title">Social</div>
+
+          <a class="ct-pill" href="https://instagram.com/_kikelara" target="_blank" rel="noopener">
+            <span class="ct-pill-ico" aria-hidden="true">IG</span>
+            <span>Instagram</span>
+            <span class="ct-pill-handle">@_kikelara</span>
+          </a>
+
+          <a class="ct-pill" href="https://www.tiktok.com/@_kikelara" target="_blank" rel="noopener">
+            <span class="ct-pill-ico" aria-hidden="true">TT</span>
+            <span>TikTok</span>
+            <span class="ct-pill-handle">@_kikelara</span>
+          </a>
+        </div>
+
+        <div class="ct-info-block">
+          <div class="ct-info-title">Hours</div>
+          <div class="ct-info-text">Mon–Sat, 9am–6pm</div>
+        </div>
+
+        <div class="ct-divider" aria-hidden="true"></div>
+
+        <div class="ct-info-block">
+          <div class="ct-info-title">Quick links</div>
+          <a class="ct-link" href="products.html">Shop Products</a>
+          <a class="ct-link" href="about.html">About Us</a>
+          <a class="ct-link" href="privacy.html">Privacy Policy</a>
+        </div>
+
+        <details class="ct-faq" open>
+          <summary>Fast help</summary>
+          <div class="ct-faq-body">
+            <div class="ct-faq-item">
+              <div class="ct-faq-q">Order delay?</div>
+              <div class="ct-faq-a">Send your order name + phone number. We’ll check delivery status.</div>
+            </div>
+            <div class="ct-faq-item">
+              <div class="ct-faq-q">Wholesale?</div>
+              <div class="ct-faq-a">Choose “Wholesale / Retail” topic and include your location + quantity.</div>
+            </div>
           </div>
-        </div>
-
-        <div class="info-block">
-          <div class="info-title">Hours</div>
-          <div class="info-text">Mon–Sat, 9am–6pm</div>
-        </div>
-
-        <div class="info-block">
-          <div class="info-title">Quick links</div>
-          <a class="mini-link" href="privacy.html">Privacy Policy</a>
-          <a class="mini-link" href="about.html">About Us</a>
-          <a class="mini-link" href="products.html">Shop Products</a>
-        </div>
+        </details>
       </aside>
     </section>
   </main>
 
+  <!-- Footer mount -->
   <div id="siteFooter"></div>
-
-  <script src="header.js"></script>
-  <script src="footer.js"></script>
-
-  <!-- ✅ must come before contact.js -->
-  <script src="config.js"></script>
-
-  <!-- ✅ hCaptcha script (explicit render) -->
-  <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
-
-  <script src="contact.js"></script>
 </body>
 </html>

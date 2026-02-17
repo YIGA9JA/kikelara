@@ -1,14 +1,14 @@
-// contact.js (hCaptcha enabled + stable explicit render)
+// contact.js — Apple-clean + stable explicit hCaptcha render + safe UX
 (() => {
-  const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/$/, "");
+  const API_BASE = String(window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
   const SITE_KEY = String(window.HCAPTCHA_SITE_KEY || "").trim();
 
   const form = document.getElementById("contactForm");
+  if (!form) return;
+
   const statusEl = document.getElementById("formStatus");
   const submitBtn = document.getElementById("submitBtn");
   const widgetEl = document.getElementById("hcaptchaWidget");
-
-  if (!form) return;
 
   const nameEl = document.getElementById("name");
   const emailEl = document.getElementById("email");
@@ -16,43 +16,45 @@
   const topicEl = document.getElementById("topic");
   const messageEl = document.getElementById("message");
 
-  function setStatus(msg, ok = true) {
+  const emailOk = (v) => /^\S+@\S+\.\S+$/.test(String(v || "").trim());
+
+  function setStatus(msg, type = "") {
     if (!statusEl) return;
-    statusEl.textContent = msg;
-    statusEl.style.opacity = "1";
-    statusEl.style.color = ok ? "inherit" : "#b00020";
+    statusEl.textContent = msg || "";
+    statusEl.setAttribute("data-type", type); // success | error | loading
   }
 
   function setLoading(on) {
     if (!submitBtn) return;
-    submitBtn.disabled = on;
-    submitBtn.style.opacity = on ? "0.7" : "1";
-    submitBtn.textContent = on ? "Sending..." : "Submit";
+    submitBtn.disabled = !!on;
+    submitBtn.setAttribute("aria-busy", on ? "true" : "false");
+    submitBtn.style.opacity = on ? "0.75" : "1";
+    submitBtn.style.cursor = on ? "not-allowed" : "pointer";
+    submitBtn.querySelector("span") && (submitBtn.querySelector("span").textContent = on ? "Sending..." : "Submit");
   }
 
-  // ---- hCaptcha helpers ----
+  // ---------- hCaptcha ----------
   let widgetId = null;
 
-  function renderCaptchaIfReady() {
+  function renderCaptcha() {
     if (!widgetEl) return;
     if (!SITE_KEY) {
-      setStatus("❌ Missing hCaptcha site key. Add window.HCAPTCHA_SITE_KEY in config.js", false);
+      setStatus("Missing HCAPTCHA_SITE_KEY in config.js", "error");
       return;
     }
     if (!window.hcaptcha) return;
+    if (widgetId !== null) return;
 
-    if (widgetId === null) {
-      try {
-        widgetId = window.hcaptcha.render(widgetEl, {
-          sitekey: SITE_KEY
-        });
-      } catch (e) {
-        // If already rendered by some race condition, ignore
-      }
+    try {
+      widgetId = window.hcaptcha.render(widgetEl, {
+        sitekey: SITE_KEY
+      });
+    } catch (e) {
+      // ignore double-render races
     }
   }
 
-  function getCaptchaToken() {
+  function captchaToken() {
     if (!window.hcaptcha) return "";
     try {
       return widgetId !== null ? window.hcaptcha.getResponse(widgetId) : window.hcaptcha.getResponse();
@@ -69,15 +71,11 @@
     } catch {}
   }
 
-  // Try render quickly + retry until script loads
-  renderCaptchaIfReady();
-  let tries = 0;
-  const t = setInterval(() => {
-    renderCaptchaIfReady();
-    tries += 1;
-    if (window.hcaptcha || tries > 30) clearInterval(t); // ~15s max
-  }, 500);
+  // wait for explicit onload event (shared with footer.js)
+  document.addEventListener("hcaptcha:ready", renderCaptcha);
+  if (window.__HCAPTCHA_READY__ === true) renderCaptcha();
 
+  // ---------- submit ----------
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -87,26 +85,31 @@
     const topic = (topicEl?.value || "").trim();
     const message = (messageEl?.value || "").trim();
 
+    setStatus("");
+
     if (!name || !email || !topic || !message) {
-      setStatus("Please fill all required fields.", false);
+      setStatus("Please fill all required fields.", "error");
+      return;
+    }
+    if (!emailOk(email)) {
+      setStatus("Please enter a valid email address.", "error");
+      emailEl?.focus?.();
       return;
     }
 
-    // ✅ Require captcha token
-    const captchaToken = getCaptchaToken();
-    if (!captchaToken) {
-      setStatus("❌ Please complete the captcha before submitting.", false);
+    const token = captchaToken();
+    if (!token) {
+      setStatus("Please complete the captcha before submitting.", "error");
       return;
     }
 
-    // Pack topic + phone into message (keeps backend compatible)
     const packedMessage =
       `Topic: ${topic}\n` +
       `Phone: ${phone || "-"}\n\n` +
       `${message}`;
 
     setLoading(true);
-    setStatus("");
+    setStatus("Sending…", "loading");
 
     try {
       const res = await fetch(`${API_BASE}/api/contact`, {
@@ -116,7 +119,7 @@
           name,
           email,
           message: packedMessage,
-          captchaToken
+          captchaToken: token
         })
       });
 
@@ -129,10 +132,10 @@
 
       form.reset();
       resetCaptcha();
-      setStatus("✅ Message sent successfully. We’ll reply within 24–48 hours.", true);
+      setStatus("✅ Message sent successfully. We’ll reply within 24–48 hours.", "success");
     } catch (err) {
       console.error(err);
-      setStatus(err?.message ? `❌ ${err.message}` : "❌ Message not sent. Please try again.", false);
+      setStatus(err?.message ? `❌ ${err.message}` : "❌ Message not sent. Please try again.", "error");
     } finally {
       setLoading(false);
     }

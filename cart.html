@@ -6,30 +6,38 @@
   <title>KÍKÉLÁRÁ — Cart</title>
 
   <link rel="stylesheet" href="header.css" />
-  <link rel="stylesheet" href="cart.css" />
   <link rel="stylesheet" href="footer.css" />
+  <link rel="stylesheet" href="cart.css" />
 
   <script src="config.js"></script>
+
+  <!-- shared -->
+  <script defer src="store.js"></script>
+
+  <!-- injected header/footer -->
   <script defer src="header.js"></script>
   <script defer src="footer.js"></script>
-</head>
-<body>
 
+  <!-- page -->
+  <script defer src="cart.js"></script>
+</head>
+
+<body>
   <div id="siteHeader"></div>
 
-  <main id="mainContent" class="cart-page">
+  <main class="cart-page">
     <div class="cart-top">
       <h1>Your Cart</h1>
-      <div class="cart-sub">Delivery is calculated at checkout.</div>
+      <p class="cart-sub">Review your items and proceed to checkout.</p>
     </div>
 
     <section class="cart-grid">
-      <div id="cartItems" class="cart-items"></div>
+      <div class="cart-items" id="cartItems"></div>
 
       <aside class="cart-summary">
         <div class="sum-head">
           <h3>Summary</h3>
-          <div class="sum-hint">Secure checkout</div>
+          <span class="sum-hint">Delivery at checkout</span>
         </div>
 
         <div class="summary-row">
@@ -47,23 +55,24 @@
           <span id="total">₦0</span>
         </div>
 
-        <button id="checkoutBtn" class="checkout-btn">
-          Checkout — <span id="checkoutBtnTotal" class="btn-total">₦0</span>
+        <button id="checkoutBtn" class="checkout-btn" type="button">
+          <span>Checkout</span>
+          <span class="btn-total" id="checkoutBtnTotal">₦0</span>
         </button>
 
-        <div class="sum-note">By checking out, you agree to our terms.</div>
+        <div class="sum-note">You’ll confirm delivery details on the next step.</div>
       </aside>
     </section>
   </main>
 
-  <div id="mobileCheckout" class="mobile-checkout">
-    <button id="mobileCheckoutBtn" class="mobile-checkout-btn">
-      Checkout — <span id="mobileCheckoutTotal">₦0</span>
+  <!-- Sticky Mobile Checkout -->
+  <div id="mobileCheckout" class="mobile-checkout" style="display:none;">
+    <button id="mobileCheckoutBtn" class="mobile-checkout-btn" type="button">
+      <span>Checkout</span>
+      <span id="mobileCheckoutTotal">₦0</span>
     </button>
   </div>
 
   <div id="siteFooter"></div>
-
-  <script src="cart.js"></script>
 </body>
 </html>

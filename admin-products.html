@@ -61,11 +61,7 @@
 
     <div class="ad-status" id="status" data-type="info">Loading…</div>
 
-    <section class="ad-grid" id="grid" aria-live="polite">
-      <!-- admin-products.js renders items here -->
-      <!-- NOTE: Your JS currently inserts <img> directly. That’s fine.
-           The CSS below frames ALL images inside .ad-item-img automatically. -->
-    </section>
+    <section class="ad-grid" id="grid" aria-live="polite"></section>
 
     <section class="ad-empty" id="empty" style="display:none;">
       <div class="ad-empty-card">
@@ -76,10 +72,9 @@
     </section>
   </main>
 
-  <!-- Toasts -->
   <div class="toastWrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Modal -->
+  <!-- Edit Modal -->
   <div class="modal" id="editModal" aria-hidden="true" inert>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
       <div class="modal-head">
@@ -90,6 +85,9 @@
       <form id="editForm" class="modal-body" autocomplete="off">
         <input id="pid" type="hidden" />
         <input id="removeImage" type="hidden" value="false" />
+
+        <!-- ✅ new: selected library key -->
+        <input id="imageKey" type="hidden" value="" />
 
         <div class="form-row">
           <label class="lbl" for="name">Product name</label>
@@ -118,7 +116,6 @@
           <div class="count" id="descCount">0 / 600</div>
         </div>
 
-        <!-- ✅ IMAGE AREA (framed preview + framed drop) -->
         <div class="form-row imgRow">
           <label class="lbl">Image (PNG/JPG/WEBP, max 8MB)</label>
 
@@ -152,8 +149,11 @@
               </div>
 
               <div class="imgActions">
+                <button class="ad-btn ghost" id="openLibBtn" type="button">Choose from Library</button>
                 <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove image</button>
-                <div class="imgHint">Tip: Drag an image onto the preview to replace it fast.</div>
+
+                <div class="imgPicked" id="imgPicked" style="display:none;"></div>
+                <div class="imgHint">Tip: Use Library to reuse images already in Supabase.</div>
               </div>
             </aside>
           </div>
@@ -166,6 +166,40 @@
           <button class="ad-btn primary" id="saveBtn" type="submit">Save</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ✅ Library Modal -->
+  <div class="modal" id="libModal" aria-hidden="true" inert>
+    <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Supabase Media Library">
+      <div class="modal-head">
+        <div class="modal-title">Supabase Media Library</div>
+        <button class="modal-x" id="libClose" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-body libBody">
+        <div class="libTop">
+          <div class="libSearch">
+            <input id="libSearch" class="ipt" type="search" placeholder="Search files…" autocomplete="off" />
+          </div>
+
+          <div class="libFolder">
+            <label class="lbl" style="margin:0 0 6px;">Folder</label>
+            <select id="libPrefix" class="ad-select" aria-label="Folder">
+              <option value="products/" selected>products/</option>
+              <option value="">(root)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ad-status" id="libStatus" data-type="info">Loading…</div>
+
+        <div class="libGrid" id="libGrid" aria-live="polite"></div>
+
+        <div class="libBottom">
+          <button class="ad-btn" id="libLoadMore" type="button" style="display:none;">Load more</button>
+        </div>
+      </div>
     </div>
   </div>
 

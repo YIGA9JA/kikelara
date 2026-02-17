@@ -1,7 +1,9 @@
-/* ================= admin-products.js (Vercel ↔ Render cookie auth + working upload)
-   ✅ Uses cookie session (credentials: include) via apiFetch/auth.js
-   ✅ Upload click FIX: real file input overlay (no blocked clicks)
-   ✅ Uses FormData correctly (no JSON content-type here)
+/* ================= admin-products.js (Supabase Storage library + signed URL support)
+   ✅ Cookie session auth (credentials include) via apiFetch/auth.js
+   ✅ Upload click FIX: real file input overlay
+   ✅ Drag/drop + preview
+   ✅ NEW: Supabase “Media Library” picker (lists bucket files via backend)
+   ✅ NEW: Auto-sign storage keys (products/..webp) via /admin/media/sign + cache
 =============================================================================== */
 
 (async function () {
@@ -37,6 +39,7 @@
   const sort = $("sort");
   const filterBtns = Array.from(document.querySelectorAll("[data-filter]"));
 
+  // edit modal
   const editModal = $("editModal");
   const editTitle = $("editTitle");
   const editClose = $("editClose");
@@ -53,12 +56,27 @@
   const activeSel = $("active");
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
 
-  const imageIpt = $("image");           // ✅ real overlay input
+  // image
+  const imageIpt = $("image");
   const previewImg = $("previewImg");
   const imgDropOverlay = $("imgDropOverlay");
   const clearImgBtn = $("clearImgBtn");
   const removeImage = $("removeImage");
   const dropBox = $("dropBox");
+
+  // ✅ new hidden “selected existing key”
+  const imageKeyIpt = $("imageKey");
+  const imgPicked = $("imgPicked");
+
+  // ✅ library modal
+  const libModal = $("libModal");
+  const libClose = $("libClose");
+  const openLibBtn = $("openLibBtn");
+  const libSearch = $("libSearch");
+  const libPrefix = $("libPrefix");
+  const libGrid = $("libGrid");
+  const libStatus = $("libStatus");
+  const libLoadMore = $("libLoadMore");
 
   const toastWrap = $("toastWrap");
   const editHelp = $("editHelp");
@@ -71,6 +89,16 @@
 
   let pickedFile = null;
   let previewObjectUrl = "";
+
+  // storage signing cache (key -> signed url)
+  const signedCache = new Map();
+  const inflightSigns = new Map(); // key -> promise
+  const SIGN_CONCURRENCY = 6;
+
+  // library pagination
+  let libOffset = 0;
+  let libHasMore = false;
+  let libLoading = false;
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -110,6 +138,12 @@
     else editHelp.dataset.type = type || "info";
   }
 
+  function setLibStatus(text, type) {
+    if (!libStatus) return;
+    libStatus.textContent = text || "";
+    libStatus.dataset.type = type || "info";
+  }
+
   function revokePreviewUrl() {
     if (previewObjectUrl) {
       try { URL.revokeObjectURL(previewObjectUrl); } catch {}
@@ -131,10 +165,25 @@
     return okType && okSize;
   }
 
+  function setPickedLabel() {
+    if (!imgPicked) return;
+    const key = String(imageKeyIpt?.value || "");
+    if (key) {
+      imgPicked.textContent = `Selected from library: ${key}`;
+      imgPicked.style.display = "block";
+      return;
+    }
+    imgPicked.textContent = "";
+    imgPicked.style.display = "none";
+  }
+
   function resetImage({ markRemove } = { markRemove: true }) {
     revokePreviewUrl();
     pickedFile = null;
     try { if (imageIpt) imageIpt.value = ""; } catch {}
+    if (imageKeyIpt) imageKeyIpt.value = "";
+    setPickedLabel();
+
     if (removeImage && markRemove) removeImage.value = "true";
     showPreview("");
   }
@@ -154,11 +203,21 @@
     });
   }
 
+  function looksLikeStorageKey(u) {
+    const s = String(u || "");
+    if (!s) return false;
+    if (s.startsWith("http://") || s.startsWith("https://")) return false;
+    if (s.startsWith("/uploads/")) return false;
+    // keys often look like "products/123/..webp"
+    return s.includes("/") && !s.startsWith("/");
+  }
+
   function resolveImage(url) {
     const u = String(url || "");
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
+    // could be a storage key (needs signing)
     return u;
   }
 
@@ -219,12 +278,18 @@
   }
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isOpen(editModal)) closeModal(editModal);
+    if (e.key === "Escape") {
+      if (isOpen(libModal)) closeModal(libModal);
+      else if (isOpen(editModal)) closeModal(editModal);
+    }
   });
+
   document.addEventListener("keydown", (e) => trapFocus(editModal, e));
+  document.addEventListener("keydown", (e) => trapFocus(libModal, e));
 
   editClose?.addEventListener("click", () => closeModal(editModal));
   cancelEdit?.addEventListener("click", () => closeModal(editModal));
+  libClose?.addEventListener("click", () => closeModal(libModal));
 
   desc?.addEventListener("input", updateDescCount);
 
@@ -236,6 +301,12 @@
     e.preventDefault();
     resetImage({ markRemove: true });
     toast("warn", "Removed", "Image cleared.");
+  });
+
+  // ✅ “Choose from library”
+  openLibBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openLibrary();
   });
 
   // ✅ change handler for REAL overlay input
@@ -250,12 +321,24 @@
       return;
     }
 
+    // if user picked a file, we’re NOT using library key
+    if (imageKeyIpt) imageKeyIpt.value = "";
+    setPickedLabel();
+
     pickedFile = f;
     if (removeImage) removeImage.value = "false";
 
     revokePreviewUrl();
     previewObjectUrl = URL.createObjectURL(f);
     showPreview(previewObjectUrl);
+  });
+
+  // ✅ make dropbox keyboard-openable
+  dropBox?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      imageIpt?.click?.();
+    }
   });
 
   // ✅ Drag & drop support
@@ -285,6 +368,10 @@
         return;
       }
 
+      // file drop overrides library key
+      if (imageKeyIpt) imageKeyIpt.value = "";
+      setPickedLabel();
+
       pickedFile = file;
       if (removeImage) removeImage.value = "false";
 
@@ -309,6 +396,77 @@
     return Array.isArray(data.products) ? data.products : [];
   }
 
+  /* ===================== SUPABASE KEY SIGNING (via backend) ===================== */
+  async function signStorageKey(key) {
+    const k = String(key || "").trim();
+    if (!k) return "";
+
+    if (signedCache.has(k)) return signedCache.get(k);
+
+    if (inflightSigns.has(k)) return inflightSigns.get(k);
+
+    const p = (async () => {
+      const r = await apiFetch(`/admin/media/sign?key=${encodeURIComponent(k)}`, { method: "GET" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data?.success || !data?.url) {
+        throw new Error(data?.message || "Could not sign image");
+      }
+      signedCache.set(k, data.url);
+      return data.url;
+    })();
+
+    inflightSigns.set(k, p);
+    try {
+      const url = await p;
+      return url;
+    } finally {
+      inflightSigns.delete(k);
+    }
+  }
+
+  async function resolveToDisplayUrl(raw) {
+    const r = resolveImage(raw);
+    if (!r) return "";
+    if (looksLikeStorageKey(r)) {
+      try {
+        return await signStorageKey(r);
+      } catch {
+        return "";
+      }
+    }
+    return r;
+  }
+
+  async function hydrateSignedImages() {
+    // find all images that still have storage keys
+    const imgs = Array.from(document.querySelectorAll("img[data-sbkey]"));
+    if (!imgs.length) return;
+
+    let idx = 0;
+    async function worker() {
+      while (idx < imgs.length) {
+        const el = imgs[idx++];
+        const key = el.getAttribute("data-sbkey");
+        if (!key) continue;
+
+        // If already swapped, skip
+        if (el.getAttribute("data-signed") === "1") continue;
+
+        try {
+          const url = await signStorageKey(key);
+          el.src = url || fallbackImg();
+          el.setAttribute("data-signed", "1");
+        } catch {
+          el.src = fallbackImg();
+          el.setAttribute("data-signed", "1");
+        }
+      }
+    }
+
+    const workers = Array.from({ length: SIGN_CONCURRENCY }, worker);
+    await Promise.all(workers);
+  }
+
   function buildFormData({ isUpdate }) {
     const fd = new FormData();
     fd.append("name", String(nameIpt?.value || "").trim());
@@ -319,7 +477,16 @@
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
     const file = pickedFile || (imageIpt?.files?.[0] || null);
-    if (file) fd.append("image", file);
+    const key = String(imageKeyIpt?.value || "").trim();
+
+    if (file) {
+      fd.append("image", file);
+      // file overrides library key
+      if (key && imageKeyIpt) imageKeyIpt.value = "";
+    } else if (key) {
+      // ✅ choose existing image without uploading
+      fd.append("image_key", key);
+    }
 
     return fd;
   }
@@ -371,7 +538,7 @@
     return out;
   }
 
-  function fillEditForm(p) {
+  async function fillEditForm(p) {
     revokePreviewUrl();
     pickedFile = null;
     try { if (imageIpt) imageIpt.value = ""; } catch {}
@@ -384,7 +551,18 @@
 
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
-    showPreview(p.image_url ? resolveImage(p.image_url) : "");
+
+    // key stored in payload.__image_key (from backend)
+    const key =
+      (p?.payload && typeof p.payload === "object" && String(p.payload.__image_key || "").trim()) ||
+      (looksLikeStorageKey(p.image_url) ? String(p.image_url || "").trim() : "");
+
+    if (imageKeyIpt) imageKeyIpt.value = key || "";
+    setPickedLabel();
+
+    const displayUrl = await resolveToDisplayUrl(p.image_url);
+    showPreview(displayUrl || "");
+
     setHelp("");
   }
 
@@ -401,6 +579,9 @@
 
     setActiveUI(true);
     if (removeImage) removeImage.value = "false";
+    if (imageKeyIpt) imageKeyIpt.value = "";
+    setPickedLabel();
+
     showPreview("");
     setHelp("");
   }
@@ -440,7 +621,10 @@
     if (empty) empty.style.display = "none";
 
     list.forEach((p) => {
-      const img = resolveImage(p.image_url) || fallbackImg();
+      const raw = resolveImage(p.image_url);
+      const isKey = looksLikeStorageKey(raw);
+      const img = isKey ? fallbackImg() : (raw || fallbackImg());
+
       const isOn = Boolean(p.is_active);
       const idStr = String(p.id);
 
@@ -452,7 +636,13 @@
 
       card.innerHTML = `
         <div class="ad-item-img">
-          <img src="${escapeHtml(img)}" alt="${escapeHtml(p.name || "")}" draggable="false" loading="lazy">
+          <img
+            src="${escapeHtml(img)}"
+            alt="${escapeHtml(p.name || "")}"
+            draggable="false"
+            loading="lazy"
+            ${isKey ? `data-sbkey="${escapeHtml(raw)}"` : ""}
+          >
           <span class="ad-pill-mini ${isOn ? "on" : "off"}">${isOn ? "ACTIVE" : "HIDDEN"}</span>
         </div>
 
@@ -498,6 +688,9 @@
 
       grid.appendChild(card);
     });
+
+    // after render, sign any storage keys
+    hydrateSignedImages();
   }
 
   async function loadProducts() {
@@ -511,6 +704,143 @@
       toast("err", "Load failed", String(e.message || e));
     }
   }
+
+  /* ===================== LIBRARY MODAL ===================== */
+  function clearLibGrid() {
+    if (libGrid) libGrid.innerHTML = "";
+  }
+
+  function libSkeleton(count = 12) {
+    if (!libGrid) return;
+    libGrid.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+      const d = document.createElement("div");
+      d.className = "libCard sk";
+      d.innerHTML = `<div class="libThumb sk"></div><div class="libMeta"><div class="skLine"></div></div>`;
+      libGrid.appendChild(d);
+    }
+  }
+
+  async function fetchLibraryPage({ reset = false } = {}) {
+    if (!libGrid) return;
+
+    if (libLoading) return;
+    libLoading = true;
+
+    const prefix = String(libPrefix?.value || "products/").trim() || "products/";
+    const term = String(libSearch?.value || "").trim();
+    const limit = 60;
+
+    if (reset) {
+      libOffset = 0;
+      libHasMore = false;
+      clearLibGrid();
+      libSkeleton(12);
+    }
+
+    setLibStatus("Loading media…", "info");
+    libLoadMore && (libLoadMore.disabled = true);
+
+    try {
+      const url =
+        `/admin/media/list?prefix=${encodeURIComponent(prefix)}&search=${encodeURIComponent(term)}&offset=${encodeURIComponent(
+          libOffset
+        )}&limit=${encodeURIComponent(limit)}`;
+
+      const r = await apiFetch(url, { method: "GET" });
+      const data = await r.json().catch(() => ({}));
+
+      if (!r.ok || !data?.success) {
+        throw new Error(
+          data?.message ||
+            "Media list failed. Make sure backend has /admin/media/list and SUPABASE_SERVICE_ROLE_KEY set."
+        );
+      }
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (reset) clearLibGrid();
+
+      if (!items.length && libOffset === 0) {
+        setLibStatus("No media found in this folder.", "warn");
+      } else {
+        setLibStatus(`Showing ${libOffset + items.length} file(s).`, "ok");
+      }
+
+      items.forEach((it) => {
+        const key = String(it.key || "");
+        const name = String(it.name || key.split("/").pop() || "");
+        const url = String(it.url || "");
+
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "libCard";
+        card.setAttribute("aria-label", `Select ${name}`);
+        card.innerHTML = `
+          <div class="libThumbWrap">
+            <img class="libThumbImg" src="${escapeHtml(url || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy">
+          </div>
+          <div class="libMeta">
+            <div class="libName" title="${escapeHtml(key)}">${escapeHtml(name)}</div>
+            <div class="libKey">${escapeHtml(key)}</div>
+          </div>
+        `;
+
+        card.addEventListener("click", async () => {
+          // select without uploading
+          pickedFile = null;
+          try { if (imageIpt) imageIpt.value = ""; } catch {}
+
+          if (removeImage) removeImage.value = "false";
+          if (imageKeyIpt) imageKeyIpt.value = key;
+          setPickedLabel();
+
+          // show in preview
+          showPreview(url || (await resolveToDisplayUrl(key)) || "");
+          toast("ok", "Selected", "Image selected from Supabase library.");
+          closeModal(libModal);
+        });
+
+        libGrid.appendChild(card);
+      });
+
+      libOffset += items.length;
+      libHasMore = Boolean(data.nextOffset !== null && data.nextOffset !== undefined);
+      if (data.nextOffset !== null && data.nextOffset !== undefined) {
+        // if backend provides nextOffset, honor it
+        libOffset = Number(data.nextOffset) || libOffset;
+      }
+
+      if (libLoadMore) {
+        libLoadMore.style.display = libHasMore ? "inline-flex" : "none";
+        libLoadMore.disabled = false;
+      }
+    } catch (e) {
+      clearLibGrid();
+      setLibStatus(String(e.message || e), "err");
+      toast("err", "Library error", String(e.message || e));
+      if (libLoadMore) libLoadMore.style.display = "none";
+    } finally {
+      libLoading = false;
+    }
+  }
+
+  function openLibrary() {
+    // open the modal and load
+    openModal(libModal, libSearch || libClose);
+    fetchLibraryPage({ reset: true });
+  }
+
+  libSearch?.addEventListener("input", () => {
+    // debounce-ish
+    window.clearTimeout(libSearch.__t);
+    libSearch.__t = window.setTimeout(() => fetchLibraryPage({ reset: true }), 250);
+  });
+
+  libPrefix?.addEventListener("change", () => fetchLibraryPage({ reset: true }));
+  libLoadMore?.addEventListener("click", (e) => {
+    e.preventDefault();
+    fetchLibraryPage({ reset: false });
+  });
 
   logoutBtn?.addEventListener("click", (e) => {
     e.preventDefault();
@@ -593,5 +923,6 @@
 
   setActiveUI(true);
   updateDescCount();
+  setPickedLabel();
   loadProducts();
 })();
