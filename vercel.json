@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://kikelara1.onrender.com/$1" }
+    { "source": "/admin/:path*", "destination": "https://kikelara1.onrender.com/admin/:path*" },
+    { "source": "/api/:path*", "destination": "https://kikelara1.onrender.com/api/:path*" },
+    { "source": "/orders/:path*", "destination": "https://kikelara1.onrender.com/orders/:path*" },
+    { "source": "/order", "destination": "https://kikelara1.onrender.com/order" },
+    { "source": "/payments/:path*", "destination": "https://kikelara1.onrender.com/payments/:path*" },
+    { "source": "/delivery-pricing", "destination": "https://kikelara1.onrender.com/delivery-pricing" },
+    { "source": "/db-test", "destination": "https://kikelara1.onrender.com/db-test" },
+    { "source": "/health", "destination": "https://kikelara1.onrender.com/health" }
   ]
 }

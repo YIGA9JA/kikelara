@@ -18,7 +18,7 @@
   <main class="ad">
     <header class="ad-top">
       <div class="ad-brand">
-        <div class="ad-logo">
+        <div class="ad-logo frame frame--logo">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
         </div>
         <div>
@@ -61,7 +61,11 @@
 
     <div class="ad-status" id="status" data-type="info">Loading…</div>
 
-    <section class="ad-grid" id="grid" aria-live="polite"></section>
+    <section class="ad-grid" id="grid" aria-live="polite">
+      <!-- admin-products.js renders items here -->
+      <!-- NOTE: Your JS currently inserts <img> directly. That’s fine.
+           The CSS below frames ALL images inside .ad-item-img automatically. -->
+    </section>
 
     <section class="ad-empty" id="empty" style="display:none;">
       <div class="ad-empty-card">
@@ -114,28 +118,44 @@
           <div class="count" id="descCount">0 / 600</div>
         </div>
 
-        <div class="form-row">
+        <!-- ✅ IMAGE AREA (framed preview + framed drop) -->
+        <div class="form-row imgRow">
           <label class="lbl">Image (PNG/JPG/WEBP, max 8MB)</label>
 
-          <div class="dropBox" id="dropBox" tabindex="0" role="button" aria-label="Choose product image">
-            <!-- ✅ REAL clickable overlay input -->
-            <input
-              id="image"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              class="fileOverlay"
-            />
+          <div class="imgGrid">
+            <div class="frame frame--preview">
+              <div class="dropBox" id="dropBox" tabindex="0" role="button" aria-label="Choose product image">
+                <input
+                  id="image"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  class="fileOverlay"
+                />
 
-            <div class="dropOverlay" id="imgDropOverlay">
-              <div class="dropTitle">Click to choose image</div>
-              <div class="dropSub">or drag & drop here</div>
+                <div class="dropOverlay" id="imgDropOverlay">
+                  <div class="dropTitle">Click to choose image</div>
+                  <div class="dropSub">or drag & drop here</div>
+                </div>
+
+                <img id="previewImg" alt="Preview" draggable="false" />
+              </div>
             </div>
 
-            <img id="previewImg" alt="Preview" draggable="false" />
-          </div>
+            <aside class="imgPanel" aria-label="Image info and actions">
+              <div class="imgRules">
+                <div class="imgRulesTitle">Upload rules</div>
+                <ul class="imgRulesList">
+                  <li>PNG / JPG / WEBP only</li>
+                  <li>Max size: 8MB</li>
+                  <li>Square images look best</li>
+                </ul>
+              </div>
 
-          <div class="imgActions">
-            <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove image</button>
+              <div class="imgActions">
+                <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove image</button>
+                <div class="imgHint">Tip: Drag an image onto the preview to replace it fast.</div>
+              </div>
+            </aside>
           </div>
         </div>
 
