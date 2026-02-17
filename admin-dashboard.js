@@ -1,66 +1,186 @@
-(async () => {
-  const ok = await checkAuth();
-  if (!ok) return;
+/* ================= admin-dashboard.js (AUTHED)
+   ✅ Uses config.js + auth.js
+   ✅ Checks auth once (cookie session) then loads KPI counts
+   ✅ Shows API base in header pill
+   ✅ Navigates cards reliably (click + keyboard)
+================================================ */
 
-  const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
+(async function () {
+  "use strict";
+
   const apiPill = document.getElementById("apiPill");
-  if (apiPill) apiPill.textContent = `API: ${API_BASE}`;
-
-  document.getElementById("logoutBtn")?.addEventListener("click", adminLogout);
-
-  document.addEventListener("click", (e) => {
-    const card = e.target.closest("[data-go]");
-    if (!card) return;
-    location.href = card.getAttribute("data-go");
-  });
-
+  const logoutBtn = document.getElementById("logoutBtn");
   const statusLine = document.getElementById("statusLine");
+
   const kOrders = document.getElementById("kOrders");
   const kPending = document.getElementById("kPending");
   const kProducts = document.getElementById("kProducts");
   const kMessages = document.getElementById("kMessages");
 
-  function setStatus(t){ if (statusLine) statusLine.textContent = t; }
-  function setNum(el, n){ if (el) el.textContent = (n === null || n === undefined) ? "—" : String(n); }
+  const chipOrders = document.getElementById("chipOrders");
+  const chipProducts = document.getElementById("chipProducts");
+  const chipMessages = document.getElementById("chipMessages");
 
-  // Light KPI fetchers (safe + non-blocking)
-  async function loadKpis() {
-    setStatus("Loading…");
+  const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
+  const apiFetch = window.apiFetch;
 
-    try {
-      // orders
-      const r1 = await apiFetch("/orders", { method:"GET", cache:"no-store" });
-      const orders = r1.ok ? await r1.json().catch(() => []) : [];
-      const arr = Array.isArray(orders) ? orders : [];
-      const pending = arr.filter(o => String(o.status||"") === "Pending").length;
-
-      setNum(kOrders, arr.length);
-      setNum(kPending, pending);
-    } catch {
-      setNum(kOrders, "—"); setNum(kPending, "—");
-    }
-
-    try {
-      // products admin endpoint (cookie auth)
-      const r2 = await apiFetch("/admin/products", { method:"GET", cache:"no-store" });
-      const data = r2.ok ? await r2.json().catch(()=>({})) : {};
-      const products = Array.isArray(data.products) ? data.products : [];
-      setNum(kProducts, products.length);
-    } catch {
-      setNum(kProducts, "—");
-    }
-
-    try {
-      // messages
-      const r3 = await apiFetch("/admin/messages", { method:"GET", cache:"no-store" });
-      const msgs = r3.ok ? await r3.json().catch(()=>[]) : [];
-      setNum(kMessages, Array.isArray(msgs) ? msgs.length : "—");
-    } catch {
-      setNum(kMessages, "—");
-    }
-
-    setStatus("Ready.");
+  function setStatus(text, type) {
+    if (!statusLine) return;
+    statusLine.textContent = text || "";
+    if (type) statusLine.setAttribute("data-type", type);
+    else statusLine.removeAttribute("data-type");
   }
 
-  await loadKpis();
+  function fmt(n) {
+    const num = Number(n || 0);
+    if (!Number.isFinite(num)) return "—";
+    return num.toLocaleString();
+  }
+
+  function hostLabel(url) {
+    try {
+      const u = new URL(url);
+      return u.host;
+    } catch {
+      return url || "—";
+    }
+  }
+
+  if (apiPill) apiPill.textContent = `API: ${hostLabel(API_BASE)}`;
+
+  if (typeof apiFetch !== "function") {
+    setStatus("auth.js missing. Ensure auth.js loads before admin-dashboard.js", "err");
+    return;
+  }
+
+  // ✅ Require login once
+  const ok = await window.checkAuth?.();
+  if (!ok) return;
+
+  logoutBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    window.adminLogout?.();
+  });
+
+  // Card navigation
+  const cards = Array.from(document.querySelectorAll(".card[data-go]"));
+  cards.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const go = btn.getAttribute("data-go");
+      if (go) location.href = go;
+    });
+
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const go = btn.getAttribute("data-go");
+        if (go) location.href = go;
+      }
+    });
+  });
+
+  async function getJson(path) {
+    const res = await apiFetch(path, { method: "GET" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = data?.message || `Request failed: ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  // Try multiple possible endpoints without breaking
+  async function tryCount(label, paths, pickCountFn) {
+    for (const p of paths) {
+      try {
+        const data = await getJson(p);
+        const count = pickCountFn(data);
+        if (Number.isFinite(count)) return { ok: true, count, used: p };
+      } catch {
+        // continue
+      }
+    }
+    return { ok: false, count: NaN, used: "" };
+  }
+
+  // Compute pending orders from common structures
+  function computePendingFromOrdersArray(arr) {
+    const orders = Array.isArray(arr) ? arr : [];
+    const pending = orders.filter((o) => {
+      const s = String(o?.status || o?.order_status || o?.state || "").toLowerCase();
+      return s.includes("pending") || s.includes("unpaid") || s.includes("processing");
+    }).length;
+    return { total: orders.length, pending };
+  }
+
+  setStatus("Loading dashboard…", "info");
+
+  // Products: your backend definitely has /admin/products
+  const productsPromise = tryCount(
+    "products",
+    ["/admin/products"],
+    (d) => Array.isArray(d?.products) ? d.products.length : NaN
+  );
+
+  // Orders: may be /admin/orders (common). If your server uses another route,
+  // this will just show — instead of crashing.
+  const ordersPromise = (async () => {
+    // Try /admin/orders first
+    try {
+      const d = await getJson("/admin/orders");
+      const arr = Array.isArray(d?.orders) ? d.orders : (Array.isArray(d) ? d : []);
+      const { total, pending } = computePendingFromOrdersArray(arr);
+      return { ok: Number.isFinite(total), total, pending };
+    } catch {
+      // Fallback: sometimes it's /admin/orders/list
+      try {
+        const d = await getJson("/admin/orders/list");
+        const arr = Array.isArray(d?.orders) ? d.orders : (Array.isArray(d) ? d : []);
+        const { total, pending } = computePendingFromOrdersArray(arr);
+        return { ok: Number.isFinite(total), total, pending };
+      } catch {
+        return { ok: false, total: NaN, pending: NaN };
+      }
+    }
+  })();
+
+  // Messages: may be /admin/messages
+  const messagesPromise = tryCount(
+    "messages",
+    ["/admin/messages", "/admin/contact", "/admin/inbox"],
+    (d) => Array.isArray(d?.messages) ? d.messages.length : NaN
+  );
+
+  // Delivery: we don’t show count (just navigation), so no need to fetch it here.
+
+  const [prodR, ordersR, msgR] = await Promise.allSettled([
+    productsPromise,
+    ordersPromise,
+    messagesPromise
+  ]);
+
+  const prod = prodR.status === "fulfilled" ? prodR.value : { ok: false };
+  const ord = ordersR.status === "fulfilled" ? ordersR.value : { ok: false };
+  const msg = msgR.status === "fulfilled" ? msgR.value : { ok: false };
+
+  // Set KPIs
+  if (kProducts) kProducts.textContent = prod.ok ? fmt(prod.count) : "—";
+  if (chipProducts) chipProducts.textContent = prod.ok ? fmt(prod.count) : "—";
+
+  if (kOrders) kOrders.textContent = ord.ok ? fmt(ord.total) : "—";
+  if (chipOrders) chipOrders.textContent = ord.ok ? fmt(ord.total) : "—";
+
+  if (kPending) kPending.textContent = ord.ok ? fmt(ord.pending) : "—";
+
+  if (kMessages) kMessages.textContent = msg.ok ? fmt(msg.count) : "—";
+  if (chipMessages) chipMessages.textContent = msg.ok ? fmt(msg.count) : "—";
+
+  // Status line summary
+  const anyOk = !!(prod.ok || ord.ok || msg.ok);
+  if (anyOk) {
+    setStatus("Dashboard ready ✅", "ok");
+  } else {
+    // This typically means your orders/messages routes differ.
+    setStatus("Logged in ✅ (Some KPI endpoints not found — update routes in admin-dashboard.js if needed)", "warn");
+  }
 })();

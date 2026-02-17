@@ -96,7 +96,7 @@
         try {
           await window.adminLogin(String(pass.value || ""));
           setMsg("✅ Logged in. Redirecting…");
-          location.href = "admin-products.html";
+          location.href = "admin-dashboard.html";
         } catch (err) {
           setMsg(String(err.message || err), true);
         } finally {

@@ -5,45 +5,36 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products</title>
 
+  <!-- Shared -->
+  <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="footer.css" />
+
+  <!-- Page -->
   <link rel="stylesheet" href="products.css" />
 
-  <!-- ✅ MUST load config first (sets window.API_BASE) -->
+  <!-- ✅ config first -->
   <script src="config.js"></script>
-
-  <!-- ✅ Defer ensures DOM exists + config already set -->
-  <script defer src="products.js"></script>
-
-  <noscript>
-    <style>
-      body { padding: 20px; font-family: system-ui, Arial, sans-serif; }
-    </style>
-  </noscript>
 </head>
 
 <body>
+  <!-- Liquid motion background -->
+  <div class="liquid-bg" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+    <span class="grain"></span>
+  </div>
 
-  <noscript>
-    <h2>JavaScript is disabled</h2>
-    <p>Please enable JavaScript to view products.</p>
-  </noscript>
+  <!-- HEADER INJECT MOUNT -->
+  <div id="siteHeader"></div>
 
-  <!-- ================= HEADER ================= -->
-  <header class="site-header">
-    <a class="brand" href="index.html" aria-label="Go to homepage">
-      <span class="brand-name">KÍKÉLÁRÁ</span>
-    </a>
-
-    <nav class="top-nav" aria-label="Top navigation">
-      <a class="nav-link" href="products.html">Shop</a>
-      <a class="nav-link" href="cart.html">Cart <span class="badge" id="cartCount">0</span></a>
-      <a class="nav-link" href="#" aria-disabled="true">Wishlist <span class="badge" id="wishlistCount">0</span></a>
-    </nav>
-  </header>
-
-  <!-- ================= MAIN ================= -->
-  <main class="pd">
-    <div class="pd-top">
-      <h1 class="pd-title">Products</h1>
+  <!-- MAIN -->
+  <main class="pd" aria-label="Products page">
+    <section class="pd-top glass">
+      <div class="pd-top-left">
+        <h1 class="pd-title">Products</h1>
+        <div id="productsMeta" class="pd-meta" aria-live="polite"></div>
+      </div>
 
       <div class="filters" aria-label="Product filters">
         <label class="sr-only" for="categorySelect">Category</label>
@@ -59,38 +50,26 @@
           <option value="name">Name A → Z</option>
         </select>
       </div>
-    </div>
-
-    <!-- Optional: status line -->
-    <div id="productsMeta" class="pd-meta" aria-live="polite"></div>
+    </section>
 
     <!-- Grid -->
-    <div id="productsGrid" class="products-grid" aria-label="Products list"></div>
+    <section class="pd-grid-wrap">
+      <div id="productsGrid" class="products-grid" aria-label="Products list"></div>
 
-    <!-- Optional: empty state -->
-    <div id="emptyState" class="empty" hidden>
-      <h3>No products found</h3>
-      <p>Try changing your filters.</p>
-    </div>
+      <div id="emptyState" class="empty glass" hidden>
+        <h3>We couldn’t load products</h3>
+        <p>Please check your connection and try again.</p>
+        <button class="retry" id="retryBtn" type="button">Retry</button>
+      </div>
+    </section>
   </main>
 
-  <!-- ✅ Quick debug (remove anytime) -->
-  <script>
-    console.log("API_BASE =", window.API_BASE);
-    if (!window.API_BASE) {
-      // If API_BASE missing, your page will show broken /uploads paths.
-      // This also prevents old sessionStorage from confusing you during debugging.
-      try { sessionStorage.removeItem("allProducts"); } catch {}
-    }
-  </script>
+  <!-- FOOTER INJECT MOUNT -->
+  <div id="siteFooter"></div>
 
-  <!-- Small accessibility helper -->
-  <style>
-    .sr-only{
-      position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
-      clip:rect(0,0,0,0);white-space:nowrap;border:0;
-    }
-  </style>
-
+  <!-- Scripts -->
+  <script src="header.js"></script>
+  <script src="footer.js"></script>
+  <script src="products.js"></script>
 </body>
 </html>

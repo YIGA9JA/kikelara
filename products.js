@@ -1,61 +1,29 @@
-/* ================= PRODUCTS.JS (BACKEND-FIRST + LOCAL FALLBACK + PRIVATE SUPABASE BUCKET OPTION A) =================
-   ✅ Backend first: GET `${window.API_BASE}/api/products`
-      - image_url is expected to be a SIGNED URL already (private bucket)
-   ✅ If backend fails, uses localStorage seed defaults
-   ✅ Cart stays in localStorage
-   ✅ Ratings: prefer backend /reviews/summary (cached + concurrency limit), fallback to localStorage reviews
-   ✅ Saves fetched products into localStorage(allProducts) for compatibility (note signed urls expire eventually)
-   ✅ Resolves image_url for:
-      - full URLs (SIGNED) ✅
-      - /uploads/... (legacy backend uploads) ✅
-      - local static: images_brown/... ✅
-========================================================================================================== */
+/* ================= PRODUCTS.JS (BACKEND-FIRST + GLASS 5D) =================
+   ✅ Fetches from backend: GET `${API_BASE}/api/products`
+      - image_url expected SIGNED URL already (private bucket via backend)
+   ✅ If backend fails -> uses cached localStorage(allProducts) only
+   ✅ If no cache -> shows empty state + Retry
+   ✅ Cart in localStorage(cart)
+   ✅ Ratings: backend /reviews/summary with cache + concurrency limit
+   ✅ Safe rendering: escapes text
+========================================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
-
 const PRODUCTS_KEY = "allProducts";
 const CART_KEY = "cart";
 
-// local reviews fallback (if you used this before)
+// local reviews fallback (optional legacy)
 const REVIEWS_KEY = "productReviews_v1";
 
 // backend ratings summary cache
 const REVIEWS_SUMMARY_KEY = "productReviewSummary_v1";
-const SUMMARY_TTL_MS = 15 * 60 * 1000; // 15 minutes cache
+const SUMMARY_TTL_MS = 15 * 60 * 1000;
 const MAX_RATING_REQUESTS = 6;
 
-/** Default products (seed once only) */
-const defaultProducts = [
-  { id: 1, name: "Body Butter", category: "Body", price: 10000, discount: 0, image: "images_brown/bodyButter.png",
-    images: ["images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png"],
-    description: "Shea Butter, Almond Oil, Mango Butter, Cocoa Butter, Glycerin." },
+let products = [];
+let currentList = [];
 
-  { id: 2, name: "Bright Aura Oil", category: "Oil", price: 10000, discount: 0, image: "images_brown/bodyOil.png",
-    images: ["images_brown/bodyOil.png","images_brown/bodyOil.png","images_brown/bodyOil.png","images_brown/bodyOil.png"],
-    description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E." },
-
-  { id: 3, name: "Hair Butter", category: "Serum", price: 5500, discount: 0, image: "images_brown/hairButter.png",
-    images: ["images_brown/hairButter.png","images_brown/hairButter.png","images_brown/hairButter.png","images_brown/hairButter.png"],
-    description: "Strengthens and moisturizes hair deeply." },
-
-  { id: 4, name: "Hair Oil", category: "Serum", price: 5500, discount: 0, image: "images_brown/hairOil.png",
-    images: ["images_brown/hairOil.png","images_brown/hairOil.png","images_brown/hairOil.png","images_brown/hairOil.png"],
-    description: "Strengthens and moisturizes hair deeply." },
-
-  { id: 5, name: "Baby Body Butter", category: "Body", price: 10000, discount: 0, image: "images_brown/BabyBodyButter.png",
-    images: ["images_brown/BabyBodyButter.png","images_brown/BabyBodyButter.png","images_brown/BabyBodyButter.png","images_brown/BabyBodyButter.png"],
-    description: "Gentle care, naturally." },
-
-  { id: 6, name: "Body Butter (Fruity)", category: "Body", price: 10000, discount: 0, image: "images_brown/bodyButter(Fruity).png",
-    images: ["images_brown/bodyButter(Fruity).png","images_brown/bodyButter(Fruity).png","images_brown/bodyButter(Fruity).png","images_brown/bodyButter(Fruity).png"],
-    description: "Whisper of fruity freshness. Gentle care, naturally." },
-
-  { id: 7, name: "Glow Elixir Oil", category: "Oil", price: 8500, discount: 0, image: "images_brown/glowElixir.png",
-    images: ["images_brown/glowElixir.png","images_brown/glowElixir.png","images_brown/glowElixir.png","images_brown/glowElixir.png"],
-    description: "Jojoba Oil, Carrot Oil, Palm Kernel Oil, Almond Oil, Vitamin E." }
-];
-
-/* ================= SAFE HELPERS ================= */
+/* ================= SAFE JSON ================= */
 function safeJSON(key, fallback) {
   try {
     const v = JSON.parse(localStorage.getItem(key));
@@ -64,16 +32,11 @@ function safeJSON(key, fallback) {
     return fallback;
   }
 }
-
 function saveJSON(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn("Failed saving to localStorage:", key, e);
-  }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-/* ================= SECURITY HELPERS ================= */
+/* ================= SECURITY ================= */
 function escapeHtml(input) {
   const s = String(input ?? "");
   return s
@@ -84,15 +47,7 @@ function escapeHtml(input) {
     .replaceAll("'", "&#039;");
 }
 
-/* ================= IMAGE RESOLUTION =================
-   Handles:
-   - Full URL (SIGNED): https://... ✅
-   - data:/blob: ✅
-   - Legacy backend uploads: /uploads/... ✅ -> API_BASE + /uploads/...
-   - Local static: images_brown/... ✅
-   - If a plain key like "products/....webp" shows up, we cannot build a URL (private bucket).
-     In that case we return "" and fallback image will be used.
-*/
+/* ================= IMAGE RESOLUTION ================= */
 function resolveImage(url) {
   const u = String(url || "").trim();
   if (!u) return "";
@@ -102,15 +57,11 @@ function resolveImage(url) {
 
   if (u.startsWith("/uploads/")) return API_BASE ? `${API_BASE}${u}` : u;
 
-  // private bucket key cannot be resolved on frontend safely
-  if (u.startsWith("products/") || u.includes("/")) {
-    // This might still be a local relative path (e.g. images_brown/...)
-    // Allow known local folders:
-    if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
+  // signed URLs should already be full; plain keys can’t be resolved safely in frontend
+  if (u.startsWith("products/")) return "";
 
-    // otherwise: treat as non-resolvable key
-    return "";
-  }
+  // allow local static folders
+  if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
 
   return u;
 }
@@ -145,14 +96,15 @@ function normalizeProduct(p) {
   const image = resolveImage(rawImage);
   let images = normalizeImages(p?.images);
 
-  if (!images.length && image) images = [image];
-
   const category = String(p?.category || p?.payload?.category || "Product").trim();
   const price = Number(p?.price || 0);
   const discount = Number(p?.discount || 0);
   const description = String(p?.description || p?.payload?.description || "").trim();
 
   const fallback = "images_brown/bodyButter.png";
+
+  if (!images.length && image) images = [image];
+  if (!images.length) images = [fallback];
 
   return {
     id,
@@ -161,7 +113,7 @@ function normalizeProduct(p) {
     price: Number.isFinite(price) ? price : 0,
     discount: Number.isFinite(discount) ? discount : 0,
     image: image || fallback,
-    images: images.length ? images : [fallback],
+    images,
     description
   };
 }
@@ -176,18 +128,11 @@ async function fetchProductsFromBackend() {
   return data.map(normalizeProduct).filter(p => p.id && p.name);
 }
 
-/* ✅ Seed defaults only once (used when backend is down) */
-function loadProductsLocal() {
-  const stored = safeJSON(PRODUCTS_KEY, null);
-  if (Array.isArray(stored) && stored.length) {
-    return stored.map(normalizeProduct);
-  }
-  saveJSON(PRODUCTS_KEY, defaultProducts);
-  return defaultProducts.map(normalizeProduct);
+function loadProductsCache() {
+  const stored = safeJSON(PRODUCTS_KEY, []);
+  if (!Array.isArray(stored)) return [];
+  return stored.map(normalizeProduct).filter(p => p.id && p.name);
 }
-
-let products = [];
-let currentList = [];
 
 /* ================= CART ================= */
 function loadCart() {
@@ -212,7 +157,6 @@ function updateCartCount() {
 }
 
 /* ================= REVIEWS (CARD RATINGS) ================= */
-/** Local fallback reviews (optional legacy) */
 function loadAllReviewsLocal() {
   const obj = safeJSON(REVIEWS_KEY, {});
   return obj && typeof obj === "object" ? obj : {};
@@ -244,9 +188,7 @@ function getCachedSummary(productId) {
   const ts = Number(item.ts || 0);
   if (!ts || (Date.now() - ts) > SUMMARY_TTL_MS) return null;
 
-  const avg = Number(item.avg || 0);
-  const count = Number(item.count || 0);
-  return { avg, count };
+  return { avg: Number(item.avg || 0), count: Number(item.count || 0) };
 }
 
 function setCachedSummary(productId, summary) {
@@ -280,23 +222,17 @@ function ratingHTMLFallbackLocal(productId) {
   return `<div class="p-rating">${stars} <span class="p-rate-num">${avg1}</span> <span class="p-rate-count">(${list.length})</span></div>`;
 }
 
-/** Initial rating line (sync): cached backend -> local fallback -> loading */
 function ratingLineHTML(productId) {
   const cached = getCachedSummary(productId);
   if (cached) return ratingHTMLFromSummary(cached);
 
-  // if no API_BASE, just fallback local
   if (!API_BASE) return ratingHTMLFallbackLocal(productId);
-
-  // show quick local fallback while loading backend summary
-  const local = ratingHTMLFallbackLocal(productId);
-  return local || `<div class="p-rating is-empty">Loading…</div>`;
+  return ratingHTMLFallbackLocal(productId);
 }
 
-/** Concurrency-limited queue for summary fetch */
+/** Concurrency-limited queue */
 let inFlight = 0;
 const summaryQueue = [];
-
 function runQueue() {
   while (inFlight < MAX_RATING_REQUESTS && summaryQueue.length) {
     const job = summaryQueue.shift();
@@ -308,7 +244,6 @@ function runQueue() {
     });
   }
 }
-
 function enqueue(job) {
   summaryQueue.push(job);
   runQueue();
@@ -322,13 +257,10 @@ async function fetchSummaryFromBackend(productId) {
   });
 
   if (!res.ok) return null;
-
   const data = await res.json().catch(() => null);
   if (!data || !data.ok || !data.summary) return null;
 
-  const avg = Number(data.summary.avg || 0);
-  const count = Number(data.summary.count || 0);
-  return { avg, count };
+  return { avg: Number(data.summary.avg || 0), count: Number(data.summary.count || 0) };
 }
 
 function hydrateRatingsForList(list) {
@@ -337,8 +269,6 @@ function hydrateRatingsForList(list) {
   list.forEach(p => {
     const productId = p.id;
     if (!productId) return;
-
-    // if already cached, no need
     if (getCachedSummary(productId)) return;
 
     enqueue(async () => {
@@ -350,9 +280,7 @@ function hydrateRatingsForList(list) {
 
         const el = document.getElementById(`rating-${productId}`);
         if (el) el.innerHTML = ratingHTMLFromSummary(summary);
-      } catch {
-        // ignore (keep local fallback)
-      }
+      } catch {}
     });
   });
 }
@@ -363,7 +291,8 @@ function populateCategories() {
   if (!sel) return;
 
   sel.innerHTML = `<option value="all">All</option>`;
-  [...new Set(products.map(p => p.category))].forEach(cat => {
+  const cats = [...new Set(products.map(p => p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  cats.forEach(cat => {
     const opt = document.createElement("option");
     opt.value = cat;
     opt.textContent = cat;
@@ -375,29 +304,75 @@ function bindFilters() {
   const categorySelectEl = document.getElementById("categorySelect");
   const sortSelectEl = document.getElementById("sortSelect");
 
-  if (categorySelectEl) {
-    categorySelectEl.addEventListener("change", () => {
-      const val = categorySelectEl.value;
-      const filtered = val === "all" ? products : products.filter(p => p.category === val);
-      renderProducts(filtered);
-      if (sortSelectEl) sortSelectEl.value = "default";
-    });
+  function apply() {
+    const cat = categorySelectEl ? categorySelectEl.value : "all";
+    const sort = sortSelectEl ? sortSelectEl.value : "default";
+
+    let list = cat === "all" ? products : products.filter(p => p.category === cat);
+
+    if (sort !== "default") {
+      list = [...list];
+      if (sort === "priceLow") list.sort((a, b) => (a.price || 0) - (b.price || 0));
+      if (sort === "priceHigh") list.sort((a, b) => (b.price || 0) - (a.price || 0));
+      if (sort === "name") list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }
+
+    renderProducts(list);
   }
 
-  if (sortSelectEl) {
-    sortSelectEl.addEventListener("change", () => {
-      const category = categorySelectEl ? categorySelectEl.value : "all";
-      const filtered = category === "all" ? products : products.filter(p => p.category === category);
+  categorySelectEl?.addEventListener("change", () => {
+    if (sortSelectEl) sortSelectEl.value = "default";
+    apply();
+  });
 
-      if (sortSelectEl.value === "default") return renderProducts(filtered);
+  sortSelectEl?.addEventListener("change", apply);
+}
 
-      const sorted = [...filtered];
-      if (sortSelectEl.value === "priceLow") sorted.sort((a, b) => a.price - b.price);
-      if (sortSelectEl.value === "priceHigh") sorted.sort((a, b) => b.price - a.price);
-      if (sortSelectEl.value === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
-      renderProducts(sorted);
-    });
-  }
+/* ================= META + EMPTY ================= */
+function setMeta(text) {
+  const el = document.getElementById("productsMeta");
+  if (el) el.textContent = text || "";
+}
+
+function showEmpty(show) {
+  const empty = document.getElementById("emptyState");
+  const grid = document.getElementById("productsGrid");
+  if (!empty || !grid) return;
+  empty.hidden = !show;
+  grid.style.display = show ? "none" : "";
+}
+
+/* ================= 5D TILT (DESKTOP ONLY) ================= */
+const CAN_TILT = window.matchMedia?.("(hover:hover) and (pointer:fine)")?.matches;
+
+function bindTilt(card) {
+  if (!CAN_TILT) return;
+
+  const onMove = (e) => {
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+
+    const ry = (x - 0.5) * 10;   // left/right
+    const rx = (0.5 - y) * 8;    // up/down
+
+    card.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
+    card.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
+    card.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+    card.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+    card.classList.add("is-tilting");
+  };
+
+  const onLeave = () => {
+    card.classList.remove("is-tilting");
+    card.style.setProperty("--ry", "0deg");
+    card.style.setProperty("--rx", "0deg");
+    card.style.setProperty("--mx", "50%");
+    card.style.setProperty("--my", "50%");
+  };
+
+  card.addEventListener("pointermove", onMove);
+  card.addEventListener("pointerleave", onLeave);
 }
 
 /* ================= RENDER ================= */
@@ -412,25 +387,24 @@ function renderProducts(list = products) {
 
   list.forEach(p => {
     const inCart = isInCart(cart, p.id);
-
-    const card = document.createElement("div");
-    card.className = "p-card";
-
     const price = Number(p.price || 0);
     const categoryUpper = String(p.category || "Product").toUpperCase();
 
     const imgSrc = resolveImage(p.image) || "images_brown/bodyButter.png";
 
-    // escape all dynamic text
     const safeName = escapeHtml(p.name);
     const safeCat = escapeHtml(categoryUpper);
+
+    const card = document.createElement("article");
+    card.className = "p-card";
+    card.setAttribute("data-id", String(p.id));
 
     card.innerHTML = `
       <div class="p-media">
         <img src="${imgSrc}" alt="${safeName}" class="p-img" draggable="false">
       </div>
 
-      <div class="p-info">
+      <div class="p-body">
         <div class="p-topline">
           <span class="p-cat">${safeCat}</span>
           ${inCart ? `<span class="p-flag">IN CART</span>` : ``}
@@ -442,25 +416,29 @@ function renderProducts(list = products) {
         <div id="rating-${p.id}">
           ${ratingLineHTML(p.id)}
         </div>
-      </div>
 
-      <button class="p-btn ${inCart ? "is-added" : ""}" type="button">
-        ${inCart ? "ADDED" : "ADD TO CART"}
-      </button>
+        <div class="p-actions">
+          <button class="p-btn ${inCart ? "is-added" : ""}" type="button">
+            ${inCart ? "ADDED" : "ADD TO CART"}
+          </button>
+        </div>
+      </div>
     `;
 
+    bindTilt(card);
+
+    // Navigate on image/body click
     card.querySelector(".p-img")?.addEventListener("click", () => {
       window.location.href = `product-details.html?id=${encodeURIComponent(p.id)}`;
     });
 
-    const info = card.querySelector(".p-info");
-    if (info) {
-      info.style.cursor = "pointer";
-      info.addEventListener("click", () => {
-        window.location.href = `product-details.html?id=${encodeURIComponent(p.id)}`;
-      });
-    }
+    card.querySelector(".p-body")?.addEventListener("click", (e) => {
+      // don't hijack button clicks
+      if (e.target?.closest?.("button")) return;
+      window.location.href = `product-details.html?id=${encodeURIComponent(p.id)}`;
+    });
 
+    // Add to cart
     card.querySelector(".p-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       addToCartOnce(p);
@@ -471,33 +449,42 @@ function renderProducts(list = products) {
     grid.appendChild(card);
   });
 
+  setMeta(`${list.length} product${list.length === 1 ? "" : "s"} available`);
   updateCartCount();
-
-  // async hydrate ratings from backend summaries
   hydrateRatingsForList(list);
 }
 
 /* ================= INIT ================= */
 async function initProductsPage() {
+  showEmpty(false);
+  setMeta("Loading products…");
+
   try {
     const backendProducts = await fetchProductsFromBackend();
-    if (backendProducts.length) {
-      products = backendProducts;
-      saveJSON(PRODUCTS_KEY, products); // keep in localStorage for compatibility
-    } else {
-      products = loadProductsLocal();
-    }
+    products = backendProducts;
+    saveJSON(PRODUCTS_KEY, products);
   } catch (e) {
-    console.warn("Backend products failed, using local fallback:", e);
-    products = loadProductsLocal();
+    console.warn("Backend products failed:", e);
+    const cached = loadProductsCache();
+    products = cached;
+  }
+
+  if (!products.length) {
+    setMeta("");
+    showEmpty(true);
+    return;
   }
 
   populateCategories();
   bindFilters();
   renderProducts(products);
-  updateCartCount();
+  showEmpty(false);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   initProductsPage();
+
+  document.getElementById("retryBtn")?.addEventListener("click", () => {
+    initProductsPage();
+  });
 });

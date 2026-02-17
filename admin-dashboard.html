@@ -3,74 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
   <title>Admin Dashboard | KÍKE LÁRÁ</title>
-  <link rel="stylesheet" href="admin-dashboard.css">
+  <link rel="stylesheet" href="admin-dashboard.css" />
 </head>
+
 <body>
-
-<header class="dash-header">
-  <div class="brand">
-    <div class="logo-wrap">
-      <img src="images/logo.jpg" alt="Kíke Lárá" />
+  <noscript>
+    <div class="nojs">
+      This admin page requires JavaScript to work.
     </div>
-    <div class="brand-text">
-      <div class="brand-name">KÍKE LÁRÁ</div>
-      <div class="brand-sub">Admin Suite</div>
-    </div>
-  </div>
+  </noscript>
 
-  <div class="head-actions">
-    <span class="pill" id="apiPill">API: —</span>
-    <button id="logoutBtn" class="btn" type="button">Logout</button>
-  </div>
-</header>
-
-<section class="hero">
-  <div class="hero-card">
-    <div class="hero-top">
-      <h1>Welcome back</h1>
-      <p>Manage orders, products, delivery pricing, and messages.</p>
+  <header class="dash-header" role="banner" aria-label="Admin header">
+    <div class="brand">
+      <div class="logo-wrap" aria-hidden="true">
+        <img src="images/logo.jpg" alt="Kíke Lárá" />
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">KÍKE LÁRÁ</div>
+        <div class="brand-sub">Admin Suite</div>
+      </div>
     </div>
 
-    <div class="kpis" id="kpis">
-      <div class="kpi"><div class="k">Orders</div><div class="v" id="kOrders">—</div></div>
-      <div class="kpi"><div class="k">Pending</div><div class="v" id="kPending">—</div></div>
-      <div class="kpi"><div class="k">Products</div><div class="v" id="kProducts">—</div></div>
-      <div class="kpi"><div class="k">Messages</div><div class="v" id="kMessages">—</div></div>
+    <div class="head-actions">
+      <span class="pill" id="apiPill" aria-label="API base">API: —</span>
+      <button id="logoutBtn" class="btn ghost" type="button">Logout</button>
     </div>
+  </header>
 
-    <div class="subnote" id="statusLine">Loading…</div>
-  </div>
-</section>
+  <main class="wrap">
+    <section class="hero" aria-label="Overview">
+      <div class="hero-card">
+        <div class="hero-top">
+          <h1>Welcome back</h1>
+          <p>Manage orders, products, delivery pricing, and messages.</p>
+        </div>
 
-<section class="grid">
-  <button class="card" data-go="admin-orders.html" type="button">
-    <div class="ico">📦</div>
-    <div class="t">Orders</div>
-    <div class="d">View & update statuses</div>
-  </button>
+        <div class="kpis" id="kpis" aria-label="KPIs">
+          <div class="kpi">
+            <div class="k">Orders</div>
+            <div class="v" id="kOrders">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Pending</div>
+            <div class="v" id="kPending">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Products</div>
+            <div class="v" id="kProducts">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Messages</div>
+            <div class="v" id="kMessages">—</div>
+          </div>
+        </div>
 
-  <button class="card" data-go="admin-products.html" type="button">
-    <div class="ico">🧴</div>
-    <div class="t">Products</div>
-    <div class="d">Add, edit, enable/disable</div>
-  </button>
+        <div class="subnote" id="statusLine" aria-live="polite">Loading…</div>
+      </div>
+    </section>
 
-  <button class="card" data-go="admin-delivery.html" type="button">
-    <div class="ico">🚚</div>
-    <div class="t">Delivery Pricing</div>
-    <div class="d">State & LGA delivery fees</div>
-  </button>
+    <section class="grid" aria-label="Admin sections">
+      <button class="card" data-go="admin-orders.html" type="button" aria-label="Open Orders">
+        <div class="ico" aria-hidden="true">📦</div>
+        <div class="t">Orders</div>
+        <div class="d">View & update statuses</div>
+        <div class="chip" id="chipOrders">—</div>
+      </button>
 
-  <button class="card" data-go="admin-messages.html" type="button">
-    <div class="ico">💬</div>
-    <div class="t">Messages</div>
-    <div class="d">Inbox, search, delete</div>
-  </button>
-</section>
+      <button class="card" data-go="admin-products.html" type="button" aria-label="Open Products">
+        <div class="ico" aria-hidden="true">🧴</div>
+        <div class="t">Products</div>
+        <div class="d">Add, edit, enable/disable</div>
+        <div class="chip" id="chipProducts">—</div>
+      </button>
 
-<script src="config.js"></script>
-<script src="auth.js"></script>
-<script src="admin-dashboard.js"></script>
+      <button class="card" data-go="admin-delivery.html" type="button" aria-label="Open Delivery Pricing">
+        <div class="ico" aria-hidden="true">🚚</div>
+        <div class="t">Delivery Pricing</div>
+        <div class="d">State & LGA delivery fees</div>
+        <div class="chip" id="chipDelivery">Open</div>
+      </button>
+
+      <button class="card" data-go="admin-messages.html" type="button" aria-label="Open Messages">
+        <div class="ico" aria-hidden="true">💬</div>
+        <div class="t">Messages</div>
+        <div class="d">Inbox, search, delete</div>
+        <div class="chip" id="chipMessages">—</div>
+      </button>
+    </section>
+
+    <footer class="foot" aria-label="Footer">
+      <div class="foot-inner">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="footText">Admin secured session</span>
+      </div>
+    </footer>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="admin-dashboard.js" defer></script>
 </body>
 </html>
