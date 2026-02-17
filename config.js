@@ -1,4 +1,4 @@
-// config.js (FRONTEND - SAFE + NO DOUBLE SLASH)
+// config.js (FRONTEND - SAFE + NO DOUBLE SLASH + FIX localhost/127 cookie loop)
 (() => {
   const host = location.hostname;
 
@@ -7,7 +7,12 @@
     host === "127.0.0.1" ||
     host === "";
 
-  const LOCAL_API = "http://localhost:4000";
+  // ✅ IMPORTANT: match API host to the same host you're using in the browser
+  // If you opened the site with 127.0.0.1, use 127.0.0.1 for API too.
+  const LOCAL_API = host === "127.0.0.1"
+    ? "http://127.0.0.1:4000"
+    : "http://localhost:4000";
+
   const PROD_API = "https://kikelara1.onrender.com";
 
   let base = isLocal ? LOCAL_API : PROD_API;
@@ -36,15 +41,10 @@
 
   // must match server.js
   window.ADMIN_CSRF_COOKIE = "admin_csrf";
+  window.ADMIN_CSRF_STORAGE_KEY = "admin_csrf_ls";
+  window.ADMIN_LOGIN_URL = "admin-login.html";
+  window.ADMIN_AUTH_MODE = "redirect";
 
-  // Option A (best): backend already returns full URLs -> you can skip this
-window.SUPABASE_PUBLIC_BUCKET_URL = "https://YOURPROJECT.supabase.co/storage/v1/object/public/YOURBUCKET";
-
-// Example:
-// window.SUPABASE_PUBLIC_BUCKET_URL = "https://abcd.supabase.co/storage/v1/object/public/product-images";
-window.ADMIN_LOGIN_URL = "admin-login.html";
-window.ADMIN_CSRF_COOKIE = "admin_csrf";
-window.ADMIN_CSRF_STORAGE_KEY = "admin_csrf_ls";
+  // (You can remove this if you're not using public bucket URLs)
+  // window.SUPABASE_PUBLIC_BUCKET_URL = "https://YOURPROJECT.supabase.co/storage/v1/object/public/YOURBUCKET";
 })();
-window.ADMIN_AUTH_MODE = "redirect";
-
