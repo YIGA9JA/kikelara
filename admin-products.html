@@ -86,7 +86,7 @@
         <input id="pid" type="hidden" />
         <input id="removeImage" type="hidden" value="false" />
 
-        <!-- ✅ new: selected library key -->
+        <!-- ✅ selected library key for DISPLAY on save -->
         <input id="imageKey" type="hidden" value="" />
 
         <div class="form-row">
@@ -116,12 +116,14 @@
           <div class="count" id="descCount">0 / 600</div>
         </div>
 
+        <!-- ✅ Images -->
         <div class="form-row imgRow">
-          <label class="lbl">Image (PNG/JPG/WEBP, max 8MB)</label>
+          <label class="lbl">Images</label>
 
           <div class="imgGrid">
+            <!-- DISPLAY image input -->
             <div class="frame frame--preview">
-              <div class="dropBox" id="dropBox" tabindex="0" role="button" aria-label="Choose product image">
+              <div class="dropBox" id="dropBox" tabindex="0" role="button" aria-label="Choose display image">
                 <input
                   id="image"
                   type="file"
@@ -130,8 +132,8 @@
                 />
 
                 <div class="dropOverlay" id="imgDropOverlay">
-                  <div class="dropTitle">Click to choose image</div>
-                  <div class="dropSub">or drag & drop here</div>
+                  <div class="dropTitle">Upload DISPLAY image</div>
+                  <div class="dropSub">This shows on products page</div>
                 </div>
 
                 <img id="previewImg" alt="Preview" draggable="false" />
@@ -140,22 +142,36 @@
 
             <aside class="imgPanel" aria-label="Image info and actions">
               <div class="imgRules">
-                <div class="imgRulesTitle">Upload rules</div>
+                <div class="imgRulesTitle">How it works</div>
                 <ul class="imgRulesList">
-                  <li>PNG / JPG / WEBP only</li>
-                  <li>Max size: 8MB</li>
-                  <li>Square images look best</li>
+                  <li><b>DISPLAY</b> = products grid image</li>
+                  <li><b>DETAIL</b> = product-details / delivery page hero</li>
+                  <li>Use gallery to switch anytime</li>
                 </ul>
               </div>
 
               <div class="imgActions">
-                <button class="ad-btn ghost" id="openLibBtn" type="button">Choose from Library</button>
-                <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove image</button>
+                <button class="ad-btn ghost" id="openLibBtn" type="button">Choose DISPLAY from Library</button>
+                <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove DISPLAY</button>
 
                 <div class="imgPicked" id="imgPicked" style="display:none;"></div>
-                <div class="imgHint">Tip: Use Library to reuse images already in Supabase.</div>
+
+                <button class="ad-btn ghost" id="addGalleryBtn" type="button">Add Gallery Images</button>
+                <input id="images" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hiddenFile" />
+                <div class="imgPicked" id="galleryPicked" style="display:none;"></div>
+
+                <div class="imgHint">Tip: Add 3–6 good lifestyle angles in gallery.</div>
               </div>
             </aside>
+          </div>
+
+          <!-- ✅ Image manager -->
+          <div class="imgManager">
+            <div class="imgManagerTop">
+              <div class="imgManagerTitle">Current images</div>
+            </div>
+            <div class="imgManagerHint" id="galleryHint">Upload images to manage DISPLAY/DETAIL.</div>
+            <div class="imgGallery" id="galleryGrid"></div>
           </div>
         </div>
 

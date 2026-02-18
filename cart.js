@@ -2,8 +2,8 @@
    ✅ Renders cart from KStore
    ✅ Qty +/- remove
    ✅ Checkout button totals
-   ✅ Sticky mobile bar
-   ✅ Safe DOM rendering (no innerHTML injection)
+   ✅ Sticky mobile bar (mobile only)
+   ✅ Safe DOM rendering (no unsafe innerHTML)
    ✅ Image resolver supports image_url + /uploads + full https
 ==================================================================== */
 
@@ -42,14 +42,13 @@
   }
 
   function getCart() {
-    // Prefer KStore
     const ks = window.KStore;
     if (ks && typeof ks.getCart === "function") {
       const v = ks.getCart();
       return Array.isArray(v) ? v : [];
     }
 
-    // Fallback (if someone opens cart page without store.js)
+    // fallback if store.js missing
     try {
       const raw = sessionStorage.getItem("cart");
       const v = raw ? JSON.parse(raw) : [];
@@ -63,7 +62,7 @@
     return cart.reduce((sum, item) => {
       const price = Number(item?.price || 0);
       const qty = Number(item?.qty || 0);
-      return sum + (price * qty);
+      return sum + price * qty;
     }, 0);
   }
 
@@ -75,7 +74,7 @@
 
   function updateSummary(cart) {
     const sub = calcSubtotal(cart);
-    const total = sub; // delivery calculated at checkout
+    const total = sub;
 
     if (subtotalEl) subtotalEl.textContent = formatNaira(sub);
     if (totalEl) totalEl.textContent = formatNaira(total);
@@ -114,7 +113,6 @@
     const id = String(item?.id ?? "");
     const qty = Math.max(1, Number(item?.qty || 1));
     const price = Number(item?.price || 0);
-
     const name = String(item?.name || "Product").trim();
 
     // support different key names used across pages
@@ -124,12 +122,18 @@
     const row = document.createElement("div");
     row.className = "cart-item";
 
-    // image
+    // media
+    const media = document.createElement("div");
+    media.className = "cart-media";
+
     const img = document.createElement("img");
     img.className = "cart-img";
     img.src = imgSrc;
     img.alt = name;
+    img.loading = "lazy";
     img.draggable = false;
+
+    media.appendChild(img);
 
     // info
     const info = document.createElement("div");
@@ -158,7 +162,10 @@
     meta.appendChild(dot);
     meta.appendChild(line);
 
-    // qty controls
+    // actions row (qty + remove)
+    const actions = document.createElement("div");
+    actions.className = "cart-actions";
+
     const qtyWrap = document.createElement("div");
     qtyWrap.className = "qty";
 
@@ -186,11 +193,6 @@
     qtyWrap.appendChild(num);
     qtyWrap.appendChild(inc);
 
-    info.appendChild(nm);
-    info.appendChild(meta);
-    info.appendChild(qtyWrap);
-
-    // remove
     const rm = document.createElement("button");
     rm.className = "remove";
     rm.type = "button";
@@ -199,9 +201,15 @@
     rm.setAttribute("aria-label", "Remove item");
     rm.textContent = "Remove";
 
-    row.appendChild(img);
+    actions.appendChild(qtyWrap);
+    actions.appendChild(rm);
+
+    info.appendChild(nm);
+    info.appendChild(meta);
+    info.appendChild(actions);
+
+    row.appendChild(media);
     row.appendChild(info);
-    row.appendChild(rm);
 
     return row;
   }
@@ -234,21 +242,16 @@
 
   function applyAction(action, id) {
     const ks = window.KStore;
+    if (!ks) return;
 
-    if (ks) {
-      if (action === "increase" && typeof ks.incQty === "function") ks.incQty(id);
-      if (action === "decrease" && typeof ks.decQty === "function") ks.decQty(id);
-      if (action === "remove" && typeof ks.removeFromCart === "function") ks.removeFromCart(id);
-      return;
-    }
-
-    // fallback if KStore missing: do nothing
+    if (action === "increase" && typeof ks.incQty === "function") ks.incQty(id);
+    if (action === "decrease" && typeof ks.decQty === "function") ks.decQty(id);
+    if (action === "remove" && typeof ks.removeFromCart === "function") ks.removeFromCart(id);
   }
 
   cartItems?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
-
     applyAction(btn.dataset.action, btn.dataset.id);
   });
 
@@ -262,12 +265,9 @@
 
     // initial render
     render(getCart());
-
-    // optional: update header badge if store provides it
     window.KStore?.syncBadges?.();
 
-    // LIVE updates:
-    // 1) store subscription (best)
+    // best: store subscription
     if (window.KStore?.subscribe) {
       window.KStore.subscribe((evt) => {
         if (evt?.type === "CART_CHANGED" || evt?.type === "INIT") {
@@ -276,7 +276,7 @@
       });
     }
 
-    // 2) fallback event (works if store dispatches cart:updated)
+    // fallback event
     document.addEventListener("cart:updated", () => render(getCart()));
   });
 })();

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KÍKÉLÁRÁ — Featured Images</title>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <link rel="stylesheet" href="admin-featured.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div>
+        <div class="brand">KÍKÉLÁRÁ</div>
+        <div class="sub">Homepage Featured Images</div>
+      </div>
+      <div class="actions">
+        <a class="btn ghost" href="admin-products.html">Products</a>
+        <button class="btn" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Add Featured</h2>
+
+      <form id="createForm" class="form">
+        <label>
+          Title
+          <input name="title" placeholder="Optional title" />
+        </label>
+
+        <label>
+          Link URL
+          <input name="link_url" placeholder="https://..." />
+        </label>
+
+        <div class="row">
+          <label>
+            Sort Order
+            <input name="sort_order" type="number" min="0" value="0" />
+          </label>
+
+          <label class="chk">
+            <input name="is_active" type="checkbox" checked />
+            Active
+          </label>
+        </div>
+
+        <label>
+          Image (recommended 2000×1125)
+          <input name="image" type="file" accept="image/*" required />
+        </label>
+
+        <button class="btn primary" type="submit">Upload Featured</button>
+        <div class="hint" id="createMsg"></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Featured List</h2>
+      <div id="list" class="grid"></div>
+    </section>
+  </main>
+
+  <script src="admin-featured.js"></script>
+</body>
+</html>

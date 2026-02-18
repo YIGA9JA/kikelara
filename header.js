@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     </svg>
   `;
 
+  // Make sure you add: <main id="mainContent">...</main> in your pages
   const SKIP_TARGET = "mainContent";
 
   mount.innerHTML = `
@@ -18,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="k-header-inner">
 
         <a class="k-brand" href="index.html" aria-label="KÍKÉLÁRÁ Home">
-          <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
+          <img class="k-logo" src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
           <div class="k-brand-text">
             <span class="k-brand-name">KÍKÉLÁRÁ</span>
             <span class="k-brand-tag">Luxury Skincare</span>
@@ -38,10 +39,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="k-badge" id="cartCount" aria-label="Cart items" hidden>0</span>
           </a>
 
-          <button id="kMenuBtn" class="k-menu" aria-label="Open menu" aria-expanded="false">
+          <button id="kMenuBtn" class="k-menu" aria-label="Open menu" aria-expanded="false" type="button">
             <span></span><span></span><span></span>
           </button>
         </div>
+
       </div>
     </header>
 
@@ -51,15 +53,13 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="k-drawer-top">
         <div class="k-drawer-brand">
           <img src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
-          <div>
+          <div class="k-drawer-brand-text">
             <div class="k-drawer-title">KÍKÉLÁRÁ</div>
             <div class="k-drawer-sub">Luxury Skincare</div>
           </div>
         </div>
 
-        <button class="k-drawer-close" id="kDrawerClose" aria-label="Close menu">
-          ✕
-        </button>
+        <button class="k-drawer-close" id="kDrawerClose" aria-label="Close menu" type="button">✕</button>
       </div>
 
       <div class="k-drawer-links">
@@ -87,14 +87,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("kOverlay");
   const closeBtn = document.getElementById("kDrawerClose");
 
-  /* ========== ACTIVE LINK ========== */
+  /* ---------------- ACTIVE LINK ---------------- */
   const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   mount.querySelectorAll("[data-nav]").forEach((a) => {
-    const href = (a.getAttribute("data-nav") || "").toLowerCase();
+    const href = String(a.getAttribute("data-nav") || "").toLowerCase();
     if (href === current) a.classList.add("active");
   });
 
-  /* ========== CART COUNT SYNC (KStore -> sessionStorage fallback) ========== */
+  /* ---------------- CART BADGE SYNC ---------------- */
   const CART_KEY = "cart";
 
   function safeParse(raw, fallback) {
@@ -102,17 +102,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getCartArray() {
-    // Prefer your store.js (sessionStorage + broadcast)
     if (window.KStore && typeof window.KStore.getCart === "function") {
       const v = window.KStore.getCart();
       return Array.isArray(v) ? v : [];
     }
-
-    // Fallback: sessionStorage
     const ss = safeParse(sessionStorage.getItem(CART_KEY), []);
     if (Array.isArray(ss)) return ss;
-
-    // Final fallback: localStorage (older builds)
     const ls = safeParse(localStorage.getItem(CART_KEY), []);
     return Array.isArray(ls) ? ls : [];
   }
@@ -136,28 +131,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   updateCounts();
-
-  // Your store.js fires this
   document.addEventListener("cart:updated", updateCounts);
 
-  // storage event works across tabs for localStorage only (still ok as fallback)
   window.addEventListener("storage", (e) => {
     if (e.key === CART_KEY) updateCounts();
   });
 
-  // small retry (header inject / store load order)
+  // quick retry (header inject + store.js order)
   let tries = 0;
-  const t = setInterval(() => {
+  const retry = setInterval(() => {
     updateCounts();
     tries += 1;
-    if (tries > 10) clearInterval(t);
-  }, 150);
+    if (tries >= 12) clearInterval(retry);
+  }, 140);
 
-  /* ========== DRAWER + ACCESSIBILITY ========== */
+  /* ---------------- DRAWER (better mobile UX) ---------------- */
   let lastFocus = null;
 
   const openDrawer = () => {
     lastFocus = document.activeElement;
+
     menuBtn.classList.add("active");
     drawer.classList.add("show");
     overlay.classList.add("show");
@@ -168,9 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.body.classList.add("k-lock");
 
-    // focus first link
-    const firstLink = drawer.querySelector("a");
-    if (firstLink) firstLink.focus({ preventScroll: true });
+    const first = drawer.querySelector("a,button");
+    if (first) first.focus({ preventScroll: true });
   };
 
   const closeDrawer = () => {
@@ -197,12 +189,16 @@ document.addEventListener("DOMContentLoaded", () => {
   overlay.addEventListener("click", closeDrawer);
   closeBtn.addEventListener("click", closeDrawer);
 
+  drawer.addEventListener("click", (e) => {
+    if (e.target.closest("a")) closeDrawer();
+  });
+
   document.addEventListener("keydown", (e) => {
     if (!drawer.classList.contains("show")) return;
 
     if (e.key === "Escape") closeDrawer();
 
-    // basic focus trap
+    // focus trap
     if (e.key === "Tab") {
       const focusables = drawer.querySelectorAll('a,button,[tabindex]:not([tabindex="-1"])');
       if (!focusables.length) return;
@@ -220,15 +216,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  drawer.addEventListener("click", (e) => {
-    if (e.target.closest("a")) closeDrawer();
-  });
-
   window.addEventListener("resize", () => {
-    if (window.innerWidth > 900) closeDrawer();
+    if (window.innerWidth > 900 && drawer.classList.contains("show")) closeDrawer();
   });
 
-  /* ========== SCROLL STATE + MICRO PULSE ========== */
+  /* ---------------- SCROLL STATE (clean, subtle) ---------------- */
   let pulseTimer = null;
   const onScroll = () => {
     if (!header) return;
@@ -236,17 +228,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     header.classList.add("pulse");
     clearTimeout(pulseTimer);
-    pulseTimer = setTimeout(() => header.classList.remove("pulse"), 180);
+    pulseTimer = setTimeout(() => header.classList.remove("pulse"), 170);
   };
   onScroll();
   window.addEventListener("scroll", onScroll, { passive: true });
 
-  /* ========== LIQUID SHEEN + SOFT 3D PARALLAX (desktop only) ========== */
+  /* ---------------- LIQUID SHEEN + SOFT TILT (desktop only) ---------------- */
   const isTouch = matchMedia?.("(pointer: coarse)")?.matches;
   const reduceMotion = matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   if (!isTouch && !reduceMotion && header) {
-    const MAX_TILT = 7;
+    const MAX_TILT = 6.5;
     let raf = null;
     let lastX = 0, lastY = 0;
 

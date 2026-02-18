@@ -1,13 +1,15 @@
-/* ================= admin-products.js (Supabase Storage library + signed URL support)
+/* ================= admin-products.js (UPDATED)
    ✅ Cookie session auth (credentials include) via apiFetch/auth.js
    ✅ Upload click FIX: real file input overlay
    ✅ Drag/drop + preview
    ✅ Supabase “Media Library” picker (lists bucket files via backend)
-   ✅ Auto-sign storage keys (products/..webp) via /admin/media/sign + cache
-   ✅ FIXES:
-      - Better /admin/media/list pagination handling (no double offset bugs)
-      - openEdit waits for image signing before showing modal (no “blank preview” flash)
-      - More defensive sorting when created_at is missing/invalid
+   ✅ Auto-sign storage keys (optional) via /admin/media/sign + cache
+   ✅ NEW:
+      - Multi image support (gallery upload "images[]")
+      - Image Manager UI:
+          • Set DISPLAY image (products page)
+          • Set DETAIL image (product-details / delivery page)
+          • Remove gallery image
 =============================================================================== */
 
 (async function () {
@@ -60,7 +62,7 @@
   const activeSel = $("active");
   const segBtns = Array.from(document.querySelectorAll(".segBtn"));
 
-  // image
+  // display image input
   const imageIpt = $("image");
   const previewImg = $("previewImg");
   const imgDropOverlay = $("imgDropOverlay");
@@ -68,9 +70,18 @@
   const removeImage = $("removeImage");
   const dropBox = $("dropBox");
 
-  // ✅ hidden “selected existing key”
+  // ✅ selected existing key (library) for DISPLAY image (on save)
   const imageKeyIpt = $("imageKey");
   const imgPicked = $("imgPicked");
+
+  // ✅ gallery upload
+  const galleryIpt = $("images");
+  const addGalleryBtn = $("addGalleryBtn");
+  const galleryPicked = $("galleryPicked");
+
+  // ✅ image manager grid
+  const galleryGrid = $("galleryGrid");
+  const galleryHint = $("galleryHint");
 
   // ✅ library modal
   const libModal = $("libModal");
@@ -91,8 +102,10 @@
   let activeFilter = "all";
   let lastFocus = null;
 
-  let pickedFile = null;
+  let pickedFile = null;              // display image file
   let previewObjectUrl = "";
+
+  let pickedGalleryFiles = [];        // gallery files queued for upload
 
   // storage signing cache (key -> signed url)
   const signedCache = new Map();
@@ -173,12 +186,31 @@
     if (!imgPicked) return;
     const key = String(imageKeyIpt?.value || "");
     if (key) {
-      imgPicked.textContent = `Selected from library: ${key}`;
+      imgPicked.textContent = `Selected from library (DISPLAY on save): ${key}`;
       imgPicked.style.display = "block";
       return;
     }
     imgPicked.textContent = "";
     imgPicked.style.display = "none";
+  }
+
+  function setGalleryPickedLabel() {
+    if (!galleryPicked) return;
+    if (!pickedGalleryFiles.length) {
+      galleryPicked.textContent = "";
+      galleryPicked.style.display = "none";
+      return;
+    }
+    const names = pickedGalleryFiles.map((f) => f.name).slice(0, 4);
+    const extra = pickedGalleryFiles.length > 4 ? ` +${pickedGalleryFiles.length - 4} more` : "";
+    galleryPicked.textContent = `Gallery queued: ${names.join(", ")}${extra}`;
+    galleryPicked.style.display = "block";
+  }
+
+  function resetGalleryQueue() {
+    pickedGalleryFiles = [];
+    try { if (galleryIpt) galleryIpt.value = ""; } catch {}
+    setGalleryPickedLabel();
   }
 
   function resetImage({ markRemove } = { markRemove: true }) {
@@ -212,7 +244,6 @@
     if (!s) return false;
     if (s.startsWith("http://") || s.startsWith("https://")) return false;
     if (s.startsWith("/uploads/")) return false;
-    // keys often look like "products/123/..webp"
     return s.includes("/") && !s.startsWith("/");
   }
 
@@ -221,8 +252,7 @@
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    // could be a storage key (needs signing)
-    return u;
+    return u; // storage key (needs signing) OR already handled by backend
   }
 
   function fallbackImg() {
@@ -304,16 +334,14 @@
   clearImgBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     resetImage({ markRemove: true });
-    toast("warn", "Removed", "Image cleared.");
+    toast("warn", "Removed", "Display image cleared (will remove on save).");
   });
 
-  // ✅ “Choose from library”
   openLibBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     openLibrary();
   });
 
-  // ✅ change handler for REAL overlay input
   imageIpt?.addEventListener("change", () => {
     const f = imageIpt.files && imageIpt.files[0];
     if (!f) return;
@@ -325,7 +353,7 @@
       return;
     }
 
-    // if user picked a file, we’re NOT using library key
+    // file overrides library key
     if (imageKeyIpt) imageKeyIpt.value = "";
     setPickedLabel();
 
@@ -337,7 +365,6 @@
     showPreview(previewObjectUrl);
   });
 
-  // ✅ make dropbox keyboard-openable
   dropBox?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -345,7 +372,6 @@
     }
   });
 
-  // ✅ Drag & drop support
   if (dropBox) {
     ["dragenter", "dragover"].forEach((evt) => {
       dropBox.addEventListener(evt, (e) => {
@@ -386,11 +412,39 @@
     });
   }
 
+  // ✅ gallery upload
+  addGalleryBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    galleryIpt?.click?.();
+  });
+
+  galleryIpt?.addEventListener("change", () => {
+    const files = Array.from(galleryIpt.files || []);
+    if (!files.length) return;
+
+    const good = files.filter(isValidImageFile);
+    const badCount = files.length - good.length;
+
+    if (badCount) toast("warn", "Some files skipped", "Only PNG/JPG/WEBP (max 8MB).");
+
+    // keep max 12 queued per save
+    const merged = pickedGalleryFiles.concat(good).slice(0, 12);
+    if (merged.length < pickedGalleryFiles.concat(good).length) {
+      toast("warn", "Limit reached", "Max 12 gallery images per save.");
+    }
+    pickedGalleryFiles = merged;
+    setGalleryPickedLabel();
+
+    // allow selecting again
+    try { galleryIpt.value = ""; } catch {}
+  });
+
   function setBusy(on) {
     if (saveBtn) saveBtn.disabled = !!on;
     if (newBtn) newBtn.disabled = !!on;
     if (refreshBtn) refreshBtn.disabled = !!on;
     if (logoutBtn) logoutBtn.disabled = !!on;
+    if (addGalleryBtn) addGalleryBtn.disabled = !!on;
   }
 
   async function fetchAdminProducts() {
@@ -400,7 +454,7 @@
     return Array.isArray(data.products) ? data.products : [];
   }
 
-  /* ===================== SUPABASE KEY SIGNING (via backend) ===================== */
+  /* ===================== SUPABASE KEY SIGNING (optional) ===================== */
   async function signStorageKey(key) {
     const k = String(key || "").trim();
     if (!k) return "";
@@ -409,11 +463,11 @@
     if (inflightSigns.has(k)) return inflightSigns.get(k);
 
     const p = (async () => {
+      // this endpoint must exist on backend; if not, we gracefully fail
       const r = await apiFetch(`/admin/media/sign?key=${encodeURIComponent(k)}`, { method: "GET" });
+      if (r.status === 404) throw new Error("sign route missing");
       const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data?.success || !data?.url) {
-        throw new Error(data?.message || "Could not sign image");
-      }
+      if (!r.ok || !data?.success || !data?.url) throw new Error(data?.message || "Could not sign image");
       signedCache.set(k, data.url);
       return data.url;
     })();
@@ -462,6 +516,219 @@
     await Promise.all(workers);
   }
 
+  /* ===================== IMAGE MANAGER ACTIONS ===================== */
+  async function setDisplayImage(productId, key) {
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(productId)}/display-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to set display image");
+    return data.product;
+  }
+
+  async function setDetailImage(productId, key) {
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(productId)}/detail-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to set detail image");
+    return data.product;
+  }
+
+  async function removeGalleryImage(productId, key) {
+    const r = await apiFetch(`/admin/products/${encodeURIComponent(productId)}/images/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.message || "Failed to remove image");
+    return data.product;
+  }
+
+  function updateLocalProduct(updated) {
+    const idx = products.findIndex((x) => String(x.id) === String(updated.id));
+    if (idx >= 0) products[idx] = updated;
+  }
+
+  function buildImageItems(p) {
+    const payload = (p && typeof p.payload === "object") ? p.payload : {};
+
+    const displayKey = String(p.image_key || payload.__image_key || "").trim();
+    const detailKey = String(p.detail_image_key || payload.__detail_image_key || displayKey || "").trim();
+
+    const galleryKeys = Array.isArray(p.images_keys)
+      ? p.images_keys.map(String).map((s) => s.trim()).filter(Boolean)
+      : (Array.isArray(payload.__gallery_keys) ? payload.__gallery_keys.map(String).map((s) => s.trim()).filter(Boolean) : []);
+
+    const galleryUrls = Array.isArray(p.images) ? p.images : [];
+
+    const map = new Map(); // key -> item
+    function put(key, url, flags) {
+      const k = String(key || "").trim();
+      if (!k) return;
+      const prev = map.get(k) || { key: k, url: "", isDisplay: false, isDetail: false };
+      map.set(k, {
+        ...prev,
+        url: prev.url || (url || ""),
+        isDisplay: prev.isDisplay || !!flags?.isDisplay,
+        isDetail: prev.isDetail || !!flags?.isDetail,
+      });
+    }
+
+    // display + detail (signed urls typically provided by backend)
+    put(displayKey, String(p.image_url || ""), { isDisplay: true });
+    put(detailKey, String(p.detail_image_url || ""), { isDetail: true });
+
+    // gallery (pair by index)
+    galleryKeys.forEach((k, i) => put(k, String(galleryUrls[i] || ""), {}));
+
+    // If backend didn't give urls, we can still attempt to sign later when rendering
+    return Array.from(map.values());
+  }
+
+  async function ensureThumbUrl(item) {
+    if (item.url && (item.url.startsWith("http://") || item.url.startsWith("https://"))) return item.url;
+
+    // item.url could be a key or empty
+    const maybeKey = looksLikeStorageKey(item.url) ? item.url : item.key;
+    if (looksLikeStorageKey(maybeKey)) {
+      try {
+        const signed = await signStorageKey(maybeKey);
+        return signed || "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  }
+
+  async function renderImageManager(p) {
+    if (!galleryGrid) return;
+
+    const items = buildImageItems(p);
+    const displayKey =
+      String(p.image_key || (p.payload && p.payload.__image_key) || "").trim();
+    const detailKey =
+      String(p.detail_image_key || (p.payload && p.payload.__detail_image_key) || displayKey || "").trim();
+
+    if (galleryHint) {
+      if (!items.length) {
+        galleryHint.textContent = "No images yet. Upload display image and optionally add gallery images.";
+      } else {
+        galleryHint.textContent =
+          "DISPLAY = products page image. DETAIL = product-details/delivery page hero. You can switch anytime.";
+      }
+    }
+
+    galleryGrid.innerHTML = "";
+
+    // render cards
+    for (const item of items) {
+      const isDisplay = item.key === displayKey;
+      const isDetail = item.key === detailKey;
+
+      const url = (await ensureThumbUrl(item)) || fallbackImg();
+
+      const card = document.createElement("div");
+      card.className = "imgCard";
+
+      card.innerHTML = `
+        <div class="imgThumbWrap">
+          <img class="imgThumb" src="${escapeHtml(url)}" alt="Product image" loading="lazy">
+          <div class="imgBadges">
+            ${isDisplay ? `<span class="imgBadge bDisplay">DISPLAY</span>` : ``}
+            ${isDetail ? `<span class="imgBadge bDetail">DETAIL</span>` : ``}
+          </div>
+        </div>
+
+        <div class="imgCardMeta">
+          <div class="imgKey" title="${escapeHtml(item.key)}">${escapeHtml(item.key)}</div>
+          <div class="imgCardBtns">
+            <button type="button" class="imgMiniBtn" data-setdisplay ${isDisplay ? "disabled" : ""}>
+              Set Display
+            </button>
+            <button type="button" class="imgMiniBtn" data-setdetail ${isDetail ? "disabled" : ""}>
+              Set Detail
+            </button>
+            <button type="button" class="imgMiniBtn danger" data-remove ${isDisplay ? "disabled" : ""}>
+              Remove
+            </button>
+          </div>
+        </div>
+      `;
+
+      const imgEl = card.querySelector("img");
+      imgEl?.addEventListener("error", () => { if (imgEl) imgEl.src = fallbackImg(); });
+
+      // set display
+      card.querySelector("[data-setdisplay]")?.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try {
+          setBusy(true);
+          const updated = await setDisplayImage(String(p.id), item.key);
+          updateLocalProduct(updated);
+
+          // update UI only (don’t destroy user's text edits)
+          if (imageKeyIpt) imageKeyIpt.value = String(updated.image_key || "");
+          setPickedLabel();
+          showPreview(String(updated.image_url || ""));
+          toast("ok", "Updated", "DISPLAY image updated.");
+          await renderImageManager(updated);
+        } catch (e) {
+          toast("err", "Failed", String(e.message || e));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      // set detail
+      card.querySelector("[data-setdetail]")?.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try {
+          setBusy(true);
+          const updated = await setDetailImage(String(p.id), item.key);
+          updateLocalProduct(updated);
+          toast("ok", "Updated", "DETAIL image updated.");
+          await renderImageManager(updated);
+        } catch (e) {
+          toast("err", "Failed", String(e.message || e));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      // remove (only non-display)
+      card.querySelector("[data-remove]")?.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (isDisplay) return;
+
+        if (!confirm("Remove this image? (It will be deleted from storage)")) return;
+
+        try {
+          setBusy(true);
+          const updated = await removeGalleryImage(String(p.id), item.key);
+          updateLocalProduct(updated);
+          toast("ok", "Removed", "Image removed.");
+          await renderImageManager(updated);
+        } catch (e) {
+          toast("err", "Failed", String(e.message || e));
+        } finally {
+          setBusy(false);
+        }
+      });
+
+      galleryGrid.appendChild(card);
+    }
+  }
+
   function buildFormData({ isUpdate }) {
     const fd = new FormData();
     fd.append("name", String(nameIpt?.value || "").trim());
@@ -476,12 +743,17 @@
 
     if (file) {
       fd.append("image", file);
-      // file overrides library key
       if (key && imageKeyIpt) imageKeyIpt.value = "";
     } else if (key) {
-      // ✅ choose existing image without uploading
-      // IMPORTANT: backend must support reading "image_key" from multipart/form-data
+      // backend must support this
       fd.append("image_key", key);
+    }
+
+    // ✅ append gallery images
+    if (pickedGalleryFiles.length) {
+      for (const gf of pickedGalleryFiles) {
+        fd.append("images", gf);
+      }
     }
 
     return fd;
@@ -542,6 +814,7 @@
   async function fillEditForm(p) {
     revokePreviewUrl();
     pickedFile = null;
+    resetGalleryQueue();
     try { if (imageIpt) imageIpt.value = ""; } catch {}
 
     if (pid) pid.value = String(p.id);
@@ -553,16 +826,16 @@
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
 
-    // key stored in payload.__image_key (from backend) OR image_url itself is a key
-    const key =
-      (p?.payload && typeof p.payload === "object" && String(p.payload.__image_key || "").trim()) ||
-      (looksLikeStorageKey(p.image_url) ? String(p.image_url || "").trim() : "");
-
+    // prefer backend-provided keys
+    const key = String(p.image_key || (p.payload && p.payload.__image_key) || "").trim();
     if (imageKeyIpt) imageKeyIpt.value = key || "";
     setPickedLabel();
 
+    // preview uses signed url (backend usually returns signed image_url)
     const displayUrl = await resolveToDisplayUrl(p.image_url);
     showPreview(displayUrl || "");
+
+    await renderImageManager(p);
 
     setHelp("");
   }
@@ -570,6 +843,7 @@
   function resetEditForm() {
     revokePreviewUrl();
     pickedFile = null;
+    resetGalleryQueue();
     try { if (imageIpt) imageIpt.value = ""; } catch {}
 
     if (pid) pid.value = "";
@@ -584,6 +858,8 @@
     setPickedLabel();
 
     showPreview("");
+    if (galleryGrid) galleryGrid.innerHTML = "";
+    if (galleryHint) galleryHint.textContent = "Upload images to manage DISPLAY/DETAIL.";
     setHelp("");
   }
 
@@ -591,7 +867,6 @@
     const p = products.find((x) => String(x.id) === String(id));
     if (!p) return;
 
-    // ✅ wait so preview doesn’t “flash blank”
     setBusy(true);
     try {
       await fillEditForm(p);
@@ -699,7 +974,6 @@
       grid.appendChild(card);
     });
 
-    // after render, sign any storage keys
     hydrateSignedImages();
   }
 
@@ -760,13 +1034,12 @@
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok || !data?.success) {
-        // surface 404 clearly
         if (r.status === 404) {
-          throw new Error("Backend route /admin/media/list not found (404). Deploy the updated server.js routes.");
+          throw new Error("Backend route /admin/media/list not found (404). Deploy updated server routes.");
         }
         throw new Error(
           data?.message ||
-            "Media list failed. Make sure backend has /admin/media/list and SUPABASE_SERVICE_ROLE_KEY set."
+            "Media list failed. Ensure backend has /admin/media/list and SUPABASE_SERVICE_ROLE_KEY set."
         );
       }
 
@@ -776,13 +1049,15 @@
       if (!items.length && libOffset === 0) {
         setLibStatus("No media found in this folder.", "warn");
       } else {
-        setLibStatus(`Showing ${Math.min(libOffset + items.length, (data.nextOffset ?? libOffset + items.length))} file(s).`, "ok");
+        setLibStatus(`Loaded ${libOffset + items.length} file(s).`, "ok");
       }
 
       items.forEach((it) => {
         const key = String(it.key || "");
         const name = String(it.name || key.split("/").pop() || "");
-        const signedUrl = String(it.url || "");
+        const signedUrl = String(it.signedUrl || it.url || "");
+
+        if (key && signedUrl) signedCache.set(key, signedUrl);
 
         const card = document.createElement("button");
         card.type = "button";
@@ -799,7 +1074,7 @@
         `;
 
         card.addEventListener("click", async () => {
-          // select without uploading
+          // select display image from library (on save)
           pickedFile = null;
           try { if (imageIpt) imageIpt.value = ""; } catch {}
 
@@ -807,25 +1082,17 @@
           if (imageKeyIpt) imageKeyIpt.value = key;
           setPickedLabel();
 
-          // show in preview
           showPreview(signedUrl || (await resolveToDisplayUrl(key)) || "");
-          toast("ok", "Selected", "Image selected from Supabase library.");
+          toast("ok", "Selected", "Library image selected as DISPLAY (save to apply).");
           closeModal(libModal);
         });
 
         libGrid.appendChild(card);
       });
 
-      // ✅ correct pagination:
-      // If backend gives nextOffset, use it. Otherwise move by items.length.
-      const nextOffset = data.nextOffset;
-      if (nextOffset !== null && nextOffset !== undefined) {
-        libHasMore = true;
-        libOffset = Number(nextOffset) || (libOffset + items.length);
-      } else {
-        libOffset = libOffset + items.length;
-        libHasMore = items.length === limit; // best guess
-      }
+      // pagination: move by items length
+      libOffset = libOffset + items.length;
+      libHasMore = items.length === limit;
 
       if (libLoadMore) {
         libLoadMore.style.display = libHasMore ? "inline-flex" : "none";
@@ -918,14 +1185,16 @@
 
     try {
       if (id) {
-        await updateProduct(id);
+        const updated = await updateProduct(id);
+        updateLocalProduct(updated);
         toast("ok", "Updated", "✅ Product updated successfully!");
       } else {
-        await createProduct();
+        const created = await createProduct();
         toast("ok", "Created", "✅ Product added successfully!");
       }
 
       closeModal(editModal);
+      resetGalleryQueue();
       await loadProducts();
     } catch (err) {
       const msg = String(err.message || err);
@@ -939,5 +1208,6 @@
   setActiveUI(true);
   updateDescCount();
   setPickedLabel();
+  setGalleryPickedLabel();
   loadProducts();
 })();
