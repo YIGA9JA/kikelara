@@ -1,46 +1,41 @@
-// admin-orders.js (CSRF FIX - Option A)
-// ✅ Stores CSRF in localStorage (from login response) and sends it on all non-GET requests
-// ✅ Always sends credentials so cookies (admin_session + admin_csrf) are included
+// admin-orders.js (COOKIE AUTH + CSRF via auth.js apiFetch)
+// ✅ FIX: fetches orders from /admin/orders (NOT /orders)
+// ✅ Updates status using multiple fallbacks to match your backend route naming
 
 (async () => {
   const ok = await checkAuth();
   if (!ok) return;
 
-  const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
+  const AUTO_REFRESH_MS = 30_000;
 
-  const ordersContainer = document.getElementById("ordersContainer");
-  const logoutBtn = document.getElementById("logoutBtn");
   const refreshBtn = document.getElementById("refreshBtn");
-  const apiLabel = document.getElementById("apiLabel");
-
-  const statusTabs = document.getElementById("statusTabs");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const tabsEl = document.getElementById("tabs");
   const searchBox = document.getElementById("searchBox");
-  const statsRow = document.getElementById("statsRow");
-  const toastEl = document.getElementById("toast");
+  const ordersList = document.getElementById("ordersList");
+  const errorBox = document.getElementById("errorBox");
+  const toastWrap = document.getElementById("toastWrap");
+  const apiChip = document.getElementById("apiChip");
+  const autoChip = document.getElementById("autoChip");
+  const lastUpdate = document.getElementById("lastUpdate");
 
-  if (apiLabel) apiLabel.textContent = API_BASE;
+  const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
+  if (apiChip) apiChip.textContent = API_BASE || "—";
+  if (autoChip) autoChip.textContent = `${Math.round(AUTO_REFRESH_MS / 1000)}s`;
 
-  logoutBtn?.addEventListener("click", adminLogout);
+  const TABS = [
+    { key: "all", label: "All" },
+    { key: "pending", label: "Pending" },
+    { key: "confirmed", label: "Confirmed" },
+    { key: "shipped", label: "Shipped" },
+    { key: "delivered", label: "Delivered" }
+  ];
 
-  let currentStatusFilter = "all";
-  let currentSearch = "";
-  let allOrdersCache = [];
-  let isInteracting = false;
+  let allOrders = [];
+  let activeTab = "all";
+  let timer = null;
 
-  function toast(msg) {
-    if (!toastEl) return;
-    toastEl.textContent = msg;
-    toastEl.classList.add("show");
-    setTimeout(() => toastEl.classList.remove("show"), 1600);
-  }
-
-  function money(n) {
-    const v = Number(n || 0);
-    try { return v.toLocaleString("en-NG"); } catch { return String(v); }
-  }
-
-  function safeText(v) { return String(v ?? "").trim() || "-"; }
-
+  /* ---------- helpers ---------- */
   function escapeHtml(str) {
     return String(str || "")
       .replaceAll("&", "&amp;")
@@ -50,374 +45,416 @@
       .replaceAll("'", "&#039;");
   }
 
-  function domSafeId(v) {
-    return String(v ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
-  }
-
-  function statusSlug(s) {
-    return String(s || "Pending")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-  }
-
-  // ✅ CSRF helpers (Option A)
-  const CSRF_STORAGE_KEY = "admin_csrf";
-
-  function getCsrfToken() {
-    return localStorage.getItem(CSRF_STORAGE_KEY) || "";
-  }
-
-  function setCsrfToken(token) {
-    const t = String(token || "").trim();
-    if (t) localStorage.setItem(CSRF_STORAGE_KEY, t);
-  }
-
-  function clearCsrfToken() {
-    localStorage.removeItem(CSRF_STORAGE_KEY);
-  }
-
-  // ✅ fetch wrapper that always sends cookies + CSRF on write methods
-  async function apiFetch(path, opts = {}) {
-    const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
-
-    const method = String(opts.method || "GET").toUpperCase();
-    const headers = new Headers(opts.headers || {});
-    if (!headers.has("Accept")) headers.set("Accept", "application/json");
-
-    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-      const csrf = getCsrfToken();
-      if (csrf) headers.set("X-CSRF-Token", csrf);
+  function fmtMoney(n) {
+    const num = Number(n || 0);
+    try {
+      return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(num);
+    } catch {
+      return `₦${Math.round(num).toLocaleString()}`;
     }
-
-    const res = await fetch(url, {
-      ...opts,
-      method,
-      headers,
-      credentials: "include", // ✅ REQUIRED
-      cache: opts.cache || "no-store",
-    });
-
-    // If session expired or CSRF missing, force re-login
-    if (res.status === 401) {
-      clearCsrfToken();
-      // let caller handle redirect if it wants; but safe to redirect too
-      // location.href = "admin-login.html";
-    }
-    return res;
   }
 
-  // Your DB stores main values in row.payload (jsonb)
-  function normalizeOrderRow(row) {
-    const p = (row && typeof row.payload === "object" && row.payload) ? row.payload : {};
-    const cart = Array.isArray(p.cart) ? p.cart : (Array.isArray(p.items) ? p.items : []);
+  function fmtDate(d) {
+    if (!d) return "—";
+    try { return new Date(d).toLocaleString(); } catch { return "—"; }
+  }
 
-    const total = Number(p.total ?? row.total ?? 0) || 0;
-    const deliveryFee = Number(p.deliveryFee ?? p.delivery_fee ?? row.delivery_fee ?? 0) || 0;
-    const subtotal = Number(p.subtotal ?? 0) || 0;
+  function setLastUpdate(ts) {
+    if (!lastUpdate) return;
+    lastUpdate.textContent = fmtDate(ts || Date.now());
+  }
 
-    const createdAt = row.created_at || row.createdAt || p.createdAt || p.created_at || null;
+  function toast(type, title, body, ms = 3200) {
+    if (!toastWrap) return;
+
+    const el = document.createElement("div");
+    el.className = `toast ${type || ""}`.trim();
+    el.innerHTML = `
+      <div class="t-row">
+        <div class="t-title">${escapeHtml(title || "")}</div>
+        <button class="t-close" type="button" aria-label="Close">✕</button>
+      </div>
+      ${body ? `<div class="t-body">${escapeHtml(body)}</div>` : ""}
+    `;
+    toastWrap.appendChild(el);
+
+    const close = () => {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(6px)";
+      setTimeout(() => el.remove(), 180);
+    };
+    el.querySelector(".t-close")?.addEventListener("click", close);
+    if (ms > 0) setTimeout(close, ms);
+  }
+
+  function showError(msg) {
+    if (!errorBox) return;
+    errorBox.style.display = "block";
+    errorBox.innerHTML = `❌ ${escapeHtml(msg)}`;
+  }
+
+  function clearError() {
+    if (!errorBox) return;
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+  }
+
+  async function readJsonSafe(res) {
+    return await res.json().catch(() => ({}));
+  }
+
+  function normalizeOrder(o) {
+    const id =
+      o?.id ?? o?.order_id ?? o?.orderId ?? o?.uuid ?? o?.reference ?? o?.ref ?? "";
+
+    const reference =
+      o?.reference ?? o?.ref ?? (id ? String(id).slice(0, 10) : "—");
+
+    const statusRaw = (o?.status ?? o?.order_status ?? o?.orderStatus ?? "pending");
+    const status = String(statusRaw).toLowerCase();
+
+    const createdAt = o?.created_at ?? o?.createdAt ?? o?.created ?? o?.date ?? null;
+
+    const name = o?.customer_name ?? o?.name ?? o?.full_name ?? o?.fullname ?? "";
+    const phone = o?.phone ?? o?.customer_phone ?? "";
+    const email = o?.email ?? o?.customer_email ?? "";
+
+    const state = o?.delivery_state ?? o?.state ?? "";
+    const city = o?.delivery_city ?? o?.city ?? "";
+    const address = o?.delivery_address ?? o?.address ?? "";
+
+    const deliveryFee = Number(o?.delivery_fee ?? o?.deliveryFee ?? 0);
+    const total = Number(o?.total_amount ?? o?.total ?? o?.amount ?? 0);
+
+    const items = Array.isArray(o?.items)
+      ? o.items
+      : Array.isArray(o?.cart)
+        ? o.cart
+        : Array.isArray(o?.products)
+          ? o.products
+          : [];
 
     return {
-      id: row.id,
-      reference: row.reference || p.reference || p.paystackRef || p.paystack_ref || row.id,
-      status: row.status || p.status || "Pending",
+      raw: o,
+      id: String(id),
+      reference: String(reference),
+      status,
       createdAt,
-
-      name: p.name || p.customer?.name || "",
-      email: p.email || p.customer?.email || "",
-      phone: p.phone || p.customer?.phone || "",
-      shippingType: p.shippingType || p.shipping_type || "",
-      state: p.state || "",
-      city: p.city || "",
-      address: p.address || "",
+      name: String(name || ""),
+      phone: String(phone || ""),
+      email: String(email || ""),
+      state: String(state || ""),
+      city: String(city || ""),
+      address: String(address || ""),
       deliveryFee,
-      subtotal,
       total,
-      cart
+      items
     };
   }
 
-  function getItems(order) {
-    if (Array.isArray(order.cart)) return order.cart;
-    if (Array.isArray(order.items)) return order.items;
-    return [];
-  }
+  /* ---------- API ---------- */
+  async function fetchOrdersFromServer() {
+    // ✅ main correct endpoint:
+    const endpoints = [
+      "/admin/orders",
+      // fallbacks (in case your backend used a different name):
+      "/admin/orders/all",
+      "/admin/all-orders"
+    ];
 
-  function lineTotal(item) {
-    const price = Number(item.price || 0);
-    const qty = Number(item.qty || 0);
-    const computed = price * qty;
-    const raw = item.total ?? computed;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : 0;
-  }
+    let lastErr = null;
 
-  function subtotal(items) {
-    return items.reduce((sum, i) => sum + lineTotal(i), 0);
-  }
+    for (const ep of endpoints) {
+      try {
+        const res = await apiFetch(ep, { method: "GET" });
 
-  async function fetchOrders() {
-    const params = new URLSearchParams();
-    if (currentStatusFilter !== "all") params.set("status", currentStatusFilter);
-    if (currentSearch) params.set("q", currentSearch);
+        if (res.status === 401) {
+          toast("err", "Session expired", "Please login again.");
+          adminLogout();
+          return null;
+        }
+        if (res.status === 404) {
+          lastErr = new Error(`404 on ${ep}`);
+          continue;
+        }
 
-    const url = `/orders${params.toString() ? `?${params}` : ""}`;
-    const res = await apiFetch(url, { cache: "no-store" });
+        const data = await readJsonSafe(res);
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        location.href = "admin-login.html";
-        return [];
+        const arr =
+          (Array.isArray(data?.orders) && data.orders) ||
+          (Array.isArray(data?.data) && data.data) ||
+          (Array.isArray(data) && data) ||
+          null;
+
+        if (res.ok && arr) return arr;
+
+        lastErr = new Error(data?.message || `Failed (${res.status})`);
+      } catch (e) {
+        lastErr = e;
       }
-      throw new Error("Failed to load orders");
     }
 
-    const rows = await res.json().catch(() => []);
-    const arr = Array.isArray(rows) ? rows : [];
-    return arr.map(normalizeOrderRow);
+    throw lastErr || new Error("Failed to load orders");
   }
 
-  async function patchStatus(orderId, status) {
-    const res = await apiFetch(`/orders/${encodeURIComponent(orderId)}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
+  async function updateOrderStatusOnServer(orderId, newStatus) {
+    const status = String(newStatus || "").toLowerCase();
+    const id = encodeURIComponent(String(orderId));
+
+    // Try multiple common route styles so it works even if your server differs
+    const tries = [
+      { url: `/admin/orders/${id}/status`, method: "PUT", body: { status } },
+      { url: `/admin/orders/${id}`, method: "PUT", body: { status } },
+      { url: `/admin/orders/status`, method: "PUT", body: { id: orderId, status } }
+    ];
+
+    let lastErr = null;
+
+    for (const t of tries) {
+      try {
+        const res = await apiFetch(t.url, { method: t.method, body: t.body });
+
+        if (res.status === 401) {
+          toast("err", "Session expired", "Please login again.");
+          adminLogout();
+          return null;
+        }
+        if (res.status === 404) {
+          lastErr = new Error(`404 on ${t.url}`);
+          continue;
+        }
+
+        const data = await readJsonSafe(res);
+        if (res.ok && (data?.success || data?.ok || data?.order)) return data;
+
+        lastErr = new Error(data?.message || `Update failed (${res.status})`);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    throw lastErr || new Error("Update failed");
+  }
+
+  /* ---------- render ---------- */
+  function renderTabs() {
+    if (!tabsEl) return;
+    tabsEl.innerHTML = TABS.map(t => {
+      const active = t.key === activeTab ? "active" : "";
+      return `<button class="tab ${active}" data-tab="${escapeHtml(t.key)}" type="button">${escapeHtml(t.label)}</button>`;
+    }).join("");
+  }
+
+  function filteredOrders() {
+    const q = String(searchBox?.value || "").trim().toLowerCase();
+
+    return allOrders.filter(o => {
+      const statusOk = (activeTab === "all") ? true : o.status === activeTab;
+
+      if (!statusOk) return false;
+      if (!q) return true;
+
+      const hay = [
+        o.reference, o.name, o.phone, o.email,
+        o.state, o.city, o.address
+      ].join(" ").toLowerCase();
+
+      return hay.includes(q);
     });
+  }
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        clearCsrfToken();
-        location.href = "admin-login.html";
-        return null;
-      }
-      // Show useful server message if available
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data?.message || "Failed to update");
+  function statusBadge(status) {
+    const s = String(status || "").toLowerCase();
+    return `<span class="badge ${escapeHtml(s)}">${escapeHtml(s)}</span>`;
+  }
+
+  function itemsPreview(items) {
+    if (!Array.isArray(items) || items.length === 0) return "—";
+
+    // Try to display item names if possible
+    const names = items
+      .map(x => x?.name || x?.title || x?.product_name || x?.product || "")
+      .filter(Boolean)
+      .slice(0, 3);
+
+    if (names.length) {
+      const extra = items.length > names.length ? ` +${items.length - names.length} more` : "";
+      return `${escapeHtml(names.join(", "))}${escapeHtml(extra)}`;
     }
-    return res.json().catch(() => ({}));
+
+    return `${items.length} item(s)`;
   }
 
-  function renderStats(orders) {
-    if (!statsRow) return;
+  function renderOrders() {
+    if (!ordersList) return;
 
-    const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const pending = orders.filter(o => String(o.status || "Pending") === "Pending").length;
-    const delivered = orders.filter(o => String(o.status || "Pending") === "Delivered").length;
+    const list = filteredOrders();
 
-    statsRow.innerHTML = `
-      <div class="stat"><div class="k">Orders</div><div class="v">${money(totalOrders)}</div></div>
-      <div class="stat"><div class="k">Revenue</div><div class="v">₦${money(totalRevenue)}</div></div>
-      <div class="stat"><div class="k">Pending</div><div class="v">${money(pending)}</div></div>
-      <div class="stat"><div class="k">Delivered</div><div class="v">${money(delivered)}</div></div>
-    `;
-  }
-
-  function sortOrders(orders) {
-    const out = [...orders];
-    out.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    return out;
-  }
-
-  function renderOrders(orders) {
-    if (!ordersContainer) return;
-
-    const openSet = new Set(
-      Array.from(document.querySelectorAll(".order-body.open"))
-        .map(el => el.id.replace("body-", ""))
-    );
-
-    if (!orders.length) {
-      ordersContainer.innerHTML = `<p style="opacity:.85;font-weight:900;">No orders found.</p>`;
+    if (!list.length) {
+      ordersList.innerHTML = `<div class="empty">No orders found.</div>`;
       return;
     }
 
-    ordersContainer.innerHTML = "";
+    ordersList.innerHTML = list.map(o => {
+      return `
+        <article class="order-card" data-id="${escapeHtml(o.id)}">
+          <div class="order-top">
+            <div class="order-ref">
+              <div class="ref">${escapeHtml(o.reference)}</div>
+              <div class="date muted">${escapeHtml(fmtDate(o.createdAt))}</div>
+            </div>
 
-    orders.forEach(order => {
-      const rawKey = String(order.id ?? order.reference ?? "");
-      const domId = domSafeId(rawKey);
-
-      const items = getItems(order);
-      const computedSub = subtotal(items);
-      const sub = Number(order.subtotal || computedSub || 0);
-
-      const status = safeText(order.status || "Pending");
-      const statusCls = statusSlug(status);
-
-      const shippingText = (String(order.shippingType).toLowerCase() === "pickup")
-        ? "Pickup"
-        : `${safeText(order.state)}, ${safeText(order.city)}`;
-
-      const createdNice = order.createdAt ? new Date(order.createdAt).toLocaleString() : "-";
-
-      const card = document.createElement("div");
-      card.className = "order-card";
-
-      card.innerHTML = `
-        <div class="order-head" data-toggle="${escapeHtml(domId)}" role="button" tabindex="0">
-          <div class="order-left">
-            <div class="order-title">Order #${escapeHtml(safeText(order.reference || order.id))}</div>
-            <div class="order-sub">
-              ${escapeHtml(safeText(order.name))} •
-              ${escapeHtml(safeText(order.phone))} •
-              ${escapeHtml(shippingText)}
+            <div class="order-status">
+              ${statusBadge(o.status)}
             </div>
           </div>
 
-          <div class="badges">
-            <span class="badge status-${escapeHtml(statusCls)}">${escapeHtml(status)}</span>
-            <span class="badge">₦${money(order.total)}</span>
-            <span class="badge">${escapeHtml(createdNice)}</span>
-          </div>
-        </div>
-
-        <div class="order-body ${openSet.has(domId) ? "open" : ""}" id="body-${escapeHtml(domId)}">
-          <div class="inner">
+          <div class="order-mid">
             <div class="grid">
-              <div class="kv"><div class="k">Name</div><div class="v">${escapeHtml(safeText(order.name))}</div></div>
-              <div class="kv"><div class="k">Email</div><div class="v">${escapeHtml(safeText(order.email))}</div></div>
-              <div class="kv"><div class="k">Phone</div><div class="v">${escapeHtml(safeText(order.phone))}</div></div>
-              <div class="kv"><div class="k">Shipping</div><div class="v">${escapeHtml(shippingText)}</div></div>
-              <div class="kv" style="grid-column:1/-1;"><div class="k">Address</div><div class="v">${escapeHtml(safeText(order.address))}</div></div>
-            </div>
-
-            <div class="items">
-              ${items.length ? items.map(i => `
-                <div class="row">
-                  <div>
-                    <div class="name">${escapeHtml(safeText(i.name))} × ${escapeHtml(safeText(i.qty))}</div>
-                    <div class="meta">₦${money(i.price)} each</div>
-                  </div>
-                  <div class="total">₦${money(lineTotal(i))}</div>
-                </div>
-              `).join("") : `<div class="row"><div style="opacity:.85;font-weight:900;">No items found in payload.</div><div></div></div>`}
-            </div>
-
-            <div class="grid">
-              <div class="kv"><div class="k">Subtotal</div><div class="v">₦${money(sub)}</div></div>
-              <div class="kv"><div class="k">Delivery Fee</div><div class="v">₦${money(order.deliveryFee)}</div></div>
-              <div class="kv"><div class="k">Total</div><div class="v">₦${money(order.total)}</div></div>
-              <div class="kv"><div class="k">Reference</div><div class="v">${escapeHtml(safeText(order.reference))}</div></div>
-            </div>
-
-            <div class="actions">
               <div>
-                <label style="font-weight:1000; opacity:.85; font-size:.9rem;">Status</label><br/>
-                <select id="status-${escapeHtml(domId)}" data-orderid="${escapeHtml(order.id)}">
-                  ${["Pending","Confirmed","Shipped","Delivered"].map(s =>
-                    `<option value="${s}" ${s===status ? "selected":""}>${s}</option>`
-                  ).join("")}
-                </select>
+                <div class="label">Customer</div>
+                <div class="value">${escapeHtml(o.name || "—")}</div>
               </div>
+              <div>
+                <div class="label">Phone</div>
+                <div class="value">${escapeHtml(o.phone || "—")}</div>
+              </div>
+              <div>
+                <div class="label">Email</div>
+                <div class="value">${escapeHtml(o.email || "—")}</div>
+              </div>
+            </div>
 
-              <button class="btn" type="button" data-update="${escapeHtml(domId)}">Update Status</button>
+            <div class="addr">
+              <div class="label">Delivery</div>
+              <div class="value">
+                ${escapeHtml([o.address, o.city, o.state].filter(Boolean).join(", ") || "—")}
+              </div>
+            </div>
+
+            <div class="grid">
+              <div>
+                <div class="label">Delivery Fee</div>
+                <div class="value">${escapeHtml(fmtMoney(o.deliveryFee))}</div>
+              </div>
+              <div>
+                <div class="label">Total</div>
+                <div class="value strong">${escapeHtml(fmtMoney(o.total))}</div>
+              </div>
+              <div>
+                <div class="label">Items</div>
+                <div class="value">${itemsPreview(o.items)}</div>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div class="order-actions">
+            <select class="statusSel" data-status>
+              ${TABS.filter(t => t.key !== "all").map(t => `
+                <option value="${escapeHtml(t.key)}" ${o.status === t.key ? "selected" : ""}>
+                  ${escapeHtml(t.label)}
+                </option>
+              `).join("")}
+            </select>
+
+            <button class="btn primary" data-save type="button">Update Status</button>
+          </div>
+        </article>
       `;
-
-      ordersContainer.appendChild(card);
-    });
+    }).join("");
   }
 
-  function rerenderFromCache() {
-    renderStats(allOrdersCache);
-    renderOrders(sortOrders(allOrdersCache));
-  }
-
-  async function refreshFromServer() {
-    if (ordersContainer) ordersContainer.innerHTML = `<p style="opacity:.85;font-weight:900;">Loading orders...</p>`;
+  /* ---------- load / refresh ---------- */
+  async function refreshFromServer({ silent = false } = {}) {
     try {
-      allOrdersCache = await fetchOrders();
-      rerenderFromCache();
-    } catch (err) {
-      console.error(err);
-      if (ordersContainer) {
-        ordersContainer.innerHTML =
-          `<p style="opacity:.85;font-weight:900;">❌ Failed to load orders from ${escapeHtml(API_BASE)}.</p>`;
+      clearError();
+      if (!silent) {
+        ordersList.innerHTML = `
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+        `;
       }
-      toast("❌ Failed to load orders");
+
+      const rows = await fetchOrdersFromServer();
+      if (!rows) return;
+
+      allOrders = rows.map(normalizeOrder);
+      // newest first
+      allOrders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+      setLastUpdate(Date.now());
+      renderTabs();
+      renderOrders();
+
+      if (!silent) toast("ok", "Loaded", "Orders loaded from server.");
+    } catch (e) {
+      console.error(e);
+      showError(`Failed to load orders from ${API_BASE}. (Your backend is returning 404 for the orders endpoint.)`);
+      toast("err", "Error", "Failed to load orders.");
     }
   }
 
-  async function updateStatus(domId) {
-    const select = document.getElementById(`status-${domId}`);
-    if (!select) return;
+  /* ---------- events ---------- */
+  logoutBtn?.addEventListener("click", () => adminLogout());
 
-    const newStatus = select.value;
-    const orderId = select.getAttribute("data-orderid");
+  refreshBtn?.addEventListener("click", () => refreshFromServer());
 
-    if (!orderId || !/^\d+$/.test(String(orderId))) {
-      toast("❌ Order ID missing (cannot update status)");
-      return;
-    }
+  tabsEl?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-tab]");
+    if (!btn) return;
+    activeTab = btn.getAttribute("data-tab") || "all";
+    renderTabs();
+    renderOrders();
+  });
+
+  searchBox?.addEventListener("input", () => renderOrders());
+
+  document.addEventListener("click", async (e) => {
+    const saveBtn = e.target.closest("[data-save]");
+    if (!saveBtn) return;
+
+    const card = saveBtn.closest(".order-card");
+    const id = card?.getAttribute("data-id");
+    const sel = card?.querySelector("[data-status]");
+    const status = sel?.value;
+
+    if (!id || !status) return;
+
+    saveBtn.disabled = true;
+    const oldText = saveBtn.textContent;
+    saveBtn.textContent = "Updating...";
 
     try {
-      await patchStatus(orderId, newStatus);
-      toast(`✅ Status updated: ${newStatus}`);
-      await refreshFromServer();
+      await updateOrderStatusOnServer(id, status);
+
+      // update local state
+      const idx = allOrders.findIndex(x => x.id === id);
+      if (idx >= 0) allOrders[idx].status = String(status).toLowerCase();
+
+      renderTabs();
+      renderOrders();
+      toast("ok", "Updated", `Order status set to ${status}.`);
     } catch (err) {
       console.error(err);
-      toast(`❌ ${String(err?.message || "Failed to update status")}`);
+      toast("err", "Update failed", "Your backend update route may be different. See server fix below.");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = oldText || "Update Status";
     }
+  });
+
+  // auto refresh
+  function startAuto() {
+    stopAuto();
+    timer = setInterval(() => refreshFromServer({ silent: true }), AUTO_REFRESH_MS);
+  }
+  function stopAuto() {
+    if (timer) clearInterval(timer);
+    timer = null;
   }
 
-  refreshBtn?.addEventListener("click", refreshFromServer);
-
-  statusTabs?.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".tab");
-    if (!btn) return;
-
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    btn.classList.add("active");
-
-    currentStatusFilter = btn.dataset.status || "all";
-    await refreshFromServer();
-  });
-
-  let searchTimer = null;
-  searchBox?.addEventListener("input", () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(async () => {
-      currentSearch = String(searchBox.value || "").trim();
-      await refreshFromServer();
-    }, 220);
-  });
-
-  document.addEventListener("focusin", (e) => {
-    if (e.target.closest("select, input, textarea, button")) isInteracting = true;
-  });
-  document.addEventListener("focusout", () => {
-    setTimeout(() => (isInteracting = false), 150);
-  });
-
-  function toggleById(id) {
-    const body = document.getElementById(`body-${id}`);
-    if (body) body.classList.toggle("open");
-  }
-
-  document.addEventListener("click", (e) => {
-    const head = e.target.closest(".order-head");
-    if (head) {
-      const id = head.getAttribute("data-toggle");
-      toggleById(id);
-      return;
-    }
-    const upd = e.target.closest("[data-update]");
-    if (upd) updateStatus(upd.getAttribute("data-update"));
-  });
-
-  document.addEventListener("keydown", (e) => {
-    const head = e.target.closest?.(".order-head");
-    if (head && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      const id = head.getAttribute("data-toggle");
-      toggleById(id);
-    }
-  });
-
+  // first load
   await refreshFromServer();
-  setInterval(() => { if (!isInteracting) refreshFromServer(); }, 30000);
+  startAuto();
 })();

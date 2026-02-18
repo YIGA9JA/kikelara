@@ -1,59 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin Orders | KÍKE LÁRÁ</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="admin-orders.css">
+
+  <link rel="stylesheet" href="admin-orders.css" />
 </head>
+
 <body>
-
-<header class="main-header">
-  <div class="brand">
-    <img src="images/logo.jpg" alt="Kíke Lárá">
-    <span>KÍKE LÁRÁ Admin</span>
-  </div>
-
-  <div class="header-actions">
-    <button id="refreshBtn" class="ghost-btn" type="button">Refresh</button>
-    <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
-  </div>
-</header>
-
-<section class="admin-page">
-  <div class="page-head">
-    <div>
-      <h1>Orders</h1>
-      <p class="muted">All orders from all users (backend). Update statuses live.</p>
+  <header class="main-header">
+    <div class="brand" aria-label="Kíke Lárá Admin">
+      <img src="images/logo.jpg" alt="Kíke Lárá">
+      <div class="brand-text">
+        <b>KÍKE LÁRÁ Admin</b>
+        <span>Orders</span>
+      </div>
     </div>
 
-    <div class="chips">
-      <span class="chip">API: <b id="apiLabel">—</b></span>
-      <span class="chip">Auto refresh: <b>30s</b></span>
+    <div class="header-actions">
+      <button id="refreshBtn" class="ghost-btn" type="button">Refresh</button>
+      <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
     </div>
-  </div>
+  </header>
 
-  <div class="toolbar">
-    <div class="tabs" id="statusTabs">
-      <button class="tab active" data-status="all" type="button">All</button>
-      <button class="tab" data-status="Pending" type="button">Pending</button>
-      <button class="tab" data-status="Confirmed" type="button">Confirmed</button>
-      <button class="tab" data-status="Shipped" type="button">Shipped</button>
-      <button class="tab" data-status="Delivered" type="button">Delivered</button>
-    </div>
+  <main class="page">
+    <section class="page-head">
+      <div>
+        <h1>Orders</h1>
+        <p class="muted">All orders from all users (backend). Update statuses live.</p>
+      </div>
 
-    <div class="search">
-      <input id="searchBox" type="text" placeholder="Search name, phone, email, reference..." autocomplete="off">
-    </div>
-  </div>
+      <div class="chips">
+        <span class="chip">API: <b id="apiChip">—</b></span>
+        <span class="chip">Auto refresh: <b id="autoChip">30s</b></span>
+        <span class="chip">Last update: <b id="lastUpdate">—</b></span>
+      </div>
+    </section>
 
-  <div class="stats" id="statsRow"></div>
-  <div id="ordersContainer" class="orders"></div>
-  <div id="toast" class="toast" aria-live="polite"></div>
-</section>
+    <section class="controls">
+      <div class="tabs" id="tabs"></div>
 
-<script src="config.js"></script>
-<script src="auth.js"></script>
-<script src="admin-orders.js"></script>
+      <div class="search-row">
+        <input id="searchBox" type="text" placeholder="Search name, phone, email, reference..." autocomplete="off" />
+      </div>
+    </section>
+
+    <section id="errorBox" class="errorBox" style="display:none;"></section>
+
+    <section id="ordersList" class="ordersList">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </section>
+  </main>
+
+  <!-- Toasts -->
+  <div id="toastWrap" class="toast-wrap" aria-live="polite" aria-relevant="additions"></div>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="admin-orders.js"></script>
 </body>
 </html>
