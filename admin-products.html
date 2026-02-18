@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
-  <script src="config.js"></script>
-  <script src="auth.js"></script>
-  <link rel="stylesheet" href="admin-products.css" />
+  <script src="config.js?v=9"></script>
+  <script src="auth.js?v=9"></script>
+  <link rel="stylesheet" href="admin-products.css?v=9" />
 </head>
 
 <body>
@@ -60,7 +60,6 @@
     </section>
 
     <div class="ad-status" id="status" data-type="info">Loading…</div>
-
     <section class="ad-grid" id="grid" aria-live="polite"></section>
 
     <section class="ad-empty" id="empty" style="display:none;">
@@ -86,8 +85,10 @@
         <input id="pid" type="hidden" />
         <input id="removeImage" type="hidden" value="false" />
 
-        <!-- ✅ selected library key for DISPLAY on save -->
+        <!-- DISPLAY key (library) -->
         <input id="imageKey" type="hidden" value="" />
+        <!-- DETAIL key (library) -->
+        <input id="detailImageKey" type="hidden" value="" />
 
         <div class="form-row">
           <label class="lbl" for="name">Product name</label>
@@ -116,12 +117,11 @@
           <div class="count" id="descCount">0 / 600</div>
         </div>
 
-        <!-- ✅ Images -->
+        <!-- Images -->
         <div class="form-row imgRow">
           <label class="lbl">Images</label>
 
           <div class="imgGrid">
-            <!-- DISPLAY image input -->
             <div class="frame frame--preview">
               <div class="dropBox" id="dropBox" tabindex="0" role="button" aria-label="Choose display image">
                 <input
@@ -146,15 +146,18 @@
                 <ul class="imgRulesList">
                   <li><b>DISPLAY</b> = products grid image</li>
                   <li><b>DETAIL</b> = product-details / delivery page hero</li>
-                  <li>Use gallery to switch anytime</li>
+                  <li>Upload gallery then set DISPLAY/DETAIL anytime</li>
                 </ul>
               </div>
 
               <div class="imgActions">
                 <button class="ad-btn ghost" id="openLibBtn" type="button">Choose DISPLAY from Library</button>
+                <button class="ad-btn ghost" id="openLibDetailBtn" type="button">Choose DETAIL from Library</button>
+
                 <button class="ad-btn ghost" id="clearImgBtn" type="button">Remove DISPLAY</button>
 
                 <div class="imgPicked" id="imgPicked" style="display:none;"></div>
+                <div class="imgPicked" id="detailPicked" style="display:none;"></div>
 
                 <button class="ad-btn ghost" id="addGalleryBtn" type="button">Add Gallery Images</button>
                 <input id="images" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hiddenFile" />
@@ -165,7 +168,6 @@
             </aside>
           </div>
 
-          <!-- ✅ Image manager -->
           <div class="imgManager">
             <div class="imgManagerTop">
               <div class="imgManagerTitle">Current images</div>
@@ -185,11 +187,11 @@
     </div>
   </div>
 
-  <!-- ✅ Library Modal -->
+  <!-- Library Modal -->
   <div class="modal" id="libModal" aria-hidden="true" inert>
     <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Supabase Media Library">
       <div class="modal-head">
-        <div class="modal-title">Supabase Media Library</div>
+        <div class="modal-title" id="libTitle">Supabase Media Library</div>
         <button class="modal-x" id="libClose" type="button" aria-label="Close">✕</button>
       </div>
 
@@ -209,7 +211,6 @@
         </div>
 
         <div class="ad-status" id="libStatus" data-type="info">Loading…</div>
-
         <div class="libGrid" id="libGrid" aria-live="polite"></div>
 
         <div class="libBottom">
@@ -219,6 +220,6 @@
     </div>
   </div>
 
-  <script src="admin-products.js"></script>
+  <script src="admin-products.js?v=9"></script>
 </body>
 </html>

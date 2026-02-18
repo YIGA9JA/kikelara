@@ -1,15 +1,14 @@
-/* ================= admin-products.js (UPDATED)
+/* ================= admin-products.js (FULL - UPDATED)
    ✅ Cookie session auth (credentials include) via apiFetch/auth.js
-   ✅ Upload click FIX: real file input overlay
-   ✅ Drag/drop + preview
-   ✅ Supabase “Media Library” picker (lists bucket files via backend)
-   ✅ Auto-sign storage keys (optional) via /admin/media/sign + cache
+   ✅ Upload DISPLAY + Gallery
+   ✅ Media Library picker (lists bucket files via backend)
+   ✅ Signed URLs via backend (/admin/media/sign)
+   ✅ Image Manager:
+      - Set DISPLAY
+      - Set DETAIL
+      - Remove gallery image
    ✅ NEW:
-      - Multi image support (gallery upload "images[]")
-      - Image Manager UI:
-          • Set DISPLAY image (products page)
-          • Set DETAIL image (product-details / delivery page)
-          • Remove gallery image
+      - Choose DETAIL from Library on save (detail_image_key)
 =============================================================================== */
 
 (async function () {
@@ -23,7 +22,6 @@
     return;
   }
 
-  // must be authed
   const ok = await window.checkAuth?.();
   if (!ok) return;
 
@@ -70,23 +68,27 @@
   const removeImage = $("removeImage");
   const dropBox = $("dropBox");
 
-  // ✅ selected existing key (library) for DISPLAY image (on save)
-  const imageKeyIpt = $("imageKey");
+  // library keys
+  const imageKeyIpt = $("imageKey");            // DISPLAY key
+  const detailKeyIpt = $("detailImageKey");     // DETAIL key
   const imgPicked = $("imgPicked");
+  const detailPicked = $("detailPicked");
 
-  // ✅ gallery upload
+  // gallery upload
   const galleryIpt = $("images");
   const addGalleryBtn = $("addGalleryBtn");
   const galleryPicked = $("galleryPicked");
 
-  // ✅ image manager grid
+  // image manager grid
   const galleryGrid = $("galleryGrid");
   const galleryHint = $("galleryHint");
 
-  // ✅ library modal
+  // library modal
   const libModal = $("libModal");
   const libClose = $("libClose");
+  const libTitle = $("libTitle");
   const openLibBtn = $("openLibBtn");
+  const openLibDetailBtn = $("openLibDetailBtn");
   const libSearch = $("libSearch");
   const libPrefix = $("libPrefix");
   const libGrid = $("libGrid");
@@ -109,13 +111,16 @@
 
   // storage signing cache (key -> signed url)
   const signedCache = new Map();
-  const inflightSigns = new Map(); // key -> promise
+  const inflightSigns = new Map();
   const SIGN_CONCURRENCY = 6;
 
   // library pagination
   let libOffset = 0;
   let libHasMore = false;
   let libLoading = false;
+
+  // library target: "display" | "detail"
+  let libTarget = "display";
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -183,15 +188,28 @@
   }
 
   function setPickedLabel() {
-    if (!imgPicked) return;
-    const key = String(imageKeyIpt?.value || "");
-    if (key) {
-      imgPicked.textContent = `Selected from library (DISPLAY on save): ${key}`;
-      imgPicked.style.display = "block";
-      return;
+    // DISPLAY label
+    if (imgPicked) {
+      const k = String(imageKeyIpt?.value || "");
+      if (k) {
+        imgPicked.textContent = `Selected from library (DISPLAY on save): ${k}`;
+        imgPicked.style.display = "block";
+      } else {
+        imgPicked.textContent = "";
+        imgPicked.style.display = "none";
+      }
     }
-    imgPicked.textContent = "";
-    imgPicked.style.display = "none";
+    // DETAIL label
+    if (detailPicked) {
+      const dk = String(detailKeyIpt?.value || "");
+      if (dk) {
+        detailPicked.textContent = `Selected from library (DETAIL on save): ${dk}`;
+        detailPicked.style.display = "block";
+      } else {
+        detailPicked.textContent = "";
+        detailPicked.style.display = "none";
+      }
+    }
   }
 
   function setGalleryPickedLabel() {
@@ -217,10 +235,11 @@
     revokePreviewUrl();
     pickedFile = null;
     try { if (imageIpt) imageIpt.value = ""; } catch {}
-    if (imageKeyIpt) imageKeyIpt.value = "";
-    setPickedLabel();
 
-    if (removeImage && markRemove) removeImage.value = "true";
+    if (imageKeyIpt) imageKeyIpt.value = "";
+    if (markRemove && removeImage) removeImage.value = "true";
+
+    setPickedLabel();
     showPreview("");
   }
 
@@ -252,7 +271,7 @@
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u; // storage key (needs signing) OR already handled by backend
+    return u;
   }
 
   function fallbackImg() {
@@ -278,7 +297,6 @@
     document.body.classList.add("modal-open");
     const card = modal.querySelector(".modal-card");
     if (card) card.scrollTop = 0;
-
     requestAnimationFrame(() => (focusEl || card?.querySelector("input,textarea,button,select"))?.focus?.());
   }
 
@@ -339,7 +357,12 @@
 
   openLibBtn?.addEventListener("click", (e) => {
     e.preventDefault();
-    openLibrary();
+    openLibrary("display");
+  });
+
+  openLibDetailBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openLibrary("detail");
   });
 
   imageIpt?.addEventListener("change", () => {
@@ -353,7 +376,7 @@
       return;
     }
 
-    // file overrides library key
+    // file overrides DISPLAY library key
     if (imageKeyIpt) imageKeyIpt.value = "";
     setPickedLabel();
 
@@ -398,7 +421,6 @@
         return;
       }
 
-      // file drop overrides library key
       if (imageKeyIpt) imageKeyIpt.value = "";
       setPickedLabel();
 
@@ -412,7 +434,7 @@
     });
   }
 
-  // ✅ gallery upload
+  // gallery upload
   addGalleryBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     galleryIpt?.click?.();
@@ -427,7 +449,6 @@
 
     if (badCount) toast("warn", "Some files skipped", "Only PNG/JPG/WEBP (max 8MB).");
 
-    // keep max 12 queued per save
     const merged = pickedGalleryFiles.concat(good).slice(0, 12);
     if (merged.length < pickedGalleryFiles.concat(good).length) {
       toast("warn", "Limit reached", "Max 12 gallery images per save.");
@@ -435,7 +456,6 @@
     pickedGalleryFiles = merged;
     setGalleryPickedLabel();
 
-    // allow selecting again
     try { galleryIpt.value = ""; } catch {}
   });
 
@@ -454,7 +474,7 @@
     return Array.isArray(data.products) ? data.products : [];
   }
 
-  /* ===================== SUPABASE KEY SIGNING (optional) ===================== */
+  // signing (optional for legacy keys)
   async function signStorageKey(key) {
     const k = String(key || "").trim();
     if (!k) return "";
@@ -463,7 +483,6 @@
     if (inflightSigns.has(k)) return inflightSigns.get(k);
 
     const p = (async () => {
-      // this endpoint must exist on backend; if not, we gracefully fail
       const r = await apiFetch(`/admin/media/sign?key=${encodeURIComponent(k)}`, { method: "GET" });
       if (r.status === 404) throw new Error("sign route missing");
       const data = await r.json().catch(() => ({}));
@@ -516,7 +535,7 @@
     await Promise.all(workers);
   }
 
-  /* ===================== IMAGE MANAGER ACTIONS ===================== */
+  // image manager API calls
   async function setDisplayImage(productId, key) {
     const r = await apiFetch(`/admin/products/${encodeURIComponent(productId)}/display-image`, {
       method: "POST",
@@ -556,18 +575,16 @@
   }
 
   function buildImageItems(p) {
-    const payload = (p && typeof p.payload === "object") ? p.payload : {};
-
-    const displayKey = String(p.image_key || payload.__image_key || "").trim();
-    const detailKey = String(p.detail_image_key || payload.__detail_image_key || displayKey || "").trim();
+    const displayKey = String(p.image_key || "").trim();
+    const detailKey = String(p.detail_image_key || displayKey || "").trim();
 
     const galleryKeys = Array.isArray(p.images_keys)
       ? p.images_keys.map(String).map((s) => s.trim()).filter(Boolean)
-      : (Array.isArray(payload.__gallery_keys) ? payload.__gallery_keys.map(String).map((s) => s.trim()).filter(Boolean) : []);
+      : [];
 
     const galleryUrls = Array.isArray(p.images) ? p.images : [];
 
-    const map = new Map(); // key -> item
+    const map = new Map();
     function put(key, url, flags) {
       const k = String(key || "").trim();
       if (!k) return;
@@ -580,21 +597,15 @@
       });
     }
 
-    // display + detail (signed urls typically provided by backend)
     put(displayKey, String(p.image_url || ""), { isDisplay: true });
     put(detailKey, String(p.detail_image_url || ""), { isDetail: true });
-
-    // gallery (pair by index)
     galleryKeys.forEach((k, i) => put(k, String(galleryUrls[i] || ""), {}));
 
-    // If backend didn't give urls, we can still attempt to sign later when rendering
     return Array.from(map.values());
   }
 
   async function ensureThumbUrl(item) {
     if (item.url && (item.url.startsWith("http://") || item.url.startsWith("https://"))) return item.url;
-
-    // item.url could be a key or empty
     const maybeKey = looksLikeStorageKey(item.url) ? item.url : item.key;
     if (looksLikeStorageKey(maybeKey)) {
       try {
@@ -611,23 +622,17 @@
     if (!galleryGrid) return;
 
     const items = buildImageItems(p);
-    const displayKey =
-      String(p.image_key || (p.payload && p.payload.__image_key) || "").trim();
-    const detailKey =
-      String(p.detail_image_key || (p.payload && p.payload.__detail_image_key) || displayKey || "").trim();
+    const displayKey = String(p.image_key || "").trim();
+    const detailKey = String(p.detail_image_key || displayKey || "").trim();
 
     if (galleryHint) {
-      if (!items.length) {
-        galleryHint.textContent = "No images yet. Upload display image and optionally add gallery images.";
-      } else {
-        galleryHint.textContent =
-          "DISPLAY = products page image. DETAIL = product-details/delivery page hero. You can switch anytime.";
-      }
+      galleryHint.textContent = items.length
+        ? "DISPLAY = products page image. DETAIL = product-details/delivery page hero. You can switch anytime."
+        : "No images yet. Upload display image and optionally add gallery images.";
     }
 
     galleryGrid.innerHTML = "";
 
-    // render cards
     for (const item of items) {
       const isDisplay = item.key === displayKey;
       const isDetail = item.key === detailKey;
@@ -649,15 +654,9 @@
         <div class="imgCardMeta">
           <div class="imgKey" title="${escapeHtml(item.key)}">${escapeHtml(item.key)}</div>
           <div class="imgCardBtns">
-            <button type="button" class="imgMiniBtn" data-setdisplay ${isDisplay ? "disabled" : ""}>
-              Set Display
-            </button>
-            <button type="button" class="imgMiniBtn" data-setdetail ${isDetail ? "disabled" : ""}>
-              Set Detail
-            </button>
-            <button type="button" class="imgMiniBtn danger" data-remove ${isDisplay ? "disabled" : ""}>
-              Remove
-            </button>
+            <button type="button" class="imgMiniBtn" data-setdisplay ${isDisplay ? "disabled" : ""}>Set Display</button>
+            <button type="button" class="imgMiniBtn" data-setdetail ${isDetail ? "disabled" : ""}>Set Detail</button>
+            <button type="button" class="imgMiniBtn danger" data-remove ${isDisplay || isDetail ? "disabled" : ""}>Remove</button>
           </div>
         </div>
       `;
@@ -665,16 +664,13 @@
       const imgEl = card.querySelector("img");
       imgEl?.addEventListener("error", () => { if (imgEl) imgEl.src = fallbackImg(); });
 
-      // set display
       card.querySelector("[data-setdisplay]")?.addEventListener("click", async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         try {
           setBusy(true);
           const updated = await setDisplayImage(String(p.id), item.key);
           updateLocalProduct(updated);
 
-          // update UI only (don’t destroy user's text edits)
           if (imageKeyIpt) imageKeyIpt.value = String(updated.image_key || "");
           setPickedLabel();
           showPreview(String(updated.image_url || ""));
@@ -687,10 +683,8 @@
         }
       });
 
-      // set detail
       card.querySelector("[data-setdetail]")?.addEventListener("click", async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         try {
           setBusy(true);
           const updated = await setDetailImage(String(p.id), item.key);
@@ -704,12 +698,9 @@
         }
       });
 
-      // remove (only non-display)
       card.querySelector("[data-remove]")?.addEventListener("click", async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (isDisplay) return;
-
+        ev.preventDefault(); ev.stopPropagation();
+        if (isDisplay || isDetail) return;
         if (!confirm("Remove this image? (It will be deleted from storage)")) return;
 
         try {
@@ -738,6 +729,7 @@
 
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
+    // DISPLAY file or DISPLAY key
     const file = pickedFile || (imageIpt?.files?.[0] || null);
     const key = String(imageKeyIpt?.value || "").trim();
 
@@ -745,15 +737,16 @@
       fd.append("image", file);
       if (key && imageKeyIpt) imageKeyIpt.value = "";
     } else if (key) {
-      // backend must support this
       fd.append("image_key", key);
     }
 
-    // ✅ append gallery images
+    // DETAIL key (optional)
+    const dkey = String(detailKeyIpt?.value || "").trim();
+    if (dkey) fd.append("detail_image_key", dkey);
+
+    // gallery images
     if (pickedGalleryFiles.length) {
-      for (const gf of pickedGalleryFiles) {
-        fd.append("images", gf);
-      }
+      for (const gf of pickedGalleryFiles) fd.append("images", gf);
     }
 
     return fd;
@@ -826,17 +819,16 @@
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
 
-    // prefer backend-provided keys
-    const key = String(p.image_key || (p.payload && p.payload.__image_key) || "").trim();
-    if (imageKeyIpt) imageKeyIpt.value = key || "";
+    // set keys
+    if (imageKeyIpt) imageKeyIpt.value = String(p.image_key || "");
+    if (detailKeyIpt) detailKeyIpt.value = String(p.detail_image_key || "");
     setPickedLabel();
 
-    // preview uses signed url (backend usually returns signed image_url)
+    // preview uses signed url returned by backend
     const displayUrl = await resolveToDisplayUrl(p.image_url);
     showPreview(displayUrl || "");
 
     await renderImageManager(p);
-
     setHelp("");
   }
 
@@ -855,6 +847,7 @@
     setActiveUI(true);
     if (removeImage) removeImage.value = "false";
     if (imageKeyIpt) imageKeyIpt.value = "";
+    if (detailKeyIpt) detailKeyIpt.value = "";
     setPickedLabel();
 
     showPreview("");
@@ -906,6 +899,7 @@
     if (empty) empty.style.display = "none";
 
     list.forEach((p) => {
+      // backend returns signed image_url, so this is normally https already
       const raw = resolveImage(p.image_url);
       const isKey = looksLikeStorageKey(raw);
       const img = isKey ? fallbackImg() : (raw || fallbackImg());
@@ -989,7 +983,7 @@
     }
   }
 
-  /* ===================== LIBRARY MODAL ===================== */
+  // ===================== LIBRARY =====================
   function clearLibGrid() {
     if (libGrid) libGrid.innerHTML = "";
   }
@@ -1034,13 +1028,8 @@
       const data = await r.json().catch(() => ({}));
 
       if (!r.ok || !data?.success) {
-        if (r.status === 404) {
-          throw new Error("Backend route /admin/media/list not found (404). Deploy updated server routes.");
-        }
-        throw new Error(
-          data?.message ||
-            "Media list failed. Ensure backend has /admin/media/list and SUPABASE_SERVICE_ROLE_KEY set."
-        );
+        if (r.status === 404) throw new Error("Backend route /admin/media/list not found (404). Deploy server code.");
+        throw new Error(data?.message || "Media list failed.");
       }
 
       const items = Array.isArray(data.items) ? data.items : [];
@@ -1055,7 +1044,7 @@
       items.forEach((it) => {
         const key = String(it.key || "");
         const name = String(it.name || key.split("/").pop() || "");
-        const signedUrl = String(it.signedUrl || it.url || "");
+        const signedUrl = String(it.signedUrl || "");
 
         if (key && signedUrl) signedCache.set(key, signedUrl);
 
@@ -1074,23 +1063,28 @@
         `;
 
         card.addEventListener("click", async () => {
-          // select display image from library (on save)
-          pickedFile = null;
-          try { if (imageIpt) imageIpt.value = ""; } catch {}
+          // selecting for DISPLAY or DETAIL (on save)
+          if (libTarget === "display") {
+            pickedFile = null;
+            try { if (imageIpt) imageIpt.value = ""; } catch {}
+            if (removeImage) removeImage.value = "false";
+            if (imageKeyIpt) imageKeyIpt.value = key;
 
-          if (removeImage) removeImage.value = "false";
-          if (imageKeyIpt) imageKeyIpt.value = key;
+            // show preview (DISPLAY)
+            showPreview(signedUrl || (await resolveToDisplayUrl(key)) || "");
+            toast("ok", "Selected", "Library image selected as DISPLAY (save to apply).");
+          } else {
+            if (detailKeyIpt) detailKeyIpt.value = key;
+            toast("ok", "Selected", "Library image selected as DETAIL (save to apply).");
+          }
+
           setPickedLabel();
-
-          showPreview(signedUrl || (await resolveToDisplayUrl(key)) || "");
-          toast("ok", "Selected", "Library image selected as DISPLAY (save to apply).");
           closeModal(libModal);
         });
 
         libGrid.appendChild(card);
       });
 
-      // pagination: move by items length
       libOffset = libOffset + items.length;
       libHasMore = items.length === limit;
 
@@ -1108,7 +1102,12 @@
     }
   }
 
-  function openLibrary() {
+  function openLibrary(target) {
+    libTarget = target === "detail" ? "detail" : "display";
+    if (libTitle) libTitle.textContent = libTarget === "detail"
+      ? "Supabase Media Library (Pick DETAIL)"
+      : "Supabase Media Library (Pick DISPLAY)";
+
     openModal(libModal, libSearch || libClose);
     fetchLibraryPage({ reset: true });
   }
@@ -1189,7 +1188,7 @@
         updateLocalProduct(updated);
         toast("ok", "Updated", "✅ Product updated successfully!");
       } else {
-        const created = await createProduct();
+        await createProduct();
         toast("ok", "Created", "✅ Product added successfully!");
       }
 

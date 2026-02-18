@@ -1,3 +1,9 @@
+/* ================= index.css (FULL) =================
+   ✅ Premium butter-cream theme
+   ✅ Image display fixed (aspect-ratio + better crop)
+   ✅ Desktop + mobile perfect
+====================================================== */
+
 :root{
   --gold:#d4af37;
   --cream:#ffefd5;
@@ -196,6 +202,7 @@ a{ color: inherit; }
   font-weight: 850;
 }
 
+/* ================= FEATURE CARD ================= */
 .feature-card{
   border-radius: 28px;
   border: 1px solid rgba(31,22,15,.12);
@@ -221,16 +228,25 @@ a{ color: inherit; }
 .feature-title{ font-weight: 950; }
 .feature-sub{ opacity:.7; font-weight: 800; font-size:.9rem; }
 
+/* ✅ FEATURE IMAGE FIX */
 .feature-media{
-  height: 360px;
+  aspect-ratio: 4 / 5;
+  height: auto;
+  max-height: 420px;
   overflow:hidden;
+  background: rgba(255,255,255,.20);
 }
 .feature-media img{
   width:100%;
   height:100%;
   object-fit: cover;
+  object-position: 50% 35%;
   display:block;
-  transition: opacity .35s ease;
+  transform: scale(1.02);
+  transition: opacity .35s ease, transform .45s ease;
+}
+.feature-card:hover .feature-media img{
+  transform: scale(1.06);
 }
 
 .feature-bottom{
@@ -270,9 +286,7 @@ a{ color: inherit; }
 .float-text{ margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
 
 /* ================= SECTIONS ================= */
-.section{
-  padding: 74px 0;
-}
+.section{ padding: 74px 0; }
 .section.soft{
   background: rgba(255,255,255,.28);
   border-top: 1px solid rgba(31,22,15,.08);
@@ -329,7 +343,7 @@ a{ color: inherit; }
 .panel-title{ font-weight: 1000; }
 .panel-sub{ opacity:.7; font-weight: 850; }
 
-/* Latest grid: never clashes */
+/* Latest grid */
 .latest-grid{
   margin-top: 14px;
   display:grid;
@@ -337,7 +351,7 @@ a{ color: inherit; }
   gap: 12px;
 }
 
-/* Loved rail: horizontal scroll, no clash */
+/* Loved rail */
 .loved-rail{
   margin-top: 14px;
   display:flex;
@@ -356,38 +370,47 @@ a{ color: inherit; }
   border-radius: 999px;
 }
 
-/* Product cards shared */
+/* ================= PRODUCT CARDS ================= */
 .p-card{
   display:flex;
   flex-direction: column;
-  border-radius: 20px;
+  border-radius: 22px;
   border: 1px solid rgba(31,22,15,.12);
   background: rgba(255,255,255,.50);
   overflow:hidden;
   cursor: pointer;
+  box-shadow: 0 18px 44px rgba(0,0,0,.06);
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .p-card:hover{
   transform: translateY(-4px);
-  box-shadow: 0 18px 44px rgba(0,0,0,.10);
+  box-shadow: 0 24px 60px rgba(0,0,0,.10);
 }
+
+/* ✅ IMAGE DISPLAY FIX (Latest + Loved) */
 .p-media{
-  height: 170px;
+  aspect-ratio: 4 / 5;
+  height: auto;
   overflow:hidden;
+  background: rgba(255,255,255,.22);
+  border-bottom: 1px solid rgba(31,22,15,.10);
 }
 .p-media img{
   width:100%;
   height:100%;
   object-fit: cover;
+  object-position: 50% 35%;
   display:block;
+  transform: scale(1.03);
+  transition: transform .35s ease, filter .35s ease;
 }
-.p-body{
-  padding: 10px 12px 12px;
+.p-card:hover .p-media img{
+  transform: scale(1.08);
+  filter: saturate(1.05) contrast(1.03);
 }
-.p-title{
-  font-weight: 950;
-  line-height: 1.2;
-}
+
+.p-body{ padding: 10px 12px 12px; }
+.p-title{ font-weight: 950; line-height: 1.2; }
 .p-meta{
   margin-top: 6px;
   color: rgba(31,22,15,.70);
@@ -395,18 +418,14 @@ a{ color: inherit; }
   font-size: .9rem;
 }
 
-/* Latest: fixed height */
-.p-latest .p-media{ height: 190px; }
-
 /* Loved: fixed width, rail snap */
 .p-loved{
-  width: 230px;
+  width: 240px;
   flex: 0 0 auto;
   scroll-snap-align: start;
 }
-.p-loved .p-media{ height: 190px; }
 
-/* How cards */
+/* ================= HOW CARDS ================= */
 .how-grid{
   display:grid;
   grid-template-columns: repeat(4, minmax(0,1fr));
@@ -447,9 +466,7 @@ a{ color: inherit; }
 .quote p{ margin:0; font-weight: 750; line-height: 1.7; }
 .who{ margin-top: 8px; opacity: .75; font-weight: 850; }
 
-.duo-cta{
-  grid-template-columns: 1.1fr .9fr;
-}
+.duo-cta{ grid-template-columns: 1.1fr .9fr; }
 
 .cta-panel{
   background: radial-gradient(700px 420px at 20% 20%, rgba(212,175,55,.20), transparent 60%),
@@ -471,7 +488,7 @@ a{ color: inherit; }
 /* ================= RESPONSIVE ================= */
 @media (max-width: 980px){
   .hero-grid{ grid-template-columns: 1fr; }
-  .feature-media{ height: 320px; }
+  .feature-media{ max-height: 360px; }
   .duo{ grid-template-columns: 1fr; }
   .duo-cta{ grid-template-columns: 1fr; }
   .how-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -479,14 +496,13 @@ a{ color: inherit; }
 
 @media (max-width: 600px){
   .hero{ padding: 44px 0 40px; min-height: 70vh; }
-  .feature-media{ height: 280px; }
+  .feature-media{ max-height: 320px; }
   .latest-grid{ grid-template-columns: 1fr; }
-  .p-loved{ width: 78vw; max-width: 320px; }
+  .p-loved{ width: 78vw; max-width: 340px; }
   .how-grid{ grid-template-columns: 1fr; }
 }
 
 @media (max-width: 420px){
   .badge{ font-size: .74rem; }
   .lead{ font-size: 1.0rem; }
-  .p-media{ height: 165px; }
 }
