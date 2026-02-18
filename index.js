@@ -1,15 +1,13 @@
-/* ================= INDEX.JS (BACKEND ONLY — matches your server.js) =================
-   ✅ Preloader (per-tab sessionStorage)
-   ✅ Hero video lazy-load (reduced-motion safe)
-   ✅ Fetch ALL products from backend /api/products (already created_at DESC)
-   ✅ Latest Drops = newest 4
-   ✅ Most Loved = top 4 by rating using /api/products/:id/reviews/summary
-   ✅ Caches rating summaries in sessionStorage (TTL) + concurrency limit
-   ✅ Cards navigate to product-details.html?id=ID
-==================================================================================== */
+/* ================= INDEX.JS (PRODUCTION) =================
+   ✅ Latest Drops (newest 4)
+   ✅ Most Loved (top 4 by rating summary)
+   ✅ Most Loved shows rating badge ON IMAGE
+   ✅ Cards show only: image + name + price (no extra wording)
+========================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const PRODUCTS_KEY = "allProducts";
+
 const RATINGS_CACHE_KEY = "ratingsSummary_v1";
 const RATINGS_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const RATINGS_CONCURRENCY = 6;
@@ -86,13 +84,12 @@ window.addEventListener("load", () => {
   }
 })();
 
-/* ================= NAV HELPER ================= */
+/* ================= HELPERS ================= */
 function productUrl(id) {
   if (id === undefined || id === null || id === "") return "products.html";
   return `product-details.html?id=${encodeURIComponent(id)}`;
 }
 
-/* ================= SAFE STORAGE ================= */
 function safeGetSessionJSON(key, fallback) {
   try {
     const raw = sessionStorage.getItem(key);
@@ -107,7 +104,11 @@ function safeSetSessionJSON(key, val) {
   try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
-/* ================= IMAGE URL RESOLVER ================= */
+function formatNaira(n) {
+  const num = Number(n || 0);
+  return `₦${num.toLocaleString()}`;
+}
+
 function resolveImageUrl(img) {
   const val = String(img || "").trim();
   if (!val) return "images_brown/bodyButter.png";
@@ -117,7 +118,6 @@ function resolveImageUrl(img) {
   return val;
 }
 
-/* ================= NORMALIZE PRODUCT ================= */
 function normalizeProduct(row) {
   const createdAtRaw = row?.created_at || row?.createdAt || null;
   const created_at = createdAtRaw ? new Date(createdAtRaw).getTime() : null;
@@ -126,7 +126,6 @@ function normalizeProduct(row) {
     id: row?.id,
     name: String(row?.name || "").trim(),
     price: Number(row?.price || 0),
-    description: String(row?.description || ""),
     image_url: resolveImageUrl(row?.image_url || row?.image || row?.img || ""),
     is_active: row?.is_active !== undefined ? Boolean(row.is_active) : true,
     created_at,
@@ -176,7 +175,10 @@ async function fetchReviewSummary(productId) {
     const data = await res.json().catch(() => null);
     const avg = Number(data?.summary?.avg || 0);
     const count = Number(data?.summary?.count || 0);
-    return { avg: Number.isFinite(avg) ? avg : 0, count: Number.isFinite(count) ? count : 0 };
+    return {
+      avg: Number.isFinite(avg) ? avg : 0,
+      count: Number.isFinite(count) ? count : 0
+    };
   } catch {
     return { avg: 0, count: 0 };
   }
@@ -220,19 +222,37 @@ function sortLovedDesc(a, b) {
 
   return sortLatestDesc(a, b);
 }
-function lovedMetaText(p) {
-  const avg = Number(p.avg_rating ?? 0);
-  const count = Number(p.review_count ?? 0);
 
-  if (!count) return "Customer favorite";
+/* ================= UI: RATING BADGE ================= */
+function makeRatingBadge(avg, count) {
+  const c = Number(count || 0);
+  const a = Number(avg || 0);
+  if (c <= 0 || !Number.isFinite(a) || a <= 0) return null;
 
-  const clamped = Math.max(0, Math.min(5, avg));
-  const rounded = Math.round(clamped);
-  const stars = "★".repeat(rounded) + "☆".repeat(5 - rounded);
-  return `${stars} ${clamped.toFixed(1)} (${count})`;
+  const clamped = Math.max(0, Math.min(5, a));
+  const el = document.createElement("div");
+  el.className = "p-rating";
+  el.setAttribute("aria-label", `Rated ${clamped.toFixed(1)} out of 5 from ${c} reviews`);
+
+  const star = document.createElement("span");
+  star.className = "p-rating-star";
+  star.textContent = "★";
+
+  const val = document.createElement("span");
+  val.className = "p-rating-val";
+  val.textContent = clamped.toFixed(1);
+
+  const cnt = document.createElement("span");
+  cnt.className = "p-rating-count";
+  cnt.textContent = `(${c})`;
+
+  el.appendChild(star);
+  el.appendChild(val);
+  el.appendChild(cnt);
+  return el;
 }
 
-/* ================= RENDER ================= */
+/* ================= RENDER CARDS ================= */
 function makeCard(p, kind) {
   const card = document.createElement("a");
   card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
@@ -248,6 +268,12 @@ function makeCard(p, kind) {
   img.src = resolveImageUrl(p.image_url);
   media.appendChild(img);
 
+  // ✅ Rating ON IMAGE for Most Loved
+  if (kind === "loved") {
+    const badge = makeRatingBadge(p.avg_rating, p.review_count);
+    if (badge) media.appendChild(badge);
+  }
+
   const body = document.createElement("div");
   body.className = "p-body";
 
@@ -255,12 +281,12 @@ function makeCard(p, kind) {
   title.className = "p-title";
   title.textContent = p.name;
 
-  const meta = document.createElement("div");
-  meta.className = "p-meta";
-  meta.textContent = kind === "latest" ? "New in" : lovedMetaText(p);
+  const price = document.createElement("div");
+  price.className = "p-price";
+  price.textContent = formatNaira(p.price);
 
   body.appendChild(title);
-  body.appendChild(meta);
+  body.appendChild(price);
 
   card.appendChild(media);
   card.appendChild(body);
@@ -324,11 +350,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sortedLatest = [...products].sort(sortLatestDesc);
   const latest = sortedLatest.slice(0, 4);
 
+  // show latest immediately
   renderList(latestGrid, latest, "latest");
 
-  // quick initial loved
+  // show loved quickly (will re-render after ratings fetch)
   renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
 
+  // ratings hydration
   const cache = loadRatingsCache();
 
   const ratedProducts = [...products].map((p) => {
@@ -352,7 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
   renderList(lovedRail, loved, "loved");
 
-  // Featured pool
+  // Featured pool (mix)
   const seen = new Set();
   featuredPool = [];
   [...loved, ...latest, ...sortedLatest].forEach((p) => {
@@ -361,7 +389,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     seen.add(k);
     featuredPool.push(p);
   });
-
   featuredPool = featuredPool.slice(0, 6);
 
   if (featuredPool.length) {

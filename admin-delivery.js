@@ -1,18 +1,16 @@
-// admin-delivery.js (FINAL PREMIUM 3D + BULK MODE + STICKY SUMMARY)
+// admin-delivery.js (COOKIE AUTH + CSRF via auth.js apiFetch)
 //
-// ✅ Uses window.API_BASE from config.js
-// ✅ Uses window.ADMIN_TOKEN_KEY from config.js (fallback "admin-token")
-// ✅ Uses backend endpoints: GET/PUT /admin/delivery-pricing, POST /admin/delivery-pricing/seed (optional)
-// ✅ Client seed of Nigeria dataset -> PUT /admin/delivery-pricing
-// ✅ Bulk edit: select multiple LGAs across states; set fee once; delete selected once; save once
-// ✅ Premium modal + toast (replaces alert/confirm/prompt)
+// ✅ Uses window.apiFetch from auth.js (credentials:include + CSRF on non-GET)
+// ✅ Uses backend endpoints:
+//    - GET  /admin/delivery-pricing
+//    - PUT  /admin/delivery-pricing
+// ✅ Bulk edit: select multiple LGAs; set fee; delete; save once
+// ✅ Premium modal + toast (no alert/confirm/prompt)
 
 (async () => {
   const ok = await checkAuth();
   if (!ok) return;
 
-  const API_BASE = window.API_BASE || "http://localhost:4000";
-  const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin-token";
   const DEFAULT_SEED_FEE = 5000;
 
   const NIGERIA_LGA_SOURCE =
@@ -114,24 +112,92 @@
     }
   }
 
-  function authHeaders() {
-    const token = localStorage.getItem(TOKEN_KEY);
-    return token ? { Authorization: `Bearer ${token}` } : {};
+  async function readJsonSafe(res) {
+    return await res.json().catch(() => ({}));
   }
 
-  async function fetchWithAuth(url, options = {}) {
-    const res = await fetch(url, {
-      ...options,
-      headers: { ...(options.headers || {}), ...authHeaders() }
-    });
+  /* ================= API ================= */
+  async function apiGetPricing() {
+    const res = await apiFetch("/admin/delivery-pricing", { method: "GET" });
 
     if (res.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
       toast("err", "Session expired", "Please login again.");
-      window.location.href = "admin-login.html";
+      adminLogout();
       return null;
     }
-    return res;
+
+    const data = await readJsonSafe(res);
+    if (!res.ok || !data?.success || !data.pricing) {
+      throw new Error(data?.message || "Failed to load pricing");
+    }
+    return normalizePricing(data.pricing);
+  }
+
+  // If CSRF token is stale, checkAuth() can resync csrf and we retry once.
+  async function apiSavePricing(pricingObj) {
+    const attempt = async () => {
+      const res = await apiFetch("/admin/delivery-pricing", {
+        method: "PUT",
+        body: pricingObj
+      });
+
+      if (res.status === 401) {
+        toast("err", "Session expired", "Please login again.");
+        adminLogout();
+        return null;
+      }
+
+      const data = await readJsonSafe(res);
+      if (!res.ok || !data?.success || !data.pricing) {
+        const msg = data?.message || `Save failed (${res.status})`;
+        const err = new Error(msg);
+        err.__status = res.status;
+        throw err;
+      }
+      return normalizePricing(data.pricing);
+    };
+
+    try {
+      return await attempt();
+    } catch (e) {
+      // retry once on CSRF/forbidden type failures
+      if (e && (e.__status === 403 || e.__status === 419)) {
+        const ok2 = await checkAuth(); // resync csrf (if backend provides it)
+        if (!ok2) return null;
+        return await attempt();
+      }
+      throw e;
+    }
+  }
+
+  async function fetchNigeriaDataset() {
+    const res = await fetch(NIGERIA_LGA_SOURCE, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Nigeria dataset fetch failed: ${res.status}`);
+    return res.json();
+  }
+
+  function buildPricingFromNigeriaDataset(dataset, fee) {
+    const FEE = Number.isFinite(Number(fee)) ? Math.max(0, Math.round(Number(fee))) : DEFAULT_SEED_FEE;
+
+    const states = Object.keys(dataset || {})
+      .map((stateName) => {
+        const lgas = Array.isArray(dataset[stateName]) ? dataset[stateName] : [];
+        return {
+          name: String(stateName || "").trim(),
+          cities: lgas.map((lga) => ({ name: String(lga || "").trim(), fee: FEE })).filter((c) => c.name)
+        };
+      })
+      .filter((s) => s.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    states.forEach((s) => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
+    return { defaultFee: FEE, updatedAt: new Date().toISOString(), states };
+  }
+
+  async function seedAllNigeriaToServer(fee) {
+    const dataset = await fetchNigeriaDataset();
+    const full = buildPricingFromNigeriaDataset(dataset, fee);
+    return apiSavePricing(full);
   }
 
   function normalizePricing(raw) {
@@ -286,59 +352,6 @@
     return { ok: true, value: Math.round(n) };
   }
 
-  /* ================= API ================= */
-  async function apiGetPricing() {
-    const res = await fetchWithAuth(`${API_BASE}/admin/delivery-pricing`, { cache: "no-store" });
-    if (!res) return null;
-    if (!res.ok) throw new Error("Failed to load pricing");
-    const data = await res.json().catch(() => ({}));
-    if (!data?.success || !data.pricing) throw new Error("Bad pricing response");
-    return normalizePricing(data.pricing);
-  }
-
-  async function apiSavePricing(pricingObj) {
-    const res = await fetchWithAuth(`${API_BASE}/admin/delivery-pricing`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pricingObj)
-    });
-    if (!res) return null;
-    if (!res.ok) throw new Error("Failed to save pricing");
-    const data = await res.json().catch(() => ({}));
-    if (!data?.success || !data.pricing) throw new Error("Bad save response");
-    return normalizePricing(data.pricing);
-  }
-
-  async function fetchNigeriaDataset() {
-    const res = await fetch(NIGERIA_LGA_SOURCE, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Nigeria dataset fetch failed: ${res.status}`);
-    return res.json();
-  }
-
-  function buildPricingFromNigeriaDataset(dataset, fee) {
-    const FEE = Number.isFinite(Number(fee)) ? Math.max(0, Math.round(Number(fee))) : DEFAULT_SEED_FEE;
-
-    const states = Object.keys(dataset || {})
-      .map((stateName) => {
-        const lgas = Array.isArray(dataset[stateName]) ? dataset[stateName] : [];
-        return {
-          name: String(stateName || "").trim(),
-          cities: lgas.map((lga) => ({ name: String(lga || "").trim(), fee: FEE })).filter((c) => c.name)
-        };
-      })
-      .filter((s) => s.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    states.forEach((s) => s.cities.sort((a, b) => a.name.localeCompare(b.name)));
-    return { defaultFee: FEE, updatedAt: new Date().toISOString(), states };
-  }
-
-  async function seedAllNigeriaToServer(fee) {
-    const dataset = await fetchNigeriaDataset();
-    const full = buildPricingFromNigeriaDataset(dataset, fee);
-    return apiSavePricing(full);
-  }
-
   /* ================= STATE ================= */
   let pricing = normalizePricing(null);
 
@@ -362,7 +375,6 @@
   }
 
   function pruneSelection() {
-    // Remove selections pointing to deleted cities/states
     const next = new Set();
     selected.forEach((k) => {
       const [s, c] = k.split(":").map(Number);
@@ -373,11 +385,12 @@
   }
 
   function toggleState(idx) {
-    const body = document.getElementById(`stateBody-${idx}`);
+    const n = Number(idx);
+    const body = document.getElementById(`stateBody-${n}`);
     if (!body) return;
     body.classList.toggle("open");
 
-    const head = body.parentElement?.querySelector(`.state-head[data-toggle="${idx}"]`);
+    const head = body.parentElement?.querySelector(`.state-head[data-toggle="${n}"]`);
     if (head) head.setAttribute("aria-expanded", body.classList.contains("open") ? "true" : "false");
   }
 
@@ -423,7 +436,10 @@
       );
       if (!yes) return;
 
-      pricing = await apiSavePricing(next);
+      const saved = await apiSavePricing(next);
+      if (!saved) return;
+
+      pricing = saved;
       selected.clear();
       pruneSelection();
       if (defaultFeeEl) defaultFeeEl.value = pricing.defaultFee;
@@ -445,7 +461,11 @@
     const done = setBusy(saveDefaultFeeBtn, "Saving...");
     try {
       pricing.defaultFee = Math.round(v);
-      pricing = await apiSavePricing(pricing);
+
+      const saved = await apiSavePricing(pricing);
+      if (!saved) return;
+
+      pricing = saved;
       setLastUpdate(pricing.updatedAt);
       renderStates();
       toast("ok", "Saved", "Default delivery fee saved (server).");
@@ -469,8 +489,11 @@
     try {
       pricing.states.push({ name, cities: [] });
       pricing.states.sort((a, b) => a.name.localeCompare(b.name));
-      pricing = await apiSavePricing(pricing);
 
+      const saved = await apiSavePricing(pricing);
+      if (!saved) return;
+
+      pricing = saved;
       newStateName.value = "";
       setLastUpdate(pricing.updatedAt);
       renderStates();
@@ -502,7 +525,10 @@
 
     const done = setBusy(seedNigeriaBtn, "Seeding...");
     try {
-      pricing = await seedAllNigeriaToServer(feeAsk.value);
+      const saved = await seedAllNigeriaToServer(feeAsk.value);
+      if (!saved) return;
+
+      pricing = saved;
       selected.clear();
       if (defaultFeeEl) defaultFeeEl.value = pricing.defaultFee;
       setLastUpdate(pricing.updatedAt);
@@ -558,7 +584,10 @@
         if (city) city.fee = feeAsk.value;
       });
 
-      pricing = await apiSavePricing(pricing);
+      const saved = await apiSavePricing(pricing);
+      if (!saved) return;
+
+      pricing = saved;
       setLastUpdate(pricing.updatedAt);
       renderStates();
       toast("ok", "Updated", `Fee set for ${selected.size} selected LGA(s).`);
@@ -579,7 +608,6 @@
     if (!yes) return;
 
     try {
-      // Delete from highest indexes to avoid reindex issues
       const byState = new Map(); // sIndex -> array cIndex
       selected.forEach((k) => {
         const [s, c] = k.split(":").map(Number);
@@ -598,7 +626,10 @@
 
       selected.clear();
 
-      pricing = await apiSavePricing(pricing);
+      const saved = await apiSavePricing(pricing);
+      if (!saved) return;
+
+      pricing = saved;
       setLastUpdate(pricing.updatedAt);
       renderStates();
       toast("ok", "Deleted", "Selected LGAs removed.");
@@ -640,7 +671,6 @@
       const sIndex = pricing.states.indexOf(state);
       const cityCount = state.cities?.length || 0;
 
-      // compute selected count within this state
       let selectedInState = 0;
       for (const k of selected) {
         const [s] = k.split(":").map(Number);
@@ -751,7 +781,6 @@
       return;
     }
 
-    // per-state select all/none
     const selAll = e.target.closest("[data-select-all]");
     if (selAll) {
       const sIndex = Number(selAll.getAttribute("data-select-all"));
@@ -785,8 +814,12 @@
 
       try {
         pricing.states.splice(idx, 1);
-        selected.clear(); // easiest and safest after reindex
-        pricing = await apiSavePricing(pricing);
+        selected.clear();
+
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
+
+        pricing = saved;
         setLastUpdate(pricing.updatedAt);
         renderStates();
         toast("ok", "Deleted", `${name} deleted.`);
@@ -819,9 +852,11 @@
         cities.push({ name: cityName, fee: Math.round(fee) });
         cities.sort((a, b) => a.name.localeCompare(b.name));
 
-        pricing = await apiSavePricing(pricing);
-        setLastUpdate(pricing.updatedAt);
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
 
+        pricing = saved;
+        setLastUpdate(pricing.updatedAt);
         renderStates();
         toast("ok", "Added", `${cityName} added.`);
       } catch (err) {
@@ -848,8 +883,12 @@
 
       try {
         pricing.states[sIndex].cities.splice(cIndex, 1);
-        selected.clear(); // safest due to reindex
-        pricing = await apiSavePricing(pricing);
+        selected.clear();
+
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
+
+        pricing = saved;
         setLastUpdate(pricing.updatedAt);
         renderStates();
         toast("ok", "Deleted", `${city.name} deleted.`);
@@ -878,7 +917,11 @@
       const done = setBusy(setAllBtn, "Updating...");
       try {
         st.cities = (st.cities || []).map((c) => ({ ...c, fee: feeAsk.value }));
-        pricing = await apiSavePricing(pricing);
+
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
+
+        pricing = saved;
         setLastUpdate(pricing.updatedAt);
         renderStates();
         toast("ok", "Updated", `All fees updated in ${st.name}.`);
@@ -907,7 +950,11 @@
       try {
         st.cities = [];
         selected.clear();
-        pricing = await apiSavePricing(pricing);
+
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
+
+        pricing = saved;
         setLastUpdate(pricing.updatedAt);
         renderStates();
         toast("ok", "Cleared", `All LGAs removed in ${st.name}.`);
@@ -966,7 +1013,10 @@
     clearTimeout(feeSaveTimer);
     feeSaveTimer = setTimeout(async () => {
       try {
-        pricing = await apiSavePricing(pricing);
+        const saved = await apiSavePricing(pricing);
+        if (!saved) return;
+
+        pricing = saved;
         setLastUpdate(pricing.updatedAt);
 
         const now = Date.now();
@@ -1003,7 +1053,9 @@
     toast("ok", "Loaded", "Delivery pricing loaded from server.");
   } catch (err) {
     console.error(err);
-    if (stateList) stateList.innerHTML = `<div class="soft-note">❌ Failed to load delivery pricing. Check backend + admin login.</div>`;
+    if (stateList) {
+      stateList.innerHTML = `<div class="soft-note">❌ Failed to load delivery pricing. Check backend + admin login.</div>`;
+    }
     toast("err", "Load failed", "Check backend + admin login.");
   }
 })();

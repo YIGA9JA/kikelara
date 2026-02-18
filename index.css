@@ -1,7 +1,8 @@
-/* ================= index.css (FULL) =================
+/* ================= index.css (FULL — PRODUCTION) =================
    ✅ Premium butter-cream theme
-   ✅ Image display fixed (aspect-ratio + better crop)
-   ✅ Desktop + mobile perfect
+   ✅ Images display perfectly on desktop + mobile (aspect-ratio + crop)
+   ✅ Most Loved shows rating badge ON image (used by updated index.js)
+   ✅ Cleaner: cards show only name + price (no extra wording)
 ====================================================== */
 
 :root{
@@ -37,8 +38,9 @@ a{ color: inherit; }
   position: fixed;
   inset: 0;
   z-index: 5000;
-  background: radial-gradient(900px 520px at 20% 20%, rgba(212,175,55,.25), transparent 60%),
-              linear-gradient(135deg, #fff3c4, #f5e6b3);
+  background:
+    radial-gradient(900px 520px at 20% 20%, rgba(212,175,55,.25), transparent 60%),
+    linear-gradient(135deg, #fff3c4, #f5e6b3);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -146,7 +148,10 @@ a{ color: inherit; }
   letter-spacing: -0.03em;
   line-height: 1.03;
 }
-.h1 span{ color: #0f0b07; text-shadow: 0 14px 36px rgba(0,0,0,.22); }
+.h1 span{
+  color: #0f0b07;
+  text-shadow: 0 14px 36px rgba(0,0,0,.22);
+}
 
 .lead{
   margin: 0;
@@ -188,20 +193,6 @@ a{ color: inherit; }
   box-shadow: 0 14px 30px rgba(0,0,0,.08);
 }
 
-.mini-proof{
-  margin-top: 18px;
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.pill{
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.50);
-  border: 1px solid rgba(31,22,15,.10);
-  font-weight: 850;
-}
-
 /* ================= FEATURE CARD ================= */
 .feature-card{
   border-radius: 28px;
@@ -226,9 +217,8 @@ a{ color: inherit; }
   background: rgba(31,22,15,.22);
 }
 .feature-title{ font-weight: 950; }
-.feature-sub{ opacity:.7; font-weight: 800; font-size:.9rem; }
 
-/* ✅ FEATURE IMAGE FIX */
+/* ✅ FEATURE IMAGE (BEST CROP) */
 .feature-media{
   aspect-ratio: 4 / 5;
   height: auto;
@@ -272,6 +262,7 @@ a{ color: inherit; }
   border: 1px solid rgba(31,22,15,.12);
 }
 
+/* Float card */
 .float-card{
   margin-top: 14px;
   padding: 14px 14px;
@@ -283,7 +274,12 @@ a{ color: inherit; }
   box-shadow: 0 22px 50px rgba(0,0,0,.10);
 }
 .float-title{ font-weight: 950; }
-.float-text{ margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
+.float-text{
+  margin-top: 6px;
+  color: rgba(31,22,15,.78);
+  line-height: 1.65;
+  font-weight: 650;
+}
 
 /* ================= SECTIONS ================= */
 .section{ padding: 74px 0; }
@@ -292,6 +288,7 @@ a{ color: inherit; }
   border-top: 1px solid rgba(31,22,15,.08);
   border-bottom: 1px solid rgba(31,22,15,.08);
 }
+
 .section-head{
   display:flex;
   align-items:flex-end;
@@ -303,11 +300,6 @@ a{ color: inherit; }
   margin:0;
   font-size: 1.45rem;
   font-weight: 1000;
-}
-.section-head p{
-  margin: 8px 0 0;
-  color: rgba(31,22,15,.72);
-  font-weight: 700;
 }
 .link{
   text-decoration:none;
@@ -341,7 +333,6 @@ a{ color: inherit; }
   border-bottom: 1px solid rgba(31,22,15,.10);
 }
 .panel-title{ font-weight: 1000; }
-.panel-sub{ opacity:.7; font-weight: 850; }
 
 /* Latest grid */
 .latest-grid{
@@ -370,7 +361,7 @@ a{ color: inherit; }
   border-radius: 999px;
 }
 
-/* ================= PRODUCT CARDS ================= */
+/* ================= PRODUCT CARDS (UPDATED) ================= */
 .p-card{
   display:flex;
   flex-direction: column;
@@ -387,8 +378,9 @@ a{ color: inherit; }
   box-shadow: 0 24px 60px rgba(0,0,0,.10);
 }
 
-/* ✅ IMAGE DISPLAY FIX (Latest + Loved) */
+/* ✅ IMAGE DISPLAY (Latest + Loved) */
 .p-media{
+  position: relative;              /* ✅ needed for rating overlay */
   aspect-ratio: 4 / 5;
   height: auto;
   overflow:hidden;
@@ -409,13 +401,52 @@ a{ color: inherit; }
   filter: saturate(1.05) contrast(1.03);
 }
 
+/* ✅ MOST LOVED: RATING BADGE ON IMAGE */
+.p-rating{
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 8px 10px;
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(31,22,15,.16);
+  box-shadow: 0 12px 24px rgba(0,0,0,.10);
+
+  font-weight: 950;
+  font-size: 12px;
+  line-height: 1;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.p-rating-star{
+  color: #b98b1f;
+  font-size: 13px;
+  transform: translateY(-0.5px);
+}
+.p-rating-val{
+  color: rgba(31,22,15,.92);
+}
+.p-rating-count{
+  color: rgba(31,22,15,.68);
+  font-weight: 850;
+}
+
+/* Body */
 .p-body{ padding: 10px 12px 12px; }
-.p-title{ font-weight: 950; line-height: 1.2; }
-.p-meta{
-  margin-top: 6px;
-  color: rgba(31,22,15,.70);
-  font-weight: 800;
-  font-size: .9rem;
+.p-title{
+  font-weight: 950;
+  line-height: 1.2;
+}
+.p-price{
+  margin-top: 8px;
+  font-weight: 1000;
+  letter-spacing: .02em;
+  color: rgba(31,22,15,.88);
 }
 
 /* Loved: fixed width, rail snap */
@@ -449,9 +480,14 @@ a{ color: inherit; }
   border: 1px solid rgba(31,22,15,.10);
 }
 .how-card h3{ margin: 12px 0 6px; }
-.how-card p{ margin:0; color: rgba(31,22,15,.72); font-weight: 650; line-height: 1.6; }
+.how-card p{
+  margin:0;
+  color: rgba(31,22,15,.72);
+  font-weight: 650;
+  line-height: 1.6;
+}
 
-/* Quotes */
+/* ================= QUOTES ================= */
 .quotes{
   margin-top: 14px;
   display:grid;
@@ -463,14 +499,24 @@ a{ color: inherit; }
   border: 1px solid rgba(31,22,15,.12);
   background: rgba(255,255,255,.52);
 }
-.quote p{ margin:0; font-weight: 750; line-height: 1.7; }
-.who{ margin-top: 8px; opacity: .75; font-weight: 850; }
+.quote p{
+  margin:0;
+  font-weight: 750;
+  line-height: 1.7;
+}
+.who{
+  margin-top: 8px;
+  opacity: .75;
+  font-weight: 850;
+}
 
+/* CTA panel */
 .duo-cta{ grid-template-columns: 1.1fr .9fr; }
 
 .cta-panel{
-  background: radial-gradient(700px 420px at 20% 20%, rgba(212,175,55,.20), transparent 60%),
-              rgba(255,255,255,.46);
+  background:
+    radial-gradient(700px 420px at 20% 20%, rgba(212,175,55,.20), transparent 60%),
+    rgba(255,255,255,.46);
 }
 .cta-badge{
   display:inline-flex;
@@ -482,8 +528,17 @@ a{ color: inherit; }
   letter-spacing: .18em;
 }
 .cta-title{ margin: 14px 0 8px; font-size: 1.7rem; }
-.cta-text{ margin:0; color: rgba(31,22,15,.74); font-weight: 650; line-height: 1.7; }
-.cta-note{ margin-top: 14px; color: rgba(31,22,15,.72); font-weight: 800; }
+.cta-text{
+  margin:0;
+  color: rgba(31,22,15,.74);
+  font-weight: 650;
+  line-height: 1.7;
+}
+.cta-note{
+  margin-top: 14px;
+  color: rgba(31,22,15,.72);
+  font-weight: 800;
+}
 
 /* ================= RESPONSIVE ================= */
 @media (max-width: 980px){
