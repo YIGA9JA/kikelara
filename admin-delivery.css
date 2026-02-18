@@ -800,6 +800,6 @@ input::placeholder{ color: rgba(95,75,0,0.55); }
   .inline-fee{ width: 100%; }
   .icon-btn{ width: 40px; height: 40px; }
   .state-title .name{ max-width: 26ch; }
-  .city-row{ grid-template-columns: 38px 1fr; }
+  .city-row{ grid-template-columns: 38px 1fr; } 
   .city-actions{ grid-column: 1 / -1; justify-content: flex-end; }
 }
