@@ -3,6 +3,7 @@
    ✅ Most Loved (top 4 by rating summary)
    ✅ Most Loved shows rating badge ON IMAGE
    ✅ Cards show only: image + name + price (no extra wording)
+   ✅ FEATURED HERO pulls from /api/featured (Admin Featured)
 ========================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
@@ -141,6 +142,33 @@ async function fetchProducts() {
     const data = await res.json().catch(() => []);
     if (!Array.isArray(data)) return [];
     return data.map(normalizeProduct).filter((p) => p.id && p.name);
+  } catch {
+    return [];
+  }
+}
+
+/* ================= FETCH FEATURED (ADMIN FEATURED -> PUBLIC) ================= */
+function normalizeFeaturedItem(it) {
+  return {
+    id: it?.id,
+    title: String(it?.title || "").trim(),
+    link_url: String(it?.link_url || "").trim(),
+    sort_order: Number(it?.sort_order || 0),
+    image_url: resolveImageUrl(it?.image_url || ""),
+  };
+}
+
+async function fetchFeaturedItems() {
+  if (!API_BASE) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/featured`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items
+      .map(normalizeFeaturedItem)
+      .filter((x) => x.image_url); // must have image
   } catch {
     return [];
   }
@@ -300,17 +328,29 @@ function renderList(container, items, kind) {
   items.forEach((p) => container.appendChild(makeCard(p, kind)));
 }
 
-/* ================= FEATURED AUTO SWITCH ================= */
+/* ================= FEATURED HERO (ADMIN FEATURED) ================= */
 let featuredIndex = 0;
 let featuredPool = [];
 const featuredImg = document.getElementById("featuredImage");
 const featuredName = document.getElementById("featuredName");
+const featuredLinkEl = document.getElementById("featuredLink"); // optional <a id="featuredLink">
 
 function preloadImage(src, cb) {
   const i = new Image();
   i.onload = cb;
   i.onerror = cb;
   i.src = src;
+}
+
+function setFeaturedLink(url) {
+  const u = String(url || "").trim();
+  if (featuredLinkEl) {
+    featuredLinkEl.href = u || "#";
+    return;
+  }
+  // fallback: if the image is inside an <a>
+  const a = featuredImg?.closest?.("a");
+  if (a) a.href = u || "#";
 }
 
 function switchFeatured() {
@@ -320,14 +360,23 @@ function switchFeatured() {
   if (featuredName) featuredName.style.opacity = "0";
 
   const next = featuredPool[featuredIndex];
+
+  // Featured item shape:
+  // { image_url, title, link_url }
   const src = resolveImageUrl(next.image_url);
+  const title = next.title || "";
+  const link = next.link_url || "";
 
   preloadImage(src, () => {
     setTimeout(() => {
       featuredImg.src = src;
-      if (featuredName) featuredName.textContent = next.name || "";
+      featuredImg.alt = title ? title : "Featured";
+      if (featuredName) featuredName.textContent = title;
+      setFeaturedLink(link);
+
       featuredImg.style.opacity = "1";
       if (featuredName) featuredName.style.opacity = "1";
+
       featuredIndex = (featuredIndex + 1) % featuredPool.length;
     }, 240);
   });
@@ -338,58 +387,75 @@ document.addEventListener("DOMContentLoaded", async () => {
   const latestGrid = document.getElementById("latestProducts");
   const lovedRail = document.getElementById("homeProducts");
 
-  const products = await fetchProducts();
+  // fetch featured + products in parallel
+  const [featuredItems, products] = await Promise.all([
+    fetchFeaturedItems(),
+    fetchProducts(),
+  ]);
+
+  // ---- PRODUCTS SECTION ----
   safeSetSessionJSON(PRODUCTS_KEY, products);
 
   if (!products.length) {
     renderList(latestGrid, [], "latest");
     renderList(lovedRail, [], "loved");
-    return;
-  }
+  } else {
+    const sortedLatest = [...products].sort(sortLatestDesc);
+    const latest = sortedLatest.slice(0, 4);
 
-  const sortedLatest = [...products].sort(sortLatestDesc);
-  const latest = sortedLatest.slice(0, 4);
+    // show latest immediately
+    renderList(latestGrid, latest, "latest");
 
-  // show latest immediately
-  renderList(latestGrid, latest, "latest");
+    // show loved quickly (will re-render after ratings fetch)
+    renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
 
-  // show loved quickly (will re-render after ratings fetch)
-  renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
+    // ratings hydration
+    const cache = loadRatingsCache();
 
-  // ratings hydration
-  const cache = loadRatingsCache();
-
-  const ratedProducts = [...products].map((p) => {
-    const c = getCachedRating(cache, p.id);
-    return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
-  });
-
-  const needsFetch = ratedProducts.filter((p) => p.avg_rating === null || p.review_count === null);
-
-  if (needsFetch.length) {
-    await runWithLimit(needsFetch, RATINGS_CONCURRENCY, async (p) => {
-      const s = await fetchReviewSummary(p.id);
-      setCachedRating(cache, p.id, s.avg, s.count);
-      p.avg_rating = s.avg;
-      p.review_count = s.count;
-      return p;
+    const ratedProducts = [...products].map((p) => {
+      const c = getCachedRating(cache, p.id);
+      return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
     });
-    saveRatingsCache(cache);
+
+    const needsFetch = ratedProducts.filter((p) => p.avg_rating === null || p.review_count === null);
+
+    if (needsFetch.length) {
+      await runWithLimit(needsFetch, RATINGS_CONCURRENCY, async (p) => {
+        const s = await fetchReviewSummary(p.id);
+        setCachedRating(cache, p.id, s.avg, s.count);
+        p.avg_rating = s.avg;
+        p.review_count = s.count;
+        return p;
+      });
+      saveRatingsCache(cache);
+    }
+
+    const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
+    renderList(lovedRail, loved, "loved");
+
+    // fallback featured pool from products if admin featured is empty
+    if (!featuredItems.length) {
+      const seen = new Set();
+      featuredPool = [];
+      [...loved, ...latest, ...sortedLatest].forEach((p) => {
+        const k = String(p.id);
+        if (!p.id || seen.has(k)) return;
+        seen.add(k);
+        featuredPool.push({ image_url: p.image_url, title: p.name, link_url: productUrl(p.id) });
+      });
+      featuredPool = featuredPool.slice(0, 6);
+    }
   }
 
-  const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
-  renderList(lovedRail, loved, "loved");
-
-  // Featured pool (mix)
-  const seen = new Set();
-  featuredPool = [];
-  [...loved, ...latest, ...sortedLatest].forEach((p) => {
-    const k = String(p.id);
-    if (!p.id || seen.has(k)) return;
-    seen.add(k);
-    featuredPool.push(p);
-  });
-  featuredPool = featuredPool.slice(0, 6);
+  // ---- FEATURED HERO SECTION (ADMIN FEATURED FIRST) ----
+  if (featuredItems.length) {
+    // use admin featured items
+    featuredPool = featuredItems
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .slice(0, 10)
+      .map((x) => ({ image_url: x.image_url, title: x.title, link_url: x.link_url }));
+  }
 
   if (featuredPool.length) {
     featuredIndex = 0;

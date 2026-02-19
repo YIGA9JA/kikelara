@@ -1,4 +1,4 @@
-/* ===================== CHECKOUT.JS (WEBHOOK CREATES/UPDATES PAID ORDERS ✅) ===================== */
+/* ===================== CHECKOUT.JS (UPDATED + MOBILE PAY BAR + SAFE RENDER) ===================== */
 
 const API_BASE2 = (window.API_BASE || "").replace(/\/+$/, "");
 
@@ -12,6 +12,8 @@ const LAST_ORDER_KEY = "kikelara_last_order_v1";
 
 const PICKUP_FEE = 0;
 const FALLBACK_DEFAULT_DELIVERY_FEE = 2000;
+
+const FALLBACK_IMG = "images_brown/bodyButter.png";
 
 const nameEl = document.getElementById("name");
 const emailEl = document.getElementById("email");
@@ -31,6 +33,10 @@ const deliveryFeeChipEl = document.getElementById("deliveryFeeChip");
 const totalAmountEl = document.getElementById("totalAmount");
 const payNowBtn = document.getElementById("payNowBtn");
 
+const mobilePay = document.getElementById("mobilePay");
+const mobilePayBtn = document.getElementById("mobilePayBtn");
+const mobilePayAmount = document.getElementById("mobilePayAmount");
+
 const shipSegment = document.querySelector("[data-ship]");
 const segIndicator = shipSegment ? shipSegment.querySelector(".seg-indicator") : null;
 
@@ -38,11 +44,70 @@ const PAYSTACK_PUBLIC_KEY =
   window.PAYSTACK_PUBLIC_KEY ||
   "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
 
-let cart2 = [];
-try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
+/* ================= CART: prefer localStorage (canonical), fallback sessionStorage ================= */
+function safeReadCart(storage) {
+  try {
+    const raw = storage.getItem(CART_KEY2);
+    const v = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCart(list) {
+  const arr = Array.isArray(list) ? list : [];
+  return arr
+    .map(i => {
+      const id = String(i?.id ?? "").trim();
+      if (!id) return null;
+
+      const price = Number(i?.price || 0);
+      const qty = Math.max(1, Math.floor(Number(i?.qty || 1)));
+      const img = i?.image_url || i?.image || i?.img || "";
+
+      return {
+        id,
+        name: String(i?.name || "Product").trim() || "Product",
+        price: Number.isFinite(price) ? price : 0,
+        qty: Number.isFinite(qty) ? qty : 1,
+        image: img
+      };
+    })
+    .filter(Boolean);
+}
+
+function loadCart() {
+  const local = normalizeCart(safeReadCart(localStorage));
+  if (local.length) return local;
+  const sess = normalizeCart(safeReadCart(sessionStorage));
+  return sess;
+}
+
+function clearCartEverywhere() {
+  try { sessionStorage.removeItem(CART_KEY2); } catch {}
+  try { localStorage.removeItem(CART_KEY2); } catch {}
+  try { window.KStore?.setCart?.([]); } catch {}
+  try { window.KStore?.syncBadges?.(); } catch {}
+}
+
+function resolveImageUrl(val) {
+  const s = String(val || "").trim();
+  if (!s) return FALLBACK_IMG;
+
+  if (/^https?:\/\//i.test(s)) return s;
+
+  if (s.startsWith("/uploads/") && API_BASE2) return `${API_BASE2}${s}`;
+  if (s.startsWith("uploads/") && API_BASE2) return `${API_BASE2}/${s}`;
+
+  return s;
+}
+
+let cart2 = loadCart();
 
 let pricing = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
 
+/* ================= PRICING ================= */
 function normalizePricing(raw) {
   const out = { defaultFee: FALLBACK_DEFAULT_DELIVERY_FEE, states: [] };
   if (!raw || typeof raw !== "object") return out;
@@ -115,7 +180,11 @@ function getSelectedShippingType() {
   return document.querySelector('input[name="shippingType"]:checked')?.value || "pickup";
 }
 function formatNaira2(n) { return Number(n || 0).toLocaleString(); }
-function calcSubtotal2() { return cart2.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0); }
+
+function calcSubtotal2(cart) {
+  const list = Array.isArray(cart) ? cart : [];
+  return list.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 0)), 0);
+}
 
 function findState(stateName) {
   const name = String(stateName || "").trim().toLowerCase();
@@ -143,7 +212,9 @@ function getDeliveryFee() {
   return Number.isFinite(def) ? def : FALLBACK_DEFAULT_DELIVERY_FEE;
 }
 
-function getGrandTotal() { return calcSubtotal2() + getDeliveryFee(); }
+function getGrandTotal(cart) {
+  return calcSubtotal2(cart) + getDeliveryFee();
+}
 
 function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validatePhone(phone) {
@@ -160,13 +231,35 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+/* ================= UI BUTTON LOADING (desktop + mobile) ================= */
 function setBtnLoading(isLoading, label) {
-  if (!payNowBtn) return;
-  payNowBtn.disabled = isLoading;
-  payNowBtn.style.opacity = isLoading ? "0.6" : "1";
-  payNowBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
-  if (isLoading) payNowBtn.textContent = label || "PROCESSING…";
-  else payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira2(getGrandTotal())}</span>`;
+  if (payNowBtn) {
+    payNowBtn.disabled = isLoading;
+    payNowBtn.style.opacity = isLoading ? "0.6" : "1";
+    payNowBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
+    payNowBtn.textContent = isLoading ? (label || "PROCESSING…") : "Pay";
+  }
+
+  if (mobilePayBtn) {
+    mobilePayBtn.disabled = isLoading;
+    mobilePayBtn.style.opacity = isLoading ? "0.6" : "1";
+    mobilePayBtn.style.cursor = isLoading ? "not-allowed" : "pointer";
+    mobilePayBtn.textContent = isLoading ? (label || "PROCESSING…") : "Pay";
+  }
+
+  // restore proper button labels after loading
+  if (!isLoading) {
+    const cart = loadCart();
+    const total = getGrandTotal(cart);
+
+    if (payNowBtn) {
+      payNowBtn.innerHTML = `Pay ₦<span id="payBtnAmount">${formatNaira2(total)}</span>`;
+    }
+    if (mobilePayBtn && mobilePayAmount) {
+      mobilePayAmount.textContent = formatNaira2(total);
+      mobilePayBtn.innerHTML = `Pay ₦<span id="mobilePayAmount">${formatNaira2(total)}</span>`;
+    }
+  }
 }
 
 function updateShippingIndicator() {
@@ -192,8 +285,10 @@ function updateShippingUI() {
 }
 
 function updateTotals() {
+  cart2 = loadCart();
+
   const fee = getDeliveryFee();
-  const total = getGrandTotal();
+  const total = getGrandTotal(cart2);
 
   if (deliveryFeeEl) deliveryFeeEl.textContent = formatNaira2(fee);
   if (deliveryFeeChipEl) deliveryFeeChipEl.textContent = formatNaira2(fee);
@@ -202,14 +297,26 @@ function updateTotals() {
   const paySpan = document.getElementById("payBtnAmount");
   if (paySpan) paySpan.textContent = formatNaira2(total);
 
+  if (mobilePayAmount) mobilePayAmount.textContent = formatNaira2(total);
+
+  const disabled = cart2.length === 0;
   if (payNowBtn) {
-    const disabled = cart2.length === 0;
     payNowBtn.disabled = disabled;
     payNowBtn.style.opacity = disabled ? "0.6" : "1";
     payNowBtn.style.cursor = disabled ? "not-allowed" : "pointer";
   }
+  if (mobilePayBtn) {
+    mobilePayBtn.disabled = disabled;
+    mobilePayBtn.style.opacity = disabled ? "0.6" : "1";
+    mobilePayBtn.style.cursor = disabled ? "not-allowed" : "pointer";
+  }
+  if (mobilePay) {
+    mobilePay.setAttribute("aria-hidden", disabled ? "true" : "false");
+    mobilePay.style.opacity = disabled ? "0.65" : "1";
+  }
 }
 
+/* ================= DROPDOWNS ================= */
 function populateStates() {
   if (!stateEl) return;
   const states = (pricing.states || []).map(s => s.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -241,34 +348,68 @@ function populateCitiesForState(stateName) {
   cityEl.disabled = cities.length === 0;
 }
 
+/* ================= SAFE SUMMARY RENDER ================= */
 function renderSummaryItems() {
   if (!summaryItemsEl) return;
-  try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
+
+  cart2 = loadCart();
+  summaryItemsEl.replaceChildren();
 
   if (!Array.isArray(cart2) || cart2.length === 0) {
-    summaryItemsEl.innerHTML = `<p style="opacity:.8">Your cart is empty.</p>`;
+    const p = document.createElement("p");
+    p.style.opacity = ".85";
+    p.textContent = "Your cart is empty.";
+    summaryItemsEl.appendChild(p);
     return;
   }
 
-  summaryItemsEl.innerHTML = cart2.map(item => {
+  for (const item of cart2) {
     const qty = Number(item.qty || 0);
     const price = Number(item.price || 0);
     const line = price * qty;
 
-    return `
-      <div class="summary-item">
-        <img src="${item.image}" alt="${escapeHtml(item.name)}" draggable="false">
-        <div>
-          <div class="summary-name">${escapeHtml(item.name)}</div>
-          <div class="summary-meta">Qty: ${qty} • ₦${formatNaira2(price)}</div>
-        </div>
-        <div class="summary-line">₦${formatNaira2(line)}</div>
-      </div>
-    `;
-  }).join("");
+    const row = document.createElement("div");
+    row.className = "summary-item";
+
+    const img = document.createElement("img");
+    img.src = resolveImageUrl(item.image);
+    img.alt = item.name || "Product";
+    img.draggable = false;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.addEventListener("error", () => {
+      if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
+    });
+
+    const mid = document.createElement("div");
+
+    const nm = document.createElement("div");
+    nm.className = "summary-name";
+    nm.textContent = item.name || "Product";
+
+    const meta = document.createElement("div");
+    meta.className = "summary-meta";
+    meta.textContent = `Qty: ${qty} • ₦${formatNaira2(price)}`;
+
+    mid.appendChild(nm);
+    mid.appendChild(meta);
+
+    const right = document.createElement("div");
+    right.className = "summary-line";
+    right.textContent = `₦${formatNaira2(line)}`;
+
+    row.appendChild(img);
+    row.appendChild(mid);
+    row.appendChild(right);
+
+    summaryItemsEl.appendChild(row);
+  }
 }
 
+/* ================= VALIDATION ================= */
 function validateCheckout() {
+  cart2 = loadCart();
+
   const name = nameEl?.value?.trim() || "";
   const email = emailEl?.value?.trim() || "";
   const phone = phoneEl?.value?.trim() || "";
@@ -295,7 +436,10 @@ function validateCheckout() {
   return { ok: true };
 }
 
+/* ================= ORDER DRAFT ================= */
 function buildBackendOrderDraft(reference) {
+  cart2 = loadCart();
+
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
   const phone = phoneEl.value.trim();
@@ -305,7 +449,7 @@ function buildBackendOrderDraft(reference) {
   const city = cityEl?.value || "";
   const address = addressEl?.value?.trim() || "";
 
-  const subtotal = calcSubtotal2();
+  const subtotal = calcSubtotal2(cart2);
   const deliveryFee = getDeliveryFee();
   const total = subtotal + deliveryFee;
 
@@ -314,7 +458,7 @@ function buildBackendOrderDraft(reference) {
     name: i.name,
     price: Number(i.price || 0),
     qty: Number(i.qty || 0),
-    image: i.image,
+    image: resolveImageUrl(i.image),
     total: Number(i.price || 0) * Number(i.qty || 0)
   }));
 
@@ -337,14 +481,25 @@ function buildBackendOrderDraft(reference) {
   };
 }
 
-function saveOrderFallbackSession(order) {
+function saveOrderFallbackEverywhere(order) {
+  // order-success.js reads localStorage, so write there too
   try {
-    const arr = JSON.parse(sessionStorage.getItem(LOCAL_ORDERS_KEY)) || [];
-    arr.push(order);
-    sessionStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(arr));
+    const arr1 = JSON.parse(sessionStorage.getItem(LOCAL_ORDERS_KEY)) || [];
+    arr1.push(order);
+    sessionStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(arr1));
+  } catch {}
+
+  try {
+    const arr2 = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY)) || [];
+    arr2.push(order);
+    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(arr2));
   } catch {}
 }
-function saveLastOrderForReceipt(order) { try { sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {} }
+
+function saveLastOrderForReceipt(order) {
+  try { sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
+  try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order)); } catch {}
+}
 
 async function savePendingOrderToServer(draftOrder) {
   const res = await fetch(`${API_BASE2}/orders`, {
@@ -361,14 +516,20 @@ async function savePendingOrderToServer(draftOrder) {
   return res.json().catch(() => ({}));
 }
 
+/* ================= PAYSTACK ================= */
 function payWithPaystack() {
-  try { cart2 = JSON.parse(sessionStorage.getItem(CART_KEY2)) || []; } catch { cart2 = []; }
+  cart2 = loadCart();
 
   const check = validateCheckout();
   if (!check.ok) return alert(check.msg);
 
+  if (typeof PaystackPop === "undefined") {
+    alert("Paystack failed to load. Please refresh and try again.");
+    return;
+  }
+
   const email = emailEl.value.trim();
-  const total = getGrandTotal();
+  const total = getGrandTotal(cart2);
 
   const reference = `KIKELARA_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
@@ -381,7 +542,7 @@ function payWithPaystack() {
     try { await savePendingOrderToServer(draft); }
     catch (err) {
       console.warn(err);
-      saveOrderFallbackSession({ ...draft, status: "Pending (Server Save Failed)" });
+      saveOrderFallbackEverywhere({ ...draft, status: "Pending (Server Save Failed)" });
     }
 
     setBtnLoading(true, "OPENING PAYSTACK…");
@@ -405,12 +566,15 @@ function payWithPaystack() {
 
         saveLastOrderForReceipt(receipt);
 
-        sessionStorage.removeItem(CART_KEY2);
+        // ✅ Clear cart everywhere
+        clearCartEverywhere();
+
         window.location.href = `order-success.html?ref=${encodeURIComponent(payRef)}`;
       },
 
       onClose: function () {
         setBtnLoading(false);
+        updateTotals();
         alert("Payment cancelled.");
       }
     });
@@ -419,6 +583,7 @@ function payWithPaystack() {
   })().catch((e) => {
     console.error(e);
     setBtnLoading(false);
+    updateTotals();
     alert("Could not start checkout. Please try again.");
   });
 }
@@ -434,7 +599,14 @@ stateEl?.addEventListener("change", () => {
 
 cityEl?.addEventListener("change", updateTotals);
 
+// Desktop pay
 payNowBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  payWithPaystack();
+});
+
+// Mobile pay bar mirrors desktop
+mobilePayBtn?.addEventListener("click", (e) => {
   e.preventDefault();
   payWithPaystack();
 });
@@ -466,5 +638,14 @@ payNowBtn?.addEventListener("click", (e) => {
 
   populateStates();
   populateCitiesForState(stateEl?.value || "");
+
   updateTotals();
+
+  // If cart changes (another tab), keep checkout synced
+  window.addEventListener("storage", (e) => {
+    if (e.key === CART_KEY2) {
+      renderSummaryItems();
+      updateTotals();
+    }
+  });
 })();

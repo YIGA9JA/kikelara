@@ -12,18 +12,26 @@
   <!-- ✅ IMPORTANT: config MUST load before any JS that uses window.API_BASE -->
   <script src="config.js" defer></script>
 
-  <!-- ✅ Defer so DOM is ready -->
+  <!-- Injected header/footer -->
   <script src="header.js" defer></script>
   <script src="footer.js" defer></script>
 
   <!-- Paystack -->
   <script src="https://js.paystack.co/v1/inline.js" defer></script>
 
-  <!-- Your page logic -->
+  <!-- Page logic -->
   <script src="checkout.js" defer></script>
 </head>
 
 <body>
+  <!-- ✅ Liquid background layer -->
+  <div class="liquid-bg" aria-hidden="true">
+    <div class="orb o1"></div>
+    <div class="orb o2"></div>
+    <div class="orb o3"></div>
+    <div class="grain"></div>
+  </div>
+
   <!-- Header mount -->
   <div id="siteHeader"></div>
 
@@ -61,7 +69,7 @@
 
         <h3 class="subhead">Shipping Type</h3>
 
-        <!-- PREMIUM SEGMENT CONTROL -->
+        <!-- SEGMENT CONTROL -->
         <div class="ship-segment" data-ship>
           <input id="shipPickup" type="radio" name="shippingType" value="pickup" checked>
           <label for="shipPickup" class="seg" role="button" tabindex="0">
@@ -140,8 +148,8 @@
         </div>
       </div>
 
-      <!-- ORDER SUMMARY -->
-      <div class="checkout-box checkout-summary">
+      <!-- ORDER SUMMARY (✅ STICKY ON DESKTOP) -->
+      <div class="checkout-box checkout-summary is-sticky">
         <div class="box-head">
           <h2>Order Summary</h2>
           <span class="box-hint">Review your items</span>
@@ -168,6 +176,13 @@
 
     </div>
   </section>
+
+  <!-- ✅ Mobile sticky pay bar -->
+  <div class="mobile-pay" id="mobilePay" aria-hidden="true">
+    <button class="mobile-pay-btn" id="mobilePayBtn" type="button" disabled>
+      Pay ₦<span id="mobilePayAmount">0</span>
+    </button>
+  </div>
 
   <!-- Global footer mount -->
   <div id="siteFooter"></div>
