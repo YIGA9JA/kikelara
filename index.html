@@ -71,7 +71,7 @@
       <div class="hero-grain" aria-hidden="true"></div>
 
       <!-- ✅ Full width wrapper (NOT .container) -->
-      <div class="hero-inner hero-grid">
+      <div class="hero-inner hero-grid hero-grid--solo">
 
         <!-- LEFT -->
         <div class="hero-left">
@@ -100,24 +100,6 @@
           </div>
         </div>
 
-        <!-- RIGHT -->
-        <div class="hero-right" aria-label="Why KÍKÉLÁRÁ">
-          <div class="hero-mini">
-            <div class="mini-title">Glow Tip</div>
-            <div class="mini-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
-          </div>
-
-          <div class="hero-mini">
-            <div class="mini-title">Feel</div>
-            <div class="mini-text">Luxury texture — soft finish, not greasy.</div>
-          </div>
-
-          <div class="hero-mini">
-            <div class="mini-title">Results</div>
-            <div class="mini-text">Moisture, shine, and confidence — daily.</div>
-          </div>
-        </div>
-
         <!-- ✅ HERO SLIDE DESCRIPTION (from Admin Hero) -->
         <a id="heroSlideCard" class="hero-slidecard" href="products.html" aria-label="Open hero slide link">
           <div id="heroSlideTitle" class="hs-title"></div>
@@ -125,34 +107,31 @@
           <div class="hs-cta">Tap to view →</div>
         </a>
 
-        <!-- ✅ FULL-WIDTH FEATURED (stays full width inside hero) -->
-        <div class="featured-showcase" aria-label="Featured showcase">
-          <div class="featured-shell">
+      </div>
+    </section>
 
-            <a id="featuredLink" class="featured-media" href="products.html" aria-label="Open featured item">
-              <img id="featuredImage" alt="Featured product" />
-              <div class="featured-media-overlay" aria-hidden="true"></div>
-              <div class="featured-badge" aria-hidden="true">FEATURED DROP</div>
-            </a>
-
-            <div class="featured-info">
-              <div class="featured-kicker">Hand-picked • Admin Featured</div>
-              <div id="featuredName" class="featured-title"></div>
-              <div class="featured-sub">
-                Limited spotlight — tap to view the featured item.
-              </div>
-
-              <div class="featured-actions">
-                <a id="featuredCta" class="btn btn-gold" href="products.html">Shop Featured</a>
-                <a class="btn btn-ghost" href="products.html">View All</a>
-              </div>
-
-              <div id="featuredThumbs" class="featured-thumbs" aria-label="Featured thumbnails"></div>
-            </div>
-
+    <!-- ================= FEATURED (FULL WIDTH) — NOW AFTER HERO ================= -->
+    <section class="section" aria-label="Featured drop">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2>Featured Drop</h2>
+            <p class="section-sub">A limited spotlight — hand-picked by admin.</p>
           </div>
         </div>
 
+        <a id="featuredLink" class="featured-full" href="products.html" aria-label="Open featured item">
+          <img id="featuredImage" alt="Featured product" />
+          <div class="featured-full-overlay" aria-hidden="true"></div>
+
+          <div class="featured-full-badge" aria-hidden="true">FEATURED</div>
+
+          <div class="featured-full-text">
+            <div class="featured-full-kicker">Hand-picked • Admin Featured</div>
+            <div id="featuredName" class="featured-full-title"></div>
+            <div class="featured-full-sub">Tap to view this featured item →</div>
+          </div>
+        </a>
       </div>
     </section>
 
@@ -191,8 +170,37 @@
       </div>
     </section>
 
+    <!-- ================= GLOW TIPS (MOVED HERE) ================= -->
+    <section class="section soft" aria-label="Glow tips">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2>Glow tips</h2>
+            <p class="section-sub">A premium routine — simple, clean, effective.</p>
+          </div>
+        </div>
+
+        <div class="tips-grid" aria-label="Why KÍKÉLÁRÁ">
+          <div class="hero-mini">
+            <div class="mini-title">Glow Tip</div>
+            <div class="mini-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
+          </div>
+
+          <div class="hero-mini">
+            <div class="mini-title">Feel</div>
+            <div class="mini-text">Luxury texture — soft finish, not greasy.</div>
+          </div>
+
+          <div class="hero-mini">
+            <div class="mini-title">Results</div>
+            <div class="mini-text">Moisture, shine, and confidence — daily.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ================= ROUTINE ================= -->
-    <section class="section soft" aria-label="Routine">
+    <section class="section" aria-label="Routine">
       <div class="container">
         <div class="section-head">
           <div>

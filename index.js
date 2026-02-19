@@ -1,12 +1,11 @@
 /* ================= INDEX.JS (PRODUCTION + PREMIUM LAYOUT) =================
-   ✅ Hero slider pulls from /api/hero (Admin Hero) + switches every 5s
-   ✅ Hero is full width, no bubbles, no video
+   ✅ Hero slider pulls from /api/hero (Admin Hero) + switches SLOWER
+   ✅ Hero is full width
+   ✅ Featured is AFTER hero (single big image, no thumbs, no buttons)
    ✅ Latest Drops (newest 4)
    ✅ Most Loved (top 4 by rating summary) -> 4-grid
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ FEATURED pulls from /api/featured (Admin Featured)
-   ✅ Featured uses BIG full-width showcase + clickable thumbnails
-   ✅ Preloader waits for critical images + DOM images
+   ✅ Preloader shows ONLY on first homepage load (per tab/session)
 ============================================================================ */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
@@ -16,15 +15,37 @@ const RATINGS_CACHE_KEY = "ratingsSummary_v1";
 const RATINGS_TTL_MS = 1000 * 60 * 60 * 6;
 const RATINGS_CONCURRENCY = 6;
 
+/* ✅ Slower timing */
+const HERO_SWITCH_MS = 9500;      // was 5000
+const FEATURED_SWITCH_MS = 11000; // was 4200
+
 /* ================= PRELOADER CONTROL ================= */
 const preloader = document.getElementById("preloader");
 const PRELOADER_MIN_MS = 450;
 const PRELOADER_MAX_MS = 12000;
 
+/** ✅ show preloader only on first-ever homepage load (per tab/session) */
+const PRELOADER_KEY = "kkl_home_preloader_seen_v1";
+const navType = performance.getEntriesByType("navigation")?.[0]?.type || "navigate";
+const SHOW_PRELOADER =
+  sessionStorage.getItem(PRELOADER_KEY) !== "1" &&
+  navType !== "back_forward"; // extra safety
+
+if (SHOW_PRELOADER) {
+  sessionStorage.setItem(PRELOADER_KEY, "1");
+} else {
+  // remove instantly so it never flashes
+  if (preloader) preloader.remove();
+}
+
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+function preloaderAlive(){
+  return !!(preloader && preloader.isConnected);
+}
+
 function lockScroll(lock){
-  if (!preloader) return;
+  if (!preloaderAlive()) return;
   if (lock){
     document.body.dataset._prevOverflow = document.body.style.overflow || "";
     document.body.style.overflow = "hidden";
@@ -33,13 +54,23 @@ function lockScroll(lock){
     delete document.body.dataset._prevOverflow;
   }
 }
+
 function hidePreloader(){
-  if (!preloader) return;
+  if (!preloaderAlive()) return;
   preloader.style.opacity = "0";
   setTimeout(() => preloader.remove(), 550);
   lockScroll(false);
 }
 
+/** ✅ If page is restored from bfcache, ensure no preloader shows */
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && preloaderAlive()) {
+    preloader.remove();
+    lockScroll(false);
+  }
+});
+
+/* ================= IMAGE PRELOAD HELPERS ================= */
 function waitForImgEl(img){
   return new Promise((resolve) => {
     if (!img) return resolve();
@@ -148,9 +179,7 @@ async function fetchFeaturedItems() {
     const data = await res.json().catch(() => null);
 
     const items = Array.isArray(data?.items) ? data.items : [];
-    return items
-      .map(normalizeFeaturedItem)
-      .filter((x) => x.image_url);
+    return items.map(normalizeFeaturedItem).filter((x) => x.image_url);
   } catch {
     return [];
   }
@@ -175,9 +204,7 @@ async function fetchHeroItems() {
     const data = await res.json().catch(() => null);
 
     const items = Array.isArray(data?.items) ? data.items : [];
-    return items
-      .map(normalizeHeroItem)
-      .filter((x) => x.image_url);
+    return items.map(normalizeHeroItem).filter((x) => x.image_url);
   } catch {
     return [];
   }
@@ -378,21 +405,18 @@ function switchHero(){
   setHeroNow(heroPool[heroIndex]);
 }
 
-/* ================= FEATURED (BIG SHOWCASE) ================= */
+/* ================= FEATURED (FULL IMAGE) ================= */
 let featuredIndex = 0;
 let featuredPool = [];
 
 const featuredImg = document.getElementById("featuredImage");
 const featuredName = document.getElementById("featuredName");
 const featuredLinkEl = document.getElementById("featuredLink");
-const featuredCtaEl = document.getElementById("featuredCta");
-const featuredThumbs = document.getElementById("featuredThumbs");
 
 function setFeaturedLink(url) {
   const u = String(url || "").trim();
   const href = u || "products.html";
   if (featuredLinkEl) featuredLinkEl.href = href;
-  if (featuredCtaEl) featuredCtaEl.href = href;
 }
 
 function setFeaturedNow(item){
@@ -412,52 +436,13 @@ function setFeaturedNow(item){
   });
 }
 
-function buildFeaturedThumbs(){
-  if (!featuredThumbs) return;
-  featuredThumbs.innerHTML = "";
-
-  const max = Math.min(6, featuredPool.length);
-  for (let i = 0; i < max; i++){
-    const it = featuredPool[i];
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ft";
-    btn.setAttribute("aria-label", `Featured item ${i+1}`);
-    btn.setAttribute("aria-current", i === 0 ? "true" : "false");
-
-    const im = document.createElement("img");
-    im.alt = it.title || `Featured ${i+1}`;
-    im.src = resolveImageUrl(it.image_url);
-    im.decoding = "async";
-    im.loading = "eager";
-
-    btn.appendChild(im);
-    btn.addEventListener("click", () => {
-      featuredIndex = i;
-      Array.from(featuredThumbs.querySelectorAll(".ft")).forEach((x, idx) => {
-        x.setAttribute("aria-current", idx === i ? "true" : "false");
-      });
-      setFeaturedNow(featuredPool[i]);
-    });
-
-    featuredThumbs.appendChild(btn);
-  }
-}
-
 function switchFeatured() {
   if (!featuredPool.length) return;
   featuredIndex = (featuredIndex + 1) % featuredPool.length;
-
-  if (featuredThumbs) {
-    Array.from(featuredThumbs.querySelectorAll(".ft")).forEach((x, idx) => {
-      x.setAttribute("aria-current", idx === featuredIndex ? "true" : "false");
-    });
-  }
-
   setFeaturedNow(featuredPool[featuredIndex]);
 }
 
-/* ================= HERO BRAND ANIMATION (NO BUBBLES) ================= */
+/* ================= HERO BRAND ANIMATION ================= */
 function initHeroBrandAnimation(){
   const brandEl = document.getElementById("heroBrandmark");
   if (!brandEl) return;
@@ -503,7 +488,9 @@ function initHeroBrandAnimation(){
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
   const start = performance.now();
-  lockScroll(true);
+
+  // ✅ only lock scroll if preloader is actually showing
+  if (SHOW_PRELOADER) lockScroll(true);
 
   // let header/footer mount
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -525,7 +512,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const latest = sortedLatest.slice(0, 4);
   const baseLoved = sortedLatest.slice(0, 4);
 
-  // ✅ hero pool
+  // hero pool
   if (heroItems.length) {
     heroPool = heroItems
       .slice()
@@ -536,10 +523,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     setHeroNow(heroPool[0]);
 
     if (heroPool.length > 1) {
-      setInterval(switchHero, 5000);
+      setInterval(switchHero, HERO_SWITCH_MS);
     }
   } else {
-    // fallback: show default card hidden (no hero data)
     if (heroCard) heroCard.style.display = "none";
   }
 
@@ -562,7 +548,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     featuredPool = featuredPool.slice(0, 6);
   }
 
-  // preload critical hero + featured + visible 8 cards
+  // preload critical images
   const fallbackHeroSrc = heroBg?.getAttribute("src") || "images/about-hero.jpg";
   const criticalUrls = [
     heroPool[0]?.image_url ? resolveImageUrl(heroPool[0].image_url) : fallbackHeroSrc,
@@ -571,7 +557,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     ...baseLoved.map(p => resolveImageUrl(p.image_url)),
   ];
 
-  await Promise.race([preloadUrls(criticalUrls), sleep(PRELOADER_MAX_MS)]);
+  // ✅ Only block on preloads if preloader is showing
+  if (SHOW_PRELOADER) {
+    await Promise.race([preloadUrls(criticalUrls), sleep(PRELOADER_MAX_MS)]);
+  } else {
+    preloadUrls(criticalUrls).catch(() => {});
+  }
 
   // render sections
   renderList(latestGrid, latest, "latest");
@@ -581,8 +572,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (featuredPool.length) {
     featuredIndex = 0;
     setFeaturedNow(featuredPool[0]);
-    buildFeaturedThumbs();
-    if (featuredPool.length > 1) setInterval(switchFeatured, 4200);
+    if (featuredPool.length > 1) setInterval(switchFeatured, FEATURED_SWITCH_MS);
   }
 
   // ratings hydration -> final “most loved”
@@ -610,17 +600,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderList(lovedGrid, loved, "loved");
   })().catch(() => {});
 
-  // wait for DOM images (header logo + hero bg + featured img + cards)
-  await Promise.race([
-    (async () => {
-      try { await document.fonts?.ready; } catch {}
-      await waitForAllImgsInDom();
-    })(),
-    sleep(PRELOADER_MAX_MS)
-  ]);
+  // ✅ Only wait for DOM images / min time if preloader is showing
+  if (SHOW_PRELOADER) {
+    await Promise.race([
+      (async () => {
+        try { await document.fonts?.ready; } catch {}
+        await waitForAllImgsInDom();
+      })(),
+      sleep(PRELOADER_MAX_MS)
+    ]);
 
-  const elapsed = performance.now() - start;
-  if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
+    const elapsed = performance.now() - start;
+    if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
 
-  hidePreloader();
+    hidePreloader();
+  } else {
+    // safety: ensure not locked and preloader not present
+    lockScroll(false);
+    if (preloaderAlive()) preloader.remove();
+  }
 });
