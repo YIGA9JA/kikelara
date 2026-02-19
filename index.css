@@ -172,28 +172,49 @@ button{ font: inherit; }
   .kkl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
   .featured-card-badge{ animation:none !important; }
   .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
-  .p-card, .btn, .hero-bg{ transition:none; }
+  .p-card, .btn, .hero-bg, .featured-card img{ transition:none; }
 }
 
 /* =============== HERO (FULL WIDTH) =============== */
 .hero{
   position: relative;
-  min-height: 86vh;
-  padding: 78px 0 64px;
+  width: 100%;
+  min-height: 100vh;              /* ✅ more height */
+  padding: 96px 0 84px;           /* ✅ more breathing room */
   display:flex;
   align-items:center;
   overflow:hidden;
-  width: 100%;
 }
 
+/* ✅ Big brand watermark ON hero image */
+.hero::after{
+  content:"KÍKÉLÁRÁ";
+  position:absolute;
+  left:50%;
+  top:48%;
+  transform: translate(-50%, -50%);
+  z-index: 2;                     /* above bg, below content */
+  pointer-events:none;
+  font-weight: 1100;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  font-size: clamp(2.6rem, 7.5vw, 6.2rem);
+  color: rgba(255,255,255,.20);
+  text-shadow: 0 22px 70px rgba(0,0,0,.18);
+  mix-blend-mode: overlay;
+  opacity: .95;
+}
+
+/* ✅ HERO IMAGE 100% (no cropping) */
 .hero-bg{
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
-  object-fit: cover;
-  object-position: 50% 35%;
-  opacity:.90;
+  object-fit: contain;            /* ✅ full image */
+  object-position: center;
+  opacity:.98;
+  background: rgba(255,255,255,.06); /* fills side gaps nicely */
   filter: saturate(1.04) contrast(1.02);
   z-index: 0;
   transition: opacity .45s ease, transform .65s ease;
@@ -202,16 +223,18 @@ button{ font: inherit; }
 .hero-overlay{
   position:absolute;
   inset:0;
+  /* ✅ lighter overlay so image is more visible */
   background:
-    radial-gradient(900px 520px at 18% 35%, rgba(255,255,255,.42), rgba(255,255,255,0) 60%),
-    linear-gradient(90deg, rgba(255,239,213,.78), rgba(255,239,213,.42), rgba(255,239,213,0));
+    radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.18), rgba(255,255,255,0) 62%),
+    linear-gradient(180deg, rgba(255,239,213,.45), rgba(255,239,213,.18), rgba(255,239,213,0));
   z-index: 1;
 }
+
 .hero-grain{
   position:absolute;
   inset:0;
   pointer-events:none;
-  opacity:.10;
+  opacity:.08;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
   mix-blend-mode: multiply;
@@ -229,12 +252,13 @@ button{ font: inherit; }
   position: relative;
   z-index: 4;
   display:grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
+  grid-template-columns: 1.1fr .9fr; /* ✅ neat desktop */
+  gap: 22px;
   align-items:start;
   grid-auto-rows: min-content;
 }
 
+/* Wordmark */
 .hero-brandmark{
   display:flex;
   flex-wrap: wrap;
@@ -247,6 +271,7 @@ button{ font: inherit; }
   font-weight: 1000;
   user-select:none;
 }
+
 .hm-letter{
   display:inline-block;
   opacity: 0;
@@ -278,6 +303,7 @@ button{ font: inherit; }
   text-shadow: 0 22px 70px rgba(0,0,0,.18);
 }
 
+/* Badge + headings */
 .badge{
   display:inline-flex;
   padding: 10px 12px;
@@ -345,6 +371,7 @@ button{ font: inherit; }
   box-shadow: 0 14px 30px rgba(0,0,0,.08);
 }
 
+/* Micro proof */
 .micro-proof{
   display:flex;
   flex-wrap: wrap;
@@ -363,8 +390,37 @@ button{ font: inherit; }
   font-size: 12px;
 }
 
+/* Right mini cards */
+.hero-right{
+  display:grid;
+  gap: 12px;
+  align-content:start;
+}
+.hero-mini{
+  border-radius: 22px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(18px) saturate(1.45);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+  box-shadow: var(--shadow3);
+  position: relative;
+  overflow:hidden;
+}
+.hero-mini::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: radial-gradient(520px 240px at 30% 12%, rgba(255,255,255,.40), rgba(255,255,255,0) 70%);
+  opacity:.55;
+  pointer-events:none;
+}
+.mini-title{ position:relative; font-weight: 1000; letter-spacing:.04em; }
+.mini-text{ position:relative; margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
+
 /* Hero slide card */
 .hero-slidecard{
+  grid-column: 1 / -1;
   text-decoration:none;
   color: inherit;
   border-radius: 26px;
@@ -610,29 +666,6 @@ button{ font: inherit; }
   margin-top: 14px;
 }
 
-/* reuse hero-mini styling */
-.hero-mini{
-  border-radius: 22px;
-  padding: 14px;
-  background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
-  border: 1px solid rgba(255,255,255,.22);
-  backdrop-filter: blur(18px) saturate(1.45);
-  -webkit-backdrop-filter: blur(18px) saturate(1.45);
-  box-shadow: var(--shadow3);
-  position: relative;
-  overflow:hidden;
-}
-.hero-mini::before{
-  content:"";
-  position:absolute;
-  inset:-2px;
-  background: radial-gradient(520px 240px at 30% 12%, rgba(255,255,255,.40), rgba(255,255,255,0) 70%);
-  opacity:.55;
-  pointer-events:none;
-}
-.mini-title{ position:relative; font-weight: 1000; letter-spacing:.04em; }
-.mini-text{ position:relative; margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
-
 /* Featured (single full image card) */
 .featured-card{
   display:block;
@@ -649,13 +682,13 @@ button{ font: inherit; }
   text-decoration:none;
   color: inherit;
 
-  aspect-ratio: 16 / 9; /* ✅ cinematic */
-  min-height: 420px;
+  aspect-ratio: 4 / 3;        /* ✅ taller */
+  min-height: 560px;          /* ✅ more height */
 }
 .featured-card img{
   width:100%;
   height:100%;
-  object-fit: contain; /* ✅ full image */
+  object-fit: contain;        /* ✅ full image */
   object-position: center;
   display:block;
   background: rgba(255,255,255,.06);
@@ -664,7 +697,6 @@ button{ font: inherit; }
 .featured-card:hover img{
   transform: scale(1.01);
 }
-
 .featured-card-overlay{
   position:absolute;
   inset:0;
@@ -673,7 +705,6 @@ button{ font: inherit; }
     linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.12));
   pointer-events:none;
 }
-
 .featured-card-badge{
   position:absolute;
   left: 16px;
@@ -689,7 +720,6 @@ button{ font: inherit; }
   font-size: 11px;
   animation: kkl-float 5.8s ease-in-out infinite;
 }
-
 .featured-card-text{
   position:absolute;
   left: 16px;
@@ -825,36 +855,53 @@ button{ font: inherit; }
 
 /* Responsive */
 @media (max-width: 980px){
+  .hero-grid{ grid-template-columns: 1fr; }
   .duo{ grid-template-columns: 1fr; }
   .duo-cta{ grid-template-columns: 1fr; }
   .how-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
   .tips-grid{ grid-template-columns: 1fr; }
   .hero-inner{ padding: 0 5vw; }
-  .featured-card{ min-height: 340px; }
+
+  /* ✅ keep the hero watermark neat on smaller screens */
+  .hero::after{
+    top: 46%;
+    font-size: clamp(2.2rem, 9vw, 4.6rem);
+    opacity: .92;
+  }
+
+  .featured-card{ min-height: 420px; }
 }
 
 /* ✅ Mobile upgrades */
 @media (max-width: 600px){
-  /* HERO FULL IMAGE */
+  /* ✅ HERO taller on mobile + brand sits inside image nicely */
   .hero{
-    min-height: auto;
-    padding: 58px 0 48px;
-  }
-  .hero-bg{
-    object-fit: contain;      /* ✅ full image */
-    object-position: center;
-    opacity: .96;
-  }
-  .hero-overlay{
-    background:
-      radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%),
-      linear-gradient(180deg, rgba(255,239,213,.62), rgba(255,239,213,.28), rgba(255,239,213,0));
+    min-height: 106vh;   /* ✅ increase height */
+    padding: 66px 0 54px;
   }
 
-  /* Featured FULL image (already contain) + slightly taller */
+  .hero-bg{
+    object-fit: contain;     /* ✅ full image */
+    object-position: center;
+    opacity: .99;
+  }
+
+  .hero::after{
+    top: 44%;
+    font-size: clamp(2.0rem, 10.5vw, 4.2rem);
+    opacity: .90;
+  }
+
+  .hero-overlay{
+    background:
+      radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.22), rgba(255,255,255,0) 60%),
+      linear-gradient(180deg, rgba(255,239,213,.54), rgba(255,239,213,.22), rgba(255,239,213,0));
+  }
+
+  /* ✅ Featured FULL image + taller */
   .featured-card{
-    aspect-ratio: 4 / 3;
-    min-height: 280px;
+    aspect-ratio: 1 / 1;  /* ✅ big square on phones */
+    min-height: 360px;
   }
 
   /* ✅ Products 2 columns on mobile */
