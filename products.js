@@ -3,7 +3,7 @@
       - image_url expected SIGNED URL already (private bucket via backend)
    ✅ If backend fails -> uses cached localStorage(allProducts) only
    ✅ If no cache -> shows empty state + Retry
-   ✅ Cart in localStorage(cart)
+   ✅ Cart via KStore (preferred). Fallback localStorage(cart)
    ✅ Ratings: backend /reviews/summary with cache + concurrency limit
    ✅ Safe rendering: escapes text
 ========================================================================== */
@@ -134,30 +134,54 @@ function loadProductsCache() {
   return stored.map(normalizeProduct).filter(p => p.id && p.name);
 }
 
-/* ================= CART ================= */
-/* ================= CART (localStorage + sync) ================= */
-const CART_CHANNEL = "kikelara_cart_sync_v1";
-const cartChannel = ("BroadcastChannel" in window) ? new BroadcastChannel(CART_CHANNEL) : null;
-
-function broadcastCartUpdated() {
-  document.dispatchEvent(new Event("cart:updated"));
-  if (cartChannel) { try { cartChannel.postMessage({ type: "CART_UPDATED" }); } catch {} }
+/* ================= CART (KStore preferred) ================= */
+function getStore() {
+  return window.KStore && typeof window.KStore.getCart === "function" ? window.KStore : null;
 }
 
 function loadCart() {
+  const ks = getStore();
+  if (ks) {
+    const v = ks.getCart();
+    return Array.isArray(v) ? v : [];
+  }
   const c = safeJSON(CART_KEY, []);
   return Array.isArray(c) ? c : [];
 }
-function saveCart(cart) {
-  saveJSON(CART_KEY, cart);
-  broadcastCartUpdated();
+
+function saveCartFallback(cart) {
+  saveJSON(CART_KEY, Array.isArray(cart) ? cart : []);
+  // fire event for any listeners
+  document.dispatchEvent(new CustomEvent("cart:updated", { detail: { cart } }));
+  // optional ping to tabs that still listen
+  try {
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("kikelara_cart_sync_v1");
+      bc.postMessage({ type: "CART_UPDATED" });
+      bc.close();
+    }
+  } catch {}
 }
+
 function isInCart(cart, id) {
   const sid = String(id);
   return cart.some(i => String(i.id) === sid);
 }
 
 function addToCartOnce(product) {
+  const ks = getStore();
+  if (ks && typeof ks.addToCartOnce === "function") {
+    ks.addToCartOnce({
+      id: String(product.id),
+      name: String(product.name || ""),
+      price: Number(product.price || 0),
+      image: product.image,
+      qty: 1
+    });
+    return;
+  }
+
+  // fallback localStorage
   const cart = loadCart();
   if (isInCart(cart, product.id)) return;
 
@@ -169,12 +193,20 @@ function addToCartOnce(product) {
     qty: 1
   });
 
-  saveCart(cart);
+  saveCartFallback(cart);
 }
 
 function updateCartCount() {
   const cartCountEl = document.getElementById("cartCount");
   if (!cartCountEl) return;
+
+  const ks = getStore();
+  if (ks && typeof ks.cartQty === "function") {
+    const n = ks.cartQty(ks.getCart());
+    cartCountEl.textContent = String(n);
+    return;
+  }
+
   const cart = loadCart();
   const total = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   cartCountEl.textContent = String(total);
@@ -457,7 +489,6 @@ function renderProducts(list = products) {
     });
 
     card.querySelector(".p-body")?.addEventListener("click", (e) => {
-      // don't hijack button clicks
       if (e.target?.closest?.("button")) return;
       window.location.href = `product-details.html?id=${encodeURIComponent(p.id)}`;
     });
@@ -468,6 +499,7 @@ function renderProducts(list = products) {
       addToCartOnce(p);
       renderProducts(currentList);
       updateCartCount();
+      window.KStore?.syncBadges?.();
     });
 
     grid.appendChild(card);
@@ -503,6 +535,20 @@ async function initProductsPage() {
   bindFilters();
   renderProducts(products);
   showEmpty(false);
+
+  // ✅ Keep UI in sync when cart changes elsewhere
+  document.addEventListener("cart:updated", () => {
+    updateCartCount();
+    if (currentList?.length) renderProducts(currentList);
+  });
+
+  // ✅ If KStore supports subscribe, hook it too
+  window.KStore?.subscribe?.((evt) => {
+    if (evt?.type === "CART_CHANGED" || evt?.type === "INIT") {
+      updateCartCount();
+      if (currentList?.length) renderProducts(currentList);
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

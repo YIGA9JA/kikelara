@@ -1,8 +1,9 @@
 /* ================= store.js (KÍKÉLÁRÁ CART ONLY) =================
-   ✅ SessionStorage ONLY (cart)
+   ✅ Canonical cart in localStorage (persists)
+   ✅ Mirrors into sessionStorage (legacy compatibility)
    ✅ Cross-tab sync via BroadcastChannel:
       - REQUEST_SYNC handshake (new tabs instantly get cart)
-      - SYNC payload copies cart into each tab's sessionStorage
+      - SYNC payload copies cart into each tab
    ✅ Shared helpers for cart pages + header badge sync
    ✅ Updates: #cartCount + #cartCountMobile
    ✅ Resolves /uploads paths using window.API_BASE
@@ -11,9 +12,12 @@
 (() => {
   const CART_KEY = "cart";
 
-  // BroadcastChannel name
-  const CHANNEL = "kikelara_cart_sync_v2";
-  const bc = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL) : null;
+  // ✅ Support both channels (older + newer)
+  const CHANNEL_V2 = "kikelara_cart_sync_v2";
+  const CHANNEL_V1 = "kikelara_cart_sync_v1";
+
+  const bc2 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V2) : null;
+  const bc1 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V1) : null;
 
   const subs = new Set();
 
@@ -43,7 +47,7 @@
   // Make image URL usable everywhere (supports backend /uploads)
   function resolveImageUrl(img) {
     const val = String(img || "").trim();
-    if (!val) return "images/placeholder.png"; // ✅ use your butter/cream placeholder image
+    if (!val) return "images_brown/bodyButter.png";
 
     // already absolute (signed url)
     if (/^https?:\/\//i.test(val)) return val;
@@ -57,13 +61,40 @@
     return val;
   }
 
-  function readCart() {
+  /* ----------------- Storage: read/write ----------------- */
+  function readLocal() {
+    const v = safeParse(localStorage.getItem(CART_KEY), []);
+    return Array.isArray(v) ? v : [];
+  }
+  function writeLocal(cart) {
+    try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {}
+  }
+
+  function readSession() {
     const v = safeParse(sessionStorage.getItem(CART_KEY), []);
     return Array.isArray(v) ? v : [];
   }
-
-  function writeCart(cart) {
+  function writeSession(cart) {
     try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {}
+  }
+
+  // ✅ Canonical read = localStorage; if empty but session has items, migrate.
+  function readCart() {
+    const local = readLocal();
+    if (local.length) return local;
+
+    const sess = readSession();
+    if (sess.length) {
+      writeLocal(sess);
+      return sess;
+    }
+    return [];
+  }
+
+  // ✅ Canonical write = localStorage; mirror sessionStorage for old pages
+  function writeCart(cart) {
+    writeLocal(cart);
+    writeSession(cart);
   }
 
   function sanitizeItem(p) {
@@ -77,6 +108,11 @@
       image: resolveImageUrl(p?.image || p?.image_url || p?.img || ""),
       qty: clampInt(p?.qty || 1, 1, 999)
     };
+  }
+
+  function sanitizeCart(list) {
+    const arr = Array.isArray(list) ? list : [];
+    return arr.map(sanitizeItem).filter(Boolean);
   }
 
   /* ----------------- Badge Sync ----------------- */
@@ -110,16 +146,19 @@
     document.dispatchEvent(new CustomEvent("cart:updated", { detail: { cart } }));
   }
 
+  function post(msg) {
+    try { bc2?.postMessage(msg); } catch {}
+    try { bc1?.postMessage(msg); } catch {}
+  }
+
   /* ----------------- Core Set/Get ----------------- */
   function setCart(nextCart, { broadcast = true } = {}) {
-    const cart = Array.isArray(nextCart) ? nextCart : [];
+    const cart = sanitizeCart(nextCart);
     writeCart(cart);
     syncBadges(cart);
     notify(cart);
 
-    if (broadcast && bc) {
-      try { bc.postMessage({ type: "SYNC", cart }); } catch {}
-    }
+    if (broadcast) post({ type: "SYNC", cart });
   }
 
   function getCart() {
@@ -141,7 +180,7 @@
     setCart(cart);
   }
 
-  // Optional helper (nice for product pages): increases qty if exists
+  // increases qty if exists; otherwise adds
   function addToCart(product, qty = 1) {
     const item = sanitizeItem(product);
     if (!item) return;
@@ -205,32 +244,36 @@
   }
 
   /* ----------------- Cross-tab Sync ----------------- */
-  if (bc) {
-    bc.onmessage = (msg) => {
-      const data = msg?.data || {};
-      const type = data?.type;
+  function onMessage(msg) {
+    const data = msg?.data || {};
+    const type = data?.type;
 
-      // Someone asks for cart -> respond with our current cart
-      if (type === "REQUEST_SYNC") {
-        try { bc.postMessage({ type: "SYNC", cart: readCart() }); } catch {}
-        return;
-      }
+    if (type === "REQUEST_SYNC") {
+      post({ type: "SYNC", cart: readCart() });
+      return;
+    }
 
-      // Receive cart -> store in THIS tab sessionStorage
-      if (type === "SYNC") {
-        const incoming = Array.isArray(data.cart) ? data.cart : [];
-        writeCart(incoming);
-        syncBadges(incoming);
-        notify(incoming);
-      }
-    };
+    if (type === "SYNC") {
+      const incoming = sanitizeCart(data.cart);
+      // ✅ Apply incoming without rebroadcast (avoid loops)
+      setCart(incoming, { broadcast: false });
+      return;
+    }
+
+    // optional legacy: CART_UPDATED ping (some pages use it)
+    if (type === "CART_UPDATED") {
+      syncBadges(readCart());
+      notify(readCart());
+    }
   }
+
+  if (bc2) bc2.onmessage = onMessage;
+  if (bc1) bc1.onmessage = onMessage;
 
   /* ----------------- Init ----------------- */
   document.addEventListener("DOMContentLoaded", () => {
-    // sync once now
-    const cart = readCart();
-    syncBadges(cart);
+    // initial
+    syncBadges(readCart());
 
     // header inject retry (because header.js mounts later)
     let tries = 0;
@@ -240,10 +283,8 @@
       if (tries >= 14) clearInterval(t);
     }, 140);
 
-    // ask other tabs for cart so this tab immediately matches (IMPORTANT)
-    if (bc) {
-      try { bc.postMessage({ type: "REQUEST_SYNC" }); } catch {}
-    }
+    // ask other tabs for cart so this tab immediately matches
+    post({ type: "REQUEST_SYNC" });
   });
 
   /* ----------------- Export ----------------- */
@@ -256,7 +297,7 @@
 
     // ops
     addToCartOnce,
-    addToCart,      // ✅ optional, useful on product pages
+    addToCart,
     removeFromCart,
     setQty,
     incQty,

@@ -1,25 +1,30 @@
-/* ================= cart.js (USES store.js / KStore) =================
-   ✅ Renders cart from KStore
-   ✅ Qty +/- remove
-   ✅ Checkout button totals
-   ✅ Sticky mobile bar (mobile only)
+/* ================= cart.js (UPDATED FOR NEW store.js) =================
+   ✅ Reads cart from KStore (preferred) OR localStorage(cart)
+   ✅ If KStore exists but empty, imports localStorage cart into KStore
+   ✅ Qty +/- remove works with KStore OR fallback localStorage
+   ✅ Sync via:
+      - KStore.subscribe
+      - cart:updated event
+      - localStorage "storage" event
+      - BroadcastChannel v2 + v1
    ✅ Safe DOM rendering (no unsafe innerHTML)
-   ✅ Image resolver supports image_url + /uploads + full https
-   ✅ Robust init (works even if load order changes)
-==================================================================== */
+====================================================================== */
 
 (() => {
   const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
   const FALLBACK_IMG = "images_brown/bodyButter.png";
   const isMobileMQ = window.matchMedia("(max-width: 980px)");
 
+  const CART_KEY = "cart";
+  const CHANNEL_V2 = "kikelara_cart_sync_v2";
+  const CHANNEL_V1 = "kikelara_cart_sync_v1";
+
+  const bc2 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V2) : null;
+  const bc1 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V1) : null;
+
   function formatNaira(n) {
     const num = Number(n || 0);
-    try {
-      return `₦${num.toLocaleString()}`;
-    } catch {
-      return `₦${num}`;
-    }
+    try { return `₦${num.toLocaleString()}`; } catch { return `₦${num}`; }
   }
 
   function resolveImageUrl(val) {
@@ -27,28 +32,119 @@
     if (!s) return FALLBACK_IMG;
 
     if (/^https?:\/\//i.test(s)) return s;
-
     if (s.startsWith("/uploads/") && API_BASE) return `${API_BASE}${s}`;
     if (s.startsWith("uploads/") && API_BASE) return `${API_BASE}/${s}`;
 
-    return s; // local relative path
+    return s; // relative local path like images_brown/...
   }
 
-  function getCart() {
-    const ks = window.KStore;
-    if (ks && typeof ks.getCart === "function") {
-      const v = ks.getCart();
-      return Array.isArray(v) ? v : [];
-    }
-
-    // fallback if store.js missing
+  function safeReadCart(storage) {
     try {
-      const raw = sessionStorage.getItem("cart");
+      const raw = storage.getItem(CART_KEY);
       const v = raw ? JSON.parse(raw) : [];
       return Array.isArray(v) ? v : [];
     } catch {
       return [];
     }
+  }
+
+  function safeWriteCart(storage, cart) {
+    try { storage.setItem(CART_KEY, JSON.stringify(cart)); } catch {}
+  }
+
+  function normalizeCart(cart) {
+    const list = Array.isArray(cart) ? cart : [];
+    return list
+      .map((i) => {
+        const id = String(i?.id ?? "").trim();
+        if (!id) return null;
+
+        const price = Number(i?.price || 0);
+        const qty = Math.max(1, Math.floor(Number(i?.qty || 1)));
+
+        const image = i?.image_url || i?.image || i?.img || "";
+
+        return {
+          id,
+          name: String(i?.name || "Product").trim() || "Product",
+          price: Number.isFinite(price) ? price : 0,
+          qty: Number.isFinite(qty) ? qty : 1,
+          image, // renderer resolves it
+          image_url: i?.image_url || undefined
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /* ---------- KStore helpers ---------- */
+  function getKStore() {
+    return window.KStore && typeof window.KStore.getCart === "function" ? window.KStore : null;
+  }
+
+  function getKStoreCart() {
+    const ks = getKStore();
+    if (!ks) return null;
+    const v = ks.getCart();
+    return Array.isArray(v) ? v : [];
+  }
+
+  function setKStoreCartIfPossible(cart) {
+    const ks = getKStore();
+    if (!ks) return false;
+
+    if (typeof ks.setCart === "function") {
+      try { ks.setCart(cart); return true; } catch {}
+    }
+
+    // no setter available
+    return false;
+  }
+
+  function readLocalPreferred() {
+    const local = normalizeCart(safeReadCart(localStorage));
+    if (local.length) return local;
+    const sess = normalizeCart(safeReadCart(sessionStorage));
+    return sess;
+  }
+
+  function getCart() {
+    // 1) Prefer KStore if it has data
+    const ksCart = getKStoreCart();
+    if (Array.isArray(ksCart) && ksCart.length) return normalizeCart(ksCart);
+
+    // 2) Else localStorage (canonical)
+    const local = readLocalPreferred();
+    if (local.length) {
+      // If KStore exists but empty, import once
+      if (Array.isArray(ksCart) && ksCart.length === 0) {
+        setKStoreCartIfPossible(local);
+      }
+      return local;
+    }
+
+    return [];
+  }
+
+  function broadcastCartUpdated() {
+    document.dispatchEvent(new Event("cart:updated"));
+
+    // Ping both channels for older listeners
+    try { bc2?.postMessage({ type: "CART_UPDATED" }); } catch {}
+    try { bc1?.postMessage({ type: "CART_UPDATED" }); } catch {}
+  }
+
+  function saveCartFallback(cart) {
+    const clean = normalizeCart(cart);
+
+    // ✅ Canonical: localStorage
+    safeWriteCart(localStorage, clean);
+    // legacy mirror
+    safeWriteCart(sessionStorage, clean);
+
+    // keep KStore in sync if possible
+    setKStoreCartIfPossible(clean);
+
+    broadcastCartUpdated();
   }
 
   function calcSubtotal(cart) {
@@ -129,7 +225,6 @@
       row.className = "cart-item";
       row.dataset.id = id;
 
-      // media
       const media = document.createElement("div");
       media.className = "cart-media";
 
@@ -147,7 +242,6 @@
 
       media.appendChild(img);
 
-      // info
       const info = document.createElement("div");
       info.className = "cart-info";
 
@@ -174,7 +268,6 @@
       meta.appendChild(dot);
       meta.appendChild(line);
 
-      // actions row (qty + remove)
       const actions = document.createElement("div");
       actions.className = "cart-actions";
 
@@ -228,7 +321,6 @@
     }
 
     function render(cart) {
-      // no unsafe injection; replace children
       cartItems.replaceChildren();
 
       if (!Array.isArray(cart) || cart.length === 0) {
@@ -237,9 +329,7 @@
         return;
       }
 
-      for (const item of cart) {
-        cartItems.appendChild(makeRow(item));
-      }
+      for (const item of cart) cartItems.appendChild(makeRow(item));
       updateSummary(cart);
     }
 
@@ -257,12 +347,29 @@
     }
 
     function applyAction(action, id) {
-      const ks = window.KStore;
-      if (!ks || !id) return;
+      if (!id) return;
 
-      if (action === "increase" && typeof ks.incQty === "function") ks.incQty(id);
-      if (action === "decrease" && typeof ks.decQty === "function") ks.decQty(id);
-      if (action === "remove" && typeof ks.removeFromCart === "function") ks.removeFromCart(id);
+      const ks = getKStore();
+
+      // ✅ Use KStore when possible (it will also update localStorage via store.js)
+      if (ks) {
+        if (action === "increase" && typeof ks.incQty === "function") return ks.incQty(id);
+        if (action === "decrease" && typeof ks.decQty === "function") return ks.decQty(id);
+        if (action === "remove" && typeof ks.removeFromCart === "function") return ks.removeFromCart(id);
+      }
+
+      // fallback: manipulate localStorage cart directly
+      const cart = getCart();
+      const idx = cart.findIndex(x => String(x.id) === String(id));
+      if (idx === -1) return;
+
+      if (action === "increase") cart[idx].qty = Math.max(1, Number(cart[idx].qty || 1) + 1);
+      if (action === "decrease") cart[idx].qty = Math.max(1, Number(cart[idx].qty || 1) - 1);
+      if (action === "remove") cart.splice(idx, 1);
+
+      saveCartFallback(cart);
+      render(cart);
+      window.KStore?.syncBadges?.();
     }
 
     cartItems.addEventListener("click", (e) => {
@@ -274,26 +381,53 @@
     checkoutBtn?.addEventListener("click", goCheckout);
     mobileCheckoutBtn?.addEventListener("click", goCheckout);
 
-    // init responsive UI
+    // responsive UI
     updateMobileBar();
     isMobileMQ.addEventListener?.("change", updateMobileBar);
     window.addEventListener("resize", updateMobileBar);
 
-    // initial render
-    render(getCart());
+    // initial render (and import if needed)
+    const first = getCart();
+    render(first);
     window.KStore?.syncBadges?.();
 
-    // best: store subscription
+    /* ---------- live sync listeners ---------- */
+
+    // KStore subscription (best)
     if (window.KStore?.subscribe) {
       window.KStore.subscribe((evt) => {
         if (evt?.type === "CART_CHANGED" || evt?.type === "INIT") {
-          render(evt.cart || getCart());
+          render(normalizeCart(evt.cart || getCart()));
         }
       });
     }
 
-    // fallback event
+    // cart:updated event
     document.addEventListener("cart:updated", () => render(getCart()));
+
+    // localStorage cross-tab (fallback when BroadcastChannel not supported)
+    window.addEventListener("storage", (e) => {
+      if (e.key === CART_KEY) render(getCart());
+    });
+
+    // BroadcastChannels (v2 + v1)
+    function onBCMessage(msg) {
+      const data = msg?.data || {};
+      if (data.type === "CART_UPDATED" || data.type === "SYNC") {
+        render(getCart());
+      }
+      if (data.type === "REQUEST_SYNC") {
+        // store.js responds; but if store.js missing, we can respond too
+        try {
+          const payload = { type: "SYNC", cart: safeReadCart(localStorage) };
+          bc2?.postMessage(payload);
+          bc1?.postMessage(payload);
+        } catch {}
+      }
+    }
+
+    bc2?.addEventListener?.("message", onBCMessage);
+    bc1?.addEventListener?.("message", onBCMessage);
   }
 
   // ✅ Robust init

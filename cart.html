@@ -6,6 +6,7 @@
   <title>KÍKÉLÁRÁ — Cart</title>
 
   <meta name="description" content="Review your KÍKÉLÁRÁ cart and proceed to checkout." />
+  <meta name="theme-color" content="#ffefd5" />
 
   <!-- Styles -->
   <link rel="stylesheet" href="header.css" />
@@ -26,11 +27,10 @@
   <script defer src="cart.js"></script>
 </head>
 
-<body>
+<body class="liquid-glass">
   <!-- Header mount -->
   <div id="siteHeader"></div>
 
-  <!-- ✅ Skip link target used by header.js -->
   <main id="mainContent" class="cart-page">
     <header class="cart-top">
       <h1>Your Cart</h1>
@@ -73,7 +73,7 @@
     </section>
   </main>
 
-  <!-- ✅ Sticky Mobile Checkout (JS will toggle visibility) -->
+  <!-- Sticky Mobile Checkout -->
   <div id="mobileCheckout" class="mobile-checkout" aria-hidden="true">
     <button id="mobileCheckoutBtn" class="mobile-checkout-btn" type="button" disabled>
       <span>Checkout</span>

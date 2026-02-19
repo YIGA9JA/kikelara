@@ -1,6 +1,7 @@
 // admin-orders.js (COOKIE AUTH + CSRF via auth.js apiFetch)
-// ✅ FIX: fetches orders from /admin/orders (NOT /orders)
-// ✅ Updates status using multiple fallbacks to match your backend route naming
+// ✅ Reads customer/total/cart from `order.payload` (your backend format)
+// ✅ Fetches orders from /admin/orders
+// ✅ Updates status using multiple fallbacks that now match the server fix below
 
 (async () => {
   const ok = await checkAuth();
@@ -28,7 +29,7 @@
     { key: "pending", label: "Pending" },
     { key: "confirmed", label: "Confirmed" },
     { key: "shipped", label: "Shipped" },
-    { key: "delivered", label: "Delivered" }
+    { key: "delivered", label: "Delivered" },
   ];
 
   let allOrders = [];
@@ -103,39 +104,56 @@
     return await res.json().catch(() => ({}));
   }
 
+  function mapStatusToTab(status) {
+    const s = String(status || "").toLowerCase().trim();
+    // ✅ If you ever stored "Paid", show it under Confirmed in the UI
+    if (s === "paid") return "confirmed";
+    if (s === "processing") return "pending";
+    if (s === "complete" || s === "completed") return "delivered";
+    return s || "pending";
+  }
+
   function normalizeOrder(o) {
+    const p = (o?.payload && typeof o.payload === "object") ? o.payload : {};
+
     const id =
       o?.id ?? o?.order_id ?? o?.orderId ?? o?.uuid ?? o?.reference ?? o?.ref ?? "";
 
     const reference =
-      o?.reference ?? o?.ref ?? (id ? String(id).slice(0, 10) : "—");
+      o?.reference ?? p?.reference ?? p?.paystackRef ?? o?.ref ?? (id ? String(id).slice(0, 10) : "—");
 
-    const statusRaw = (o?.status ?? o?.order_status ?? o?.orderStatus ?? "pending");
-    const status = String(statusRaw).toLowerCase();
+    const statusRaw = (o?.status ?? p?.status ?? "pending");
+    const status = mapStatusToTab(statusRaw);
 
-    const createdAt = o?.created_at ?? o?.createdAt ?? o?.created ?? o?.date ?? null;
+    const createdAt =
+      p?.createdAt ??
+      o?.created_at ??
+      o?.createdAt ??
+      o?.created ??
+      o?.date ??
+      null;
 
-    const name = o?.customer_name ?? o?.name ?? o?.full_name ?? o?.fullname ?? "";
-    const phone = o?.phone ?? o?.customer_phone ?? "";
-    const email = o?.email ?? o?.customer_email ?? "";
+    const name = p?.name ?? o?.customer_name ?? o?.name ?? o?.full_name ?? o?.fullname ?? "";
+    const phone = p?.phone ?? o?.phone ?? o?.customer_phone ?? "";
+    const email = p?.email ?? o?.email ?? o?.customer_email ?? "";
 
-    const state = o?.delivery_state ?? o?.state ?? "";
-    const city = o?.delivery_city ?? o?.city ?? "";
-    const address = o?.delivery_address ?? o?.address ?? "";
+    const state = p?.state ?? o?.delivery_state ?? o?.state ?? "";
+    const city = p?.city ?? o?.delivery_city ?? o?.city ?? "";
+    const address = p?.address ?? o?.delivery_address ?? o?.address ?? "";
 
-    const deliveryFee = Number(o?.delivery_fee ?? o?.deliveryFee ?? 0);
-    const total = Number(o?.total_amount ?? o?.total ?? o?.amount ?? 0);
+    const deliveryFee = Number(p?.deliveryFee ?? o?.delivery_fee ?? o?.deliveryFee ?? 0);
+    const total = Number(p?.total ?? o?.total_amount ?? o?.total ?? o?.amount ?? 0);
 
-    const items = Array.isArray(o?.items)
-      ? o.items
-      : Array.isArray(o?.cart)
-        ? o.cart
-        : Array.isArray(o?.products)
-          ? o.products
-          : [];
+    const items =
+      Array.isArray(p?.cart) ? p.cart :
+      Array.isArray(o?.items) ? o.items :
+      Array.isArray(o?.cart) ? o.cart :
+      Array.isArray(o?.products) ? o.products :
+      [];
 
     return {
       raw: o,
+      payload: p,
       id: String(id),
       reference: String(reference),
       status,
@@ -154,10 +172,9 @@
 
   /* ---------- API ---------- */
   async function fetchOrdersFromServer() {
-    // ✅ main correct endpoint:
     const endpoints = [
       "/admin/orders",
-      // fallbacks (in case your backend used a different name):
+      "/admin/orders/list",
       "/admin/orders/all",
       "/admin/all-orders"
     ];
@@ -183,6 +200,7 @@
         const arr =
           (Array.isArray(data?.orders) && data.orders) ||
           (Array.isArray(data?.data) && data.data) ||
+          (Array.isArray(data?.rows) && data.rows) ||
           (Array.isArray(data) && data) ||
           null;
 
@@ -201,7 +219,6 @@
     const status = String(newStatus || "").toLowerCase();
     const id = encodeURIComponent(String(orderId));
 
-    // Try multiple common route styles so it works even if your server differs
     const tries = [
       { url: `/admin/orders/${id}/status`, method: "PUT", body: { status } },
       { url: `/admin/orders/${id}`, method: "PUT", body: { status } },
@@ -271,7 +288,6 @@
   function itemsPreview(items) {
     if (!Array.isArray(items) || items.length === 0) return "—";
 
-    // Try to display item names if possible
     const names = items
       .map(x => x?.name || x?.title || x?.product_name || x?.product || "")
       .filter(Boolean)
@@ -380,7 +396,8 @@
       if (!rows) return;
 
       allOrders = rows.map(normalizeOrder);
-      // newest first
+
+      // newest first (use createdAt fallback safely)
       allOrders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
       setLastUpdate(Date.now());
@@ -390,14 +407,13 @@
       if (!silent) toast("ok", "Loaded", "Orders loaded from server.");
     } catch (e) {
       console.error(e);
-      showError(`Failed to load orders from ${API_BASE}. (Your backend is returning 404 for the orders endpoint.)`);
+      showError(`Failed to load orders from ${API_BASE}. (Your backend may be returning 404 for the orders endpoint.)`);
       toast("err", "Error", "Failed to load orders.");
     }
   }
 
   /* ---------- events ---------- */
   logoutBtn?.addEventListener("click", () => adminLogout());
-
   refreshBtn?.addEventListener("click", () => refreshFromServer());
 
   tabsEl?.addEventListener("click", (e) => {
@@ -437,7 +453,7 @@
       toast("ok", "Updated", `Order status set to ${status}.`);
     } catch (err) {
       console.error(err);
-      toast("err", "Update failed", "Your backend update route may be different. See server fix below.");
+      toast("err", "Update failed", "Backend update route missing. Paste the server.js fix below.");
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = oldText || "Update Status";

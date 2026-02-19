@@ -1,9 +1,10 @@
 /* ================= auth.js (COOKIE AUTH + CSRF WRAPPER) =================
    ✅ window.apiFetch(path, options) -> credentials:include + CSRF on non-GET
+   ✅ Auto-CSRF recovery: if 403 CSRF blocked → rotate once → retry
    ✅ window.checkAuth() -> GET /admin/me once
    ✅ window.adminLogout() -> POST /admin/logout
    ✅ window.adminLogin(password, otp?) -> POST /admin/login then stores csrf
-   ✅ Prevents infinite redirect loops by showing the real network/CORS error
+   ✅ Prevents infinite redirect loops by showing real network/CORS errors
 ========================================================================= */
 
 (function () {
@@ -15,13 +16,28 @@
   const CSRF_COOKIE_NAME = window.ADMIN_CSRF_COOKIE || "admin_csrf";
   const CSRF_STORAGE_KEY = window.ADMIN_CSRF_STORAGE_KEY || "admin_csrf_ls";
 
+  // Optional: redirect back after login (?next=/admin-orders.html)
+  const NEXT_PARAM = "next";
+
+  // In-memory cache (fast)
+  let csrfCached = "";
+
   function onLoginPage() {
     return String(location.pathname || "").toLowerCase().includes("admin-login");
   }
 
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
   function readCookie(name) {
     try {
-      const parts = document.cookie.split(";").map((c) => c.trim());
+      const parts = String(document.cookie || "").split(";").map((c) => c.trim());
       for (const p of parts) {
         if (p.startsWith(name + "=")) return decodeURIComponent(p.slice(name.length + 1));
       }
@@ -32,16 +48,21 @@
   function setCsrfToken(token) {
     const t = String(token || "").trim();
     if (!t) return;
+    csrfCached = t;
     try { sessionStorage.setItem(CSRF_STORAGE_KEY, t); } catch {}
   }
 
   function getCsrfToken() {
+    if (csrfCached) return csrfCached;
+
     try {
       const ss = sessionStorage.getItem(CSRF_STORAGE_KEY);
-      if (ss) return ss;
+      if (ss) {
+        csrfCached = ss;
+        return ss;
+      }
     } catch {}
 
-    // fallback: read csrf cookie if it is not HttpOnly
     const ck = readCookie(CSRF_COOKIE_NAME);
     if (ck) {
       setCsrfToken(ck);
@@ -51,11 +72,13 @@
   }
 
   function clearCsrfToken() {
+    csrfCached = "";
     try { sessionStorage.removeItem(CSRF_STORAGE_KEY); } catch {}
   }
 
   function toUrl(path) {
     const p = String(path || "");
+    if (!API_BASE) return p; // will fail, but blocker will explain
     if (!p) return API_BASE;
     if (/^https?:\/\//i.test(p)) return p;
     if (!p.startsWith("/")) return `${API_BASE}/${p}`;
@@ -69,8 +92,28 @@
     return x && typeof x === "object" && !Array.isArray(x) && !isFormData(x);
   }
 
+  async function readJsonSafe(res) {
+    try {
+      // Some responses can be empty (204)
+      const txt = await res.text();
+      if (!txt) return {};
+      return JSON.parse(txt);
+    } catch {
+      return {};
+    }
+  }
+
+  function buildLoginUrl() {
+    const url = new URL(LOGIN_PAGE, location.origin);
+    // Preserve current page for redirect after login
+    if (!onLoginPage()) {
+      const next = location.pathname + location.search + location.hash;
+      url.searchParams.set(NEXT_PARAM, next);
+    }
+    return url.toString();
+  }
+
   function showBlocker(title, body) {
-    // Don’t stack multiple blockers
     if (document.getElementById("__auth_blocker")) return;
 
     const wrap = document.createElement("div");
@@ -80,9 +123,10 @@
       display:grid; place-items:center; padding:18px;
       background:rgba(15,10,6,.55);
     `;
+
     const card = document.createElement("div");
     card.style.cssText = `
-      width:min(560px,100%);
+      width:min(600px,100%);
       background:rgba(255,255,255,.94);
       border:1px solid rgba(43,29,18,.14);
       border-radius:18px;
@@ -102,7 +146,7 @@
         <button id="__auth_login" style="border:1px solid rgba(43,29,18,.14); background:linear-gradient(180deg,#EDCC9F,#d9b07c); padding:10px 12px; border-radius:12px; font-weight:950; cursor:pointer;">Go to Login</button>
       </div>
       <div style="margin-top:10px; font-size:12px; color:rgba(43,29,18,.62); font-weight:650;">
-        API_BASE: ${escapeHtml(API_BASE)}<br/>
+        API_BASE: ${escapeHtml(API_BASE || "(missing)") }<br/>
         Page: ${escapeHtml(location.origin + location.pathname)}
       </div>
     `;
@@ -111,31 +155,51 @@
     document.body.appendChild(wrap);
 
     document.getElementById("__auth_reload")?.addEventListener("click", () => location.reload());
-    document.getElementById("__auth_login")?.addEventListener("click", () => (location.href = LOGIN_PAGE));
+    document.getElementById("__auth_login")?.addEventListener("click", () => (location.href = buildLoginUrl()));
   }
 
-  function escapeHtml(str) {
-    return String(str ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+  async function rotateCsrfOnce() {
+    // Only works when already logged in (admin cookie present)
+    try {
+      const res = await fetch(toUrl("/admin/csrf/rotate"), {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        mode: "cors",
+      });
+      const data = await readJsonSafe(res);
+      if (res.ok && data?.success && data?.csrfToken) {
+        setCsrfToken(data.csrfToken);
+        return true;
+      }
+    } catch {}
+    return false;
   }
 
   async function apiFetch(path, options = {}) {
+    if (!API_BASE) {
+      showBlocker(
+        "API_BASE is not set",
+        "window.API_BASE is missing. Ensure config.js loads BEFORE auth.js on this page."
+      );
+      throw new Error("API_BASE missing");
+    }
+
     const url = toUrl(path);
     const method = String(options.method || "GET").toUpperCase();
     const headers = new Headers(options.headers || {});
 
     let body = options.body;
+
+    // JSON body handling
     if (isPlainObject(body)) {
       if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
       body = JSON.stringify(body);
     }
 
     // CSRF header for non-GET
-    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const needsCsrf = !["GET", "HEAD", "OPTIONS"].includes(method);
+    if (needsCsrf) {
       const csrf = getCsrfToken();
       if (csrf) headers.set("X-CSRF-Token", csrf);
     }
@@ -143,7 +207,8 @@
     // Do not set Content-Type for FormData
     if (isFormData(body)) headers.delete("Content-Type");
 
-    const res = await fetch(url, {
+    // 1st attempt
+    let res = await fetch(url, {
       ...options,
       method,
       headers,
@@ -153,6 +218,40 @@
       mode: "cors",
     });
 
+    // Auto-recover CSRF once
+    // If backend returns 403 and message indicates CSRF, rotate and retry once
+    if (needsCsrf && res.status === 403) {
+      const data = await readJsonSafe(res);
+      const msg = String(data?.message || "").toLowerCase();
+      const looksCsrf = msg.includes("csrf");
+
+      if (looksCsrf) {
+        const rotated = await rotateCsrfOnce();
+        if (rotated) {
+          const headers2 = new Headers(options.headers || {});
+          let body2 = options.body;
+
+          if (isPlainObject(body2)) {
+            if (!headers2.has("Content-Type")) headers2.set("Content-Type", "application/json");
+            body2 = JSON.stringify(body2);
+          }
+          const csrf2 = getCsrfToken();
+          if (csrf2) headers2.set("X-CSRF-Token", csrf2);
+          if (isFormData(body2)) headers2.delete("Content-Type");
+
+          res = await fetch(url, {
+            ...options,
+            method,
+            headers: headers2,
+            body: body2,
+            credentials: "include",
+            cache: "no-store",
+            mode: "cors",
+          });
+        }
+      }
+    }
+
     return res;
   }
 
@@ -160,26 +259,26 @@
     try {
       const res = await apiFetch("/admin/me", { method: "GET" });
 
-      // If server says unauthorized, redirect to login
       if (res.status === 401) {
-        if (!onLoginPage()) location.href = LOGIN_PAGE;
+        if (!onLoginPage()) location.href = buildLoginUrl();
         return false;
       }
 
-      const data = await res.json().catch(() => ({}));
+      const data = await readJsonSafe(res);
+
       if (!res.ok || !data?.success) {
-        if (!onLoginPage()) location.href = LOGIN_PAGE;
+        if (!onLoginPage()) location.href = buildLoginUrl();
         return false;
       }
 
-      // Try to keep CSRF synced
+      // Sync CSRF from response (best) or cookie
       if (data?.csrfToken) setCsrfToken(data.csrfToken);
       const ck = readCookie(CSRF_COOKIE_NAME);
       if (ck) setCsrfToken(ck);
 
       return true;
     } catch (err) {
-      // This is where CORS/network errors show up (TypeError: Failed to fetch)
+      // This catches CORS/network errors (TypeError: Failed to fetch)
       showBlocker(
         "Backend not reachable from this page",
         "Your /admin/me request is failing (usually CORS or cross-site cookie blocking). Fix backend CORS + SameSite=None cookies, or host admin on the same domain as the backend."
@@ -190,7 +289,7 @@
 
   async function adminLogout() {
     try {
-      await apiFetch("/admin/logout", { method: "POST" });
+      await apiFetch("/admin/logout", { method: "POST", body: {} });
     } catch {}
     clearCsrfToken();
     location.href = LOGIN_PAGE;
@@ -201,7 +300,7 @@
     if (otp) payload.otp = String(otp);
 
     const res = await apiFetch("/admin/login", { method: "POST", body: payload });
-    const data = await res.json().catch(() => ({}));
+    const data = await readJsonSafe(res);
 
     if (!res.ok || !data?.success) {
       throw new Error(data?.message || "Login failed");
@@ -211,6 +310,16 @@
     if (data?.csrfToken) setCsrfToken(data.csrfToken);
     const ck = readCookie(CSRF_COOKIE_NAME);
     if (ck) setCsrfToken(ck);
+
+    // redirect to next if present
+    try {
+      const u = new URL(location.href);
+      const next = u.searchParams.get(NEXT_PARAM);
+      if (next) {
+        location.href = next;
+        return true;
+      }
+    } catch {}
 
     return true;
   }

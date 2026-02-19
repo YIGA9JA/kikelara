@@ -5,102 +5,149 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Admin Login</title>
 
+  <!-- MUST define window.API_BASE in config.js -->
   <script src="config.js"></script>
+
+  <!-- auth wrapper (cookie + csrf) -->
   <script src="auth.js"></script>
 
-  <style>
-    :root{
-      --bg:#fff4da;
-      --line:rgba(43,29,18,.12);
-      --text:#2b1d12;
-      --muted:rgba(43,29,18,.64);
-      --brand:#EDCC9F;
-      --brand2:#d9b07c;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; min-height:100vh; display:grid; place-items:center;
-      background: radial-gradient(1200px 600px at 20% -10%, rgba(237,204,159,.40), transparent 60%),
-                  radial-gradient(900px 500px at 100% 0%, rgba(217,176,124,.25), transparent 60%),
-                  var(--bg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color:var(--text);
-      padding:18px;
-    }
-    .card{
-      width:min(460px,100%);
-      background:rgba(255,255,255,.92);
-      border:1px solid var(--line);
-      border-radius:20px;
-      box-shadow:0 22px 60px rgba(0,0,0,.10);
-      padding:18px;
-    }
-    .brand{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
-    .logo{width:46px;height:46px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#fff;}
-    .logo img{width:100%;height:100%;object-fit:cover;display:block}
-    .title{font-weight:950;letter-spacing:.02em}
-    .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    label{display:block;font-weight:900;margin:12px 0 6px}
-    input{
-      width:100%;padding:12px;border-radius:16px;
-      border:1px solid var(--line);background:rgba(255,255,255,.75);
-      font-weight:700;
-    }
-    button{
-      margin-top:14px;width:100%;
-      border:1px solid rgba(43,29,18,.14);
-      background:linear-gradient(180deg,var(--brand),var(--brand2));
-      padding:12px;border-radius:16px;
-      cursor:pointer;font-weight:950;
-    }
-    .msg{margin-top:10px;color:var(--muted);font-weight:650}
-    .err{color:#b3261e}
-  </style>
+  <link rel="stylesheet" href="admin-login.css" />
 </head>
 
 <body>
-  <div class="card">
-    <div class="brand">
-      <div class="logo"><img src="images/logo.jpg" alt="KÍKÉLÁRÁ"></div>
-      <div>
-        <div class="title">KÍKÉLÁRÁ</div>
-        <div class="sub">Admin Login</div>
+  <main class="login-wrap">
+    <section class="login-card" aria-label="Admin Login">
+      <div class="brand">
+        <div class="brand-logo">
+          <img src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
+        </div>
+        <div class="brand-meta">
+          <div class="brand-name">KÍKÉLÁRÁ</div>
+          <div class="brand-sub">Admin Login</div>
+        </div>
       </div>
-    </div>
 
-    <form id="loginForm" autocomplete="off">
-      <label for="password">Admin password</label>
-      <input id="password" type="password" placeholder="Enter admin password" required />
-      <button id="loginBtn" type="submit">Login</button>
-      <div id="msg" class="msg"></div>
-    </form>
-  </div>
+      <h1 class="headline">Welcome back</h1>
+      <p class="hint">
+        Enter your admin password to continue.
+      </p>
+
+      <form id="loginForm" autocomplete="off" novalidate>
+        <div class="field">
+          <label for="password">Admin password</label>
+
+          <div class="input-row">
+            <input
+              id="password"
+              type="password"
+              placeholder="Enter admin password"
+              required
+              autocomplete="current-password"
+            />
+            <button id="togglePass" class="icon-btn" type="button" aria-label="Show password" title="Show password">
+              👁
+            </button>
+          </div>
+        </div>
+
+        <!-- Optional OTP (hidden by default). If you later implement TOTP, just remove the hidden attr. -->
+        <div class="field" id="otpWrap" hidden>
+          <label for="otp">OTP (optional)</label>
+          <input id="otp" type="text" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" />
+        </div>
+
+        <div id="msg" class="msg" aria-live="polite"></div>
+
+        <button id="loginBtn" class="btn" type="submit">Login</button>
+
+        <div class="foot">
+          <span class="muted">API:</span> <span id="apiBaseText" class="mono">—</span>
+        </div>
+      </form>
+    </section>
+  </main>
 
   <script>
-    (function(){
+    (function () {
       const form = document.getElementById("loginForm");
       const pass = document.getElementById("password");
+      const otp = document.getElementById("otp");
+      const otpWrap = document.getElementById("otpWrap");
       const btn = document.getElementById("loginBtn");
       const msg = document.getElementById("msg");
+      const apiBaseText = document.getElementById("apiBaseText");
+      const togglePass = document.getElementById("togglePass");
 
-      function setMsg(text, isErr){
+      const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
+      if (apiBaseText) apiBaseText.textContent = API_BASE || "—";
+
+      function setMsg(text, isErr) {
         msg.textContent = text || "";
         msg.classList.toggle("err", !!isErr);
       }
 
+      function getNextUrl() {
+        try {
+          const u = new URL(location.href);
+          const next = u.searchParams.get("next");
+          return next || "admin-dashboard.html";
+        } catch {
+          return "admin-dashboard.html";
+        }
+      }
+
+      // If already logged in, go straight to next/dashboard
+      (async function boot() {
+        try {
+          pass.focus();
+          const ok = await window.checkAuth();
+          if (ok) location.href = getNextUrl();
+        } catch {
+          // checkAuth already shows a blocker for network/CORS errors
+        }
+      })();
+
+      togglePass?.addEventListener("click", () => {
+        const isPwd = pass.type === "password";
+        pass.type = isPwd ? "text" : "password";
+        togglePass.textContent = isPwd ? "🙈" : "👁";
+        togglePass.setAttribute("aria-label", isPwd ? "Hide password" : "Show password");
+        pass.focus();
+      });
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        setMsg("");
+        setMsg("", false);
+
+        const password = String(pass.value || "").trim();
+        if (!password) {
+          setMsg("Password is required.", true);
+          pass.focus();
+          return;
+        }
+
         btn.disabled = true;
+        btn.textContent = "Logging in…";
 
         try {
-          await window.adminLogin(String(pass.value || ""));
-          setMsg("✅ Logged in. Redirecting…");
-          location.href = "admin-dashboard.html";
+          // If you later enable OTP on backend, just unhide otpWrap and pass otp.value
+          const otpVal = otpWrap && !otpWrap.hidden ? String(otp.value || "").trim() : undefined;
+
+          await window.adminLogin(password, otpVal);
+
+          setMsg("✅ Logged in. Redirecting…", false);
+          location.href = getNextUrl();
         } catch (err) {
-          setMsg(String(err.message || err), true);
+          const m = String(err?.message || err || "Login failed");
+          // Helpful hint for common failures
+          if (/failed to fetch|networkerror/i.test(m)) {
+            setMsg("Network/CORS error: backend not reachable from this page. Check HTTPS + CORS + cookies.", true);
+          } else {
+            setMsg(m, true);
+          }
         } finally {
           btn.disabled = false;
+          btn.textContent = "Login";
         }
       });
     })();
