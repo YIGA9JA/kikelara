@@ -145,6 +145,36 @@ button{ font: inherit; }
   100%{ transform: translateX(-20%); }
 }
 
+/* =============== SCROLL REVEAL ANIMATION (ALL) =============== */
+.kkl-reveal{
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity .75s ease,
+    transform .75s cubic-bezier(.2,.85,.2,1);
+  transition-delay: var(--d, 0ms);
+  will-change: opacity, transform;
+}
+.kkl-reveal.is-inview{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* subtle float for the featured badge (optional, premium feel) */
+@keyframes kkl-float{
+  0%{ transform: translateY(0); }
+  50%{ transform: translateY(-3px); }
+  100%{ transform: translateY(0); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .kkl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
+  .featured-card-badge{ animation:none !important; }
+  .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
+  .p-card, .btn, .hero-bg{ transition:none; }
+}
+
 /* =============== HERO (FULL WIDTH) =============== */
 .hero{
   position: relative;
@@ -156,7 +186,6 @@ button{ font: inherit; }
   width: 100%;
 }
 
-/* FULL WIDTH BG IMAGE */
 .hero-bg{
   position:absolute;
   inset:0;
@@ -189,7 +218,6 @@ button{ font: inherit; }
   z-index: 3;
 }
 
-/* ✅ Hero inner is FULL width (no max-width container) */
 .hero-inner{
   width: 100%;
   max-width: none;
@@ -197,32 +225,24 @@ button{ font: inherit; }
   padding: 0 6vw;
 }
 
-/* grid on top of hero */
 .hero-grid{
   position: relative;
   z-index: 4;
   display:grid;
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 18px;
   align-items:start;
   grid-auto-rows: min-content;
 }
 
-/* ✅ SOLO mode (since Glow Tip moved down) */
-.hero-grid--solo{
-  grid-template-columns: 1fr;
-}
-
-/* Wordmark */
 .hero-brandmark{
   display:flex;
   flex-wrap: wrap;
   gap: 2px;
-
   margin: 0 0 10px;
   line-height: 1;
   letter-spacing: .14em;
   text-transform: uppercase;
-
   font-size: clamp(2.1rem, 6vw, 4.2rem);
   font-weight: 1000;
   user-select:none;
@@ -232,11 +252,9 @@ button{ font: inherit; }
   opacity: 0;
   transform: translateY(12px) scale(.985);
   filter: blur(8px);
-
   color: rgba(31,22,15,.10);
   -webkit-text-stroke: 2px rgba(31,22,15,.55);
   text-shadow: 0 18px 60px rgba(0,0,0,.18);
-
   transition:
     opacity .45s ease,
     transform .55s cubic-bezier(.2,.85,.2,1),
@@ -256,12 +274,10 @@ button{ font: inherit; }
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-
   -webkit-text-stroke: 1px rgba(31,22,15,.18);
   text-shadow: 0 22px 70px rgba(0,0,0,.18);
 }
 
-/* Badge + headings */
 .badge{
   display:inline-flex;
   padding: 10px 12px;
@@ -329,7 +345,6 @@ button{ font: inherit; }
   box-shadow: 0 14px 30px rgba(0,0,0,.08);
 }
 
-/* Micro proof */
 .micro-proof{
   display:flex;
   flex-wrap: wrap;
@@ -348,24 +363,18 @@ button{ font: inherit; }
   font-size: 12px;
 }
 
-/* ✅ Hero slide description card (Admin Hero) */
+/* Hero slide card */
 .hero-slidecard{
-  grid-column: 1 / -1;
-  margin-top: 14px;
   text-decoration:none;
   color: inherit;
-
   border-radius: 26px;
   padding: 16px 16px 14px;
-
   background:
     radial-gradient(700px 380px at 22% 18%, rgba(212,175,55,.12), rgba(212,175,55,0) 62%),
     linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
   border: 1px solid rgba(255,255,255,.22);
-
   backdrop-filter: blur(20px) saturate(1.55);
   -webkit-backdrop-filter: blur(20px) saturate(1.55);
-
   box-shadow: 0 18px 50px rgba(0,0,0,.12);
   position: relative;
   overflow:hidden;
@@ -445,15 +454,12 @@ button{ font: inherit; }
 .panel{
   border-radius: 28px;
   padding: 16px;
-
   background:
     radial-gradient(700px 380px at 22% 18%, rgba(212,175,55,.10), rgba(212,175,55,0) 62%),
     linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
   border: 1px solid rgba(255,255,255,.22);
-
   backdrop-filter: blur(var(--blur)) saturate(var(--sat));
   -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
-
   box-shadow: var(--shadow2);
   overflow:hidden;
   position: relative;
@@ -496,17 +502,8 @@ button{ font: inherit; }
   opacity: .78;
 }
 
-/* Latest grid */
-.latest-grid{
-  position: relative;
-  margin-top: 14px;
-  display:grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  z-index: 2;
-}
-
-/* Most Loved 4-grid */
+/* Product grids */
+.latest-grid,
 .loved-grid{
   position: relative;
   margin-top: 14px;
@@ -521,12 +518,10 @@ button{ font: inherit; }
   display:flex;
   flex-direction: column;
   border-radius: 22px;
-
   background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
   border: 1px solid rgba(255,255,255,.22);
   backdrop-filter: blur(18px) saturate(1.5);
   -webkit-backdrop-filter: blur(18px) saturate(1.5);
-
   overflow:hidden;
   cursor: pointer;
   box-shadow: 0 18px 44px rgba(0,0,0,.08);
@@ -576,14 +571,11 @@ button{ font: inherit; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-
   padding: 8px 10px;
   border-radius: 999px;
-
   background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(255,255,255,.10));
   border: 1px solid rgba(255,255,255,.22);
   box-shadow: 0 12px 24px rgba(0,0,0,.10);
-
   font-weight: 950;
   font-size: 12px;
   line-height: 1;
@@ -610,111 +602,23 @@ button{ font: inherit; }
   color: rgba(31,22,15,.88);
 }
 
-/* ✅ Featured FULL (single big image, no thumbs, no buttons) */
-.featured-full{
-  display:block;
-  position: relative;
-  border-radius: var(--r34);
-  overflow:hidden;
-  text-decoration:none;
-  border: 1px solid rgba(255,255,255,.22);
-
-  background:
-    radial-gradient(900px 520px at 18% 18%, rgba(212,175,55,.14), transparent 62%),
-    linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
-
-  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
-  box-shadow: var(--shadow1);
-  min-height: 460px;
-}
-.featured-full img{
-  width:100%;
-  height:100%;
-  min-height: 460px;
-  object-fit: cover;
-  object-position: 50% 35%;
-  display:block;
-  transform: scale(1.02);
-  transition: transform .7s ease, filter .7s ease, opacity .35s ease;
-}
-.featured-full:hover img{
-  transform: scale(1.06);
-  filter: saturate(1.05) contrast(1.03);
-}
-.featured-full-overlay{
-  position:absolute;
-  inset:0;
-  background:
-    radial-gradient(1000px 520px at 20% 20%, rgba(255,255,255,.18), rgba(255,255,255,0) 60%),
-    linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.34) 100%);
-  pointer-events:none;
-}
-.featured-full-badge{
-  position:absolute;
-  left: 16px;
-  top: 16px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.20);
-  border: 1px solid rgba(255,255,255,.22);
-  backdrop-filter: blur(16px) saturate(1.35);
-  -webkit-backdrop-filter: blur(16px) saturate(1.35);
-  font-weight: 1000;
-  letter-spacing:.16em;
-  font-size: 11px;
-}
-.featured-full-text{
-  position:absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  border-radius: 24px;
-  padding: 14px 14px;
-
-  background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(255,255,255,.10));
-  border: 1px solid rgba(255,255,255,.22);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-}
-.featured-full-kicker{
-  font-weight: 950;
-  letter-spacing:.10em;
-  text-transform: uppercase;
-  font-size: 11px;
-  color: rgba(31,22,15,.78);
-}
-.featured-full-title{
-  margin-top: 8px;
-  font-weight: 1100;
-  font-size: 1.8rem;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-.featured-full-sub{
-  margin-top: 8px;
-  color: rgba(31,22,15,.74);
-  font-weight: 700;
-}
-
-/* Tips grid (Glow Tip / Feel / Results moved here) */
+/* Tips grid (Glow Tip / Feel / Results) */
 .tips-grid{
   display:grid;
   grid-template-columns: repeat(3, minmax(0,1fr));
   gap: 12px;
+  margin-top: 14px;
 }
 
-/* Mini cards reused */
+/* reuse hero-mini styling */
 .hero-mini{
   border-radius: 22px;
   padding: 14px;
-
   background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
   border: 1px solid rgba(255,255,255,.22);
   backdrop-filter: blur(18px) saturate(1.45);
   -webkit-backdrop-filter: blur(18px) saturate(1.45);
   box-shadow: var(--shadow3);
-
   position: relative;
   overflow:hidden;
 }
@@ -728,6 +632,89 @@ button{ font: inherit; }
 }
 .mini-title{ position:relative; font-weight: 1000; letter-spacing:.04em; }
 .mini-text{ position:relative; margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
+
+/* Featured (single full image card) */
+.featured-card{
+  display:block;
+  position: relative;
+  border-radius: var(--r34);
+  overflow:hidden;
+  border: 1px solid rgba(255,255,255,.22);
+  background:
+    radial-gradient(900px 520px at 18% 18%, rgba(212,175,55,.14), transparent 62%),
+    linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  box-shadow: var(--shadow1);
+  text-decoration:none;
+  color: inherit;
+
+  aspect-ratio: 16 / 9; /* ✅ cinematic */
+  min-height: 420px;
+}
+.featured-card img{
+  width:100%;
+  height:100%;
+  object-fit: contain; /* ✅ full image */
+  object-position: center;
+  display:block;
+  background: rgba(255,255,255,.06);
+  transition: transform .55s ease, opacity .35s ease;
+}
+.featured-card:hover img{
+  transform: scale(1.01);
+}
+
+.featured-card-overlay{
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(900px 520px at 26% 18%, rgba(255,255,255,.18), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.12));
+  pointer-events:none;
+}
+
+.featured-card-badge{
+  position:absolute;
+  left: 16px;
+  top: 16px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.20);
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  font-weight: 1000;
+  letter-spacing:.16em;
+  font-size: 11px;
+  animation: kkl-float 5.8s ease-in-out infinite;
+}
+
+.featured-card-text{
+  position:absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  padding: 12px 12px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(255,255,255,.10));
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+.featured-card-kicker{
+  font-weight: 950;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  font-size: 11px;
+  opacity: .82;
+}
+.featured-card-title{
+  margin-top: 6px;
+  font-weight: 1100;
+  font-size: 1.45rem;
+  letter-spacing: -0.02em;
+}
 
 /* Routine */
 .how-grid{
@@ -805,7 +792,7 @@ button{ font: inherit; }
 .quote p{ position: relative; margin:0; font-weight: 750; line-height: 1.7; }
 .who{ position: relative; margin-top: 8px; opacity: .75; font-weight: 850; }
 
-/* CTA panel */
+/* CTA */
 .duo-cta{ grid-template-columns: 1.1fr .9fr; }
 .cta-panel{
   background:
@@ -843,67 +830,44 @@ button{ font: inherit; }
   .how-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
   .tips-grid{ grid-template-columns: 1fr; }
   .hero-inner{ padding: 0 5vw; }
+  .featured-card{ min-height: 340px; }
 }
-/* ================= MOBILE LAYOUT UPGRADE ================= */
-@media (max-width: 600px){
 
-  /* HERO: show FULL image (no cropping) */
+/* ✅ Mobile upgrades */
+@media (max-width: 600px){
+  /* HERO FULL IMAGE */
   .hero{
     min-height: auto;
     padding: 58px 0 48px;
-    background:
-      radial-gradient(900px 520px at 18% 12%, rgba(212,175,55,.14), transparent 62%),
-      linear-gradient(180deg, rgba(255,239,213,.96), rgba(255,239,213,.90));
   }
   .hero-bg{
-    object-fit: contain;          /* ✅ full image */
-    object-position: center;      /* ✅ centered */
+    object-fit: contain;      /* ✅ full image */
+    object-position: center;
     opacity: .96;
-    filter: saturate(1.02) contrast(1.00);
   }
-
-  /* On mobile, reduce overlay strength so the full image still pops */
   .hero-overlay{
     background:
       radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%),
       linear-gradient(180deg, rgba(255,239,213,.62), rgba(255,239,213,.28), rgba(255,239,213,0));
   }
 
-  /* FEATURED: make image area larger + show FULL image (no cropping) */
-  .featured-shell{
-    min-height: unset;            /* ✅ removes forced height on mobile */
-  }
-  .featured-media{
-    border-right: none;
-    border-bottom: 1px solid rgba(255,255,255,.14);
-    background: rgba(255,255,255,.06);
-    aspect-ratio: 4 / 3;          /* ✅ gives the image a nice full frame */
-  }
-  .featured-media img{
-    width: 100%;
-    height: 100%;
-    object-fit: contain;          /* ✅ full image */
-    object-position: center;
-    transform: none;              /* ✅ stop zoom on mobile */
-  }
-  .featured-media:hover img{
-    transform: none;
-    filter: none;
+  /* Featured FULL image (already contain) + slightly taller */
+  .featured-card{
+    aspect-ratio: 4 / 3;
+    min-height: 280px;
   }
 
-  /* PRODUCTS: 2 cards per row on mobile */
+  /* ✅ Products 2 columns on mobile */
   .latest-grid,
   .loved-grid{
-    grid-template-columns: repeat(2, minmax(0, 1fr)); /* ✅ 2 columns */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
-  /* Make cards feel neat at 2-up */
   .p-body{ padding: 9px 10px 10px; }
   .p-title{ font-size: .92rem; }
   .p-price{ font-size: .95rem; }
 
-  /* Rating badge slightly smaller so it doesn’t crowd */
   .p-rating{
     top: 8px;
     left: 8px;
@@ -912,21 +876,14 @@ button{ font: inherit; }
     gap: 5px;
   }
 
-  /* Optional: slightly reduce hero inner padding on very small screens */
+  .how-grid{ grid-template-columns: 1fr; }
   .hero-inner{ padding: 0 4.6vw; }
 }
 
-/* Extra safety: VERY small phones -> switch to 1 column */
+/* Extra small phones -> 1 column */
 @media (max-width: 360px){
   .latest-grid,
   .loved-grid{
     grid-template-columns: 1fr;
   }
-}
-
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
-  .p-card, .btn, .featured-full img, .hero-bg{ transition:none; }
 }

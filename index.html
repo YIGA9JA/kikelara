@@ -8,18 +8,14 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="theme-color" content="#ffefd5" />
 
-  <!-- Fallback preload (first hero image if API is slow) -->
   <link rel="preload" as="image" href="images/about-hero.jpg">
 
-  <!-- Styles -->
   <link rel="stylesheet" href="header.css" />
   <link rel="stylesheet" href="index.css" />
   <link rel="stylesheet" href="footer.css" />
 
-  <!-- Config first -->
   <script src="config.js"></script>
 
-  <!-- hCaptcha -->
   <script>
     function hcaptchaOnload(){
       window.__HCAPTCHA_READY__ = true;
@@ -28,14 +24,9 @@
   </script>
   <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnload" async defer></script>
 
-  <!-- Cart store -->
   <script defer src="store.js"></script>
-
-  <!-- Injected header/footer -->
   <script defer src="header.js"></script>
   <script defer src="footer.js"></script>
-
-  <!-- Page script -->
   <script defer src="index.js"></script>
 </head>
 
@@ -43,10 +34,11 @@
   <div id="siteHeader"></div>
   <a class="skip-link" href="#mainContent">Skip to content</a>
 
-  <!-- PRELOADER -->
+  <!-- PRELOADER (JS will show ONLY on first homepage load per session) -->
   <div id="preloader" aria-label="Loading">
     <div class="pl-card">
       <div class="pl-brand">KÍKÉLÁRÁ</div>
+      <div class="pl-sub">Luxury Skincare</div>
       <div class="pl-bar"><span></span></div>
       <div class="pl-small">Loading.....</div>
     </div>
@@ -56,7 +48,6 @@
 
     <!-- ================= HERO (FULL WIDTH) ================= -->
     <section class="hero" aria-label="KÍKÉLÁRÁ hero">
-      <!-- FULL-WIDTH HERO BACKGROUND IMAGE (SLIDER) -->
       <img
         id="heroBgImage"
         class="hero-bg"
@@ -69,10 +60,8 @@
       <div class="hero-overlay" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
 
-      <!-- ✅ Full width wrapper (NOT .container) -->
-      <div class="hero-inner hero-grid hero-grid--solo">
+      <div class="hero-inner hero-grid">
 
-        <!-- LEFT -->
         <div class="hero-left">
           <div id="heroBrandmark" class="hero-brandmark" aria-label="KIKELARA"></div>
 
@@ -99,7 +88,7 @@
           </div>
         </div>
 
-        <!-- ✅ HERO SLIDE DESCRIPTION (from Admin Hero) -->
+        <!-- HERO SLIDE DESCRIPTION (from Admin Hero) -->
         <a id="heroSlideCard" class="hero-slidecard" href="products.html" aria-label="Open hero slide link">
           <div id="heroSlideTitle" class="hs-title"></div>
           <div id="heroSlideDesc" class="hs-desc"></div>
@@ -109,26 +98,25 @@
       </div>
     </section>
 
-    <!-- ================= FEATURED (FULL WIDTH) — NOW AFTER HERO ================= -->
-    <section class="section" aria-label="Featured drop">
+    <!-- ================= FEATURED (AFTER HERO) ================= -->
+    <section class="section featured-section" aria-label="Featured drop">
       <div class="container">
         <div class="section-head">
           <div>
             <h2>Featured Drop</h2>
-            <p class="section-sub">A limited spotlight — hand-picked by admin.</p>
+            <p class="section-sub">A spotlight pick — curated from Admin Featured.</p>
           </div>
         </div>
 
-        <a id="featuredLink" class="featured-full" href="products.html" aria-label="Open featured item">
-          <img id="featuredImage" alt="Featured product" />
-          <div class="featured-full-overlay" aria-hidden="true"></div>
+        <a id="featuredLink" class="featured-card" href="products.html" aria-label="Open featured item">
+          <img id="featuredImage" alt="Featured product" decoding="async" />
+          <div class="featured-card-overlay" aria-hidden="true"></div>
 
-          <div class="featured-full-badge" aria-hidden="true">FEATURED</div>
+          <div class="featured-card-badge" aria-hidden="true">FEATURED</div>
 
-          <div class="featured-full-text">
-            <div class="featured-full-kicker">Hand-picked • Admin Featured</div>
-            <div id="featuredName" class="featured-full-title"></div>
-            <div class="featured-full-sub">Tap to view this featured item →</div>
+          <div class="featured-card-text">
+            <div class="featured-card-kicker">Admin Featured</div>
+            <div id="featuredTitle" class="featured-card-title"></div>
           </div>
         </a>
       </div>
@@ -169,17 +157,17 @@
       </div>
     </section>
 
-    <!-- ================= GLOW TIPS (MOVED HERE) ================= -->
+    <!-- ================= GLOW TIP / FEEL / RESULTS (AFTER PRODUCTS) ================= -->
     <section class="section soft" aria-label="Glow tips">
       <div class="container">
         <div class="section-head">
           <div>
             <h2>Glow tips</h2>
-            <p class="section-sub">A premium routine — simple, clean, effective.</p>
+            <p class="section-sub">Simple rituals. Clean glow. Luxury feel.</p>
           </div>
         </div>
 
-        <div class="tips-grid" aria-label="Why KÍKÉLÁRÁ">
+        <div class="tips-grid">
           <div class="hero-mini">
             <div class="mini-title">Glow Tip</div>
             <div class="mini-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>

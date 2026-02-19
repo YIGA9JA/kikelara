@@ -1,11 +1,11 @@
 /* ================= INDEX.JS (PRODUCTION + PREMIUM LAYOUT) =================
    ✅ Hero slider pulls from /api/hero (Admin Hero) + switches SLOWER
-   ✅ Hero is full width
    ✅ Featured is AFTER hero (single big image, no thumbs, no buttons)
    ✅ Latest Drops (newest 4)
    ✅ Most Loved (top 4 by rating summary) -> 4-grid
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ Preloader shows ONLY on first homepage load (per tab/session)
+   ✅ Preloader shows ONLY on first homepage load per session (not on back)
+   ✅ Animate ALL sections/cards via scroll reveal
 ============================================================================ */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
@@ -16,8 +16,8 @@ const RATINGS_TTL_MS = 1000 * 60 * 60 * 6;
 const RATINGS_CONCURRENCY = 6;
 
 /* ✅ Slower timing */
-const HERO_SWITCH_MS = 9500;      // was 5000
-const FEATURED_SWITCH_MS = 11000; // was 4200
+const HERO_SWITCH_MS = 12000;      // slower than before
+const FEATURED_SWITCH_MS = 14000;  // slower featured rotation
 
 /* ================= PRELOADER CONTROL ================= */
 const preloader = document.getElementById("preloader");
@@ -29,12 +29,11 @@ const PRELOADER_KEY = "kkl_home_preloader_seen_v1";
 const navType = performance.getEntriesByType("navigation")?.[0]?.type || "navigate";
 const SHOW_PRELOADER =
   sessionStorage.getItem(PRELOADER_KEY) !== "1" &&
-  navType !== "back_forward"; // extra safety
+  navType !== "back_forward";
 
 if (SHOW_PRELOADER) {
   sessionStorage.setItem(PRELOADER_KEY, "1");
 } else {
-  // remove instantly so it never flashes
   if (preloader) preloader.remove();
 }
 
@@ -70,7 +69,7 @@ window.addEventListener("pageshow", (e) => {
   }
 });
 
-/* ================= IMAGE PRELOAD HELPERS ================= */
+/* ================= IMAGE WAITERS ================= */
 function waitForImgEl(img){
   return new Promise((resolve) => {
     if (!img) return resolve();
@@ -179,7 +178,9 @@ async function fetchFeaturedItems() {
     const data = await res.json().catch(() => null);
 
     const items = Array.isArray(data?.items) ? data.items : [];
-    return items.map(normalizeFeaturedItem).filter((x) => x.image_url);
+    return items
+      .map(normalizeFeaturedItem)
+      .filter((x) => x.image_url);
   } catch {
     return [];
   }
@@ -204,7 +205,9 @@ async function fetchHeroItems() {
     const data = await res.json().catch(() => null);
 
     const items = Array.isArray(data?.items) ? data.items : [];
-    return items.map(normalizeHeroItem).filter((x) => x.image_url);
+    return items
+      .map(normalizeHeroItem)
+      .filter((x) => x.image_url);
   } catch {
     return [];
   }
@@ -316,6 +319,41 @@ function makeRatingBadge(avg, count) {
   return el;
 }
 
+/* ================= REVEAL (ANIMATE ALL) ================= */
+let revealObserver = null;
+
+function ensureRevealObserver(){
+  if (revealObserver) return;
+
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (reduce) {
+    revealObserver = null;
+    document.querySelectorAll(".kkl-reveal").forEach(el => el.classList.add("is-inview"));
+    return;
+  }
+
+  revealObserver = new IntersectionObserver((entries) => {
+    for (const e of entries){
+      if (e.isIntersecting){
+        e.target.classList.add("is-inview");
+        revealObserver.unobserve(e.target);
+      }
+    }
+  }, { threshold: 0.14, rootMargin: "0px 0px -10% 0px" });
+}
+
+function markAndObserve(el){
+  if (!el) return;
+  el.classList.add("kkl-reveal");
+  ensureRevealObserver();
+  if (revealObserver) revealObserver.observe(el);
+  else el.classList.add("is-inview");
+}
+
+function observeBatch(selector){
+  document.querySelectorAll(selector).forEach(markAndObserve);
+}
+
 /* ================= RENDER CARDS ================= */
 function makeCard(p, kind) {
   const card = document.createElement("a");
@@ -361,7 +399,13 @@ function makeCard(p, kind) {
 function renderList(container, items, kind) {
   if (!container) return;
   container.innerHTML = "";
-  items.forEach((p) => container.appendChild(makeCard(p, kind)));
+
+  items.forEach((p, idx) => {
+    const card = makeCard(p, kind);
+    card.style.setProperty("--d", `${Math.min(idx, 8) * 70}ms`); // stagger
+    container.appendChild(card);
+    markAndObserve(card);
+  });
 }
 
 /* ================= HERO SLIDER ================= */
@@ -394,6 +438,7 @@ function setHeroNow(item){
   if (heroCard){
     heroCard.href = link;
     heroCard.style.display = (title || desc) ? "block" : "none";
+    markAndObserve(heroCard);
   }
   if (heroSlideTitle) heroSlideTitle.textContent = title;
   if (heroSlideDesc) heroSlideDesc.textContent = desc;
@@ -410,7 +455,7 @@ let featuredIndex = 0;
 let featuredPool = [];
 
 const featuredImg = document.getElementById("featuredImage");
-const featuredName = document.getElementById("featuredName");
+const featuredTitleEl = document.getElementById("featuredTitle");
 const featuredLinkEl = document.getElementById("featuredLink");
 
 function setFeaturedLink(url) {
@@ -430,7 +475,7 @@ function setFeaturedNow(item){
   preloadUrl(src).then(() => {
     featuredImg.src = src;
     featuredImg.alt = title;
-    if (featuredName) featuredName.textContent = title;
+    if (featuredTitleEl) featuredTitleEl.textContent = title;
     setFeaturedLink(link);
     requestAnimationFrame(() => (featuredImg.style.opacity = "1"));
   });
@@ -488,14 +533,20 @@ function initHeroBrandAnimation(){
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
   const start = performance.now();
+  lockScroll(true);
 
-  // ✅ only lock scroll if preloader is actually showing
-  if (SHOW_PRELOADER) lockScroll(true);
-
-  // let header/footer mount
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   initHeroBrandAnimation();
+
+  // reveal core blocks
+  observeBatch(".hero-left");
+  observeBatch(".featured-card");
+  observeBatch(".section");
+  observeBatch(".panel");
+  observeBatch(".how-card");
+  observeBatch(".quote");
+  observeBatch(".tips-grid .hero-mini");
 
   const latestGrid = document.getElementById("latestProducts");
   const lovedGrid = document.getElementById("homeProducts");
@@ -548,7 +599,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     featuredPool = featuredPool.slice(0, 6);
   }
 
-  // preload critical images
+  // preload critical images (so first view is premium)
   const fallbackHeroSrc = heroBg?.getAttribute("src") || "images/about-hero.jpg";
   const criticalUrls = [
     heroPool[0]?.image_url ? resolveImageUrl(heroPool[0].image_url) : fallbackHeroSrc,
@@ -557,12 +608,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ...baseLoved.map(p => resolveImageUrl(p.image_url)),
   ];
 
-  // ✅ Only block on preloads if preloader is showing
-  if (SHOW_PRELOADER) {
-    await Promise.race([preloadUrls(criticalUrls), sleep(PRELOADER_MAX_MS)]);
-  } else {
-    preloadUrls(criticalUrls).catch(() => {});
-  }
+  await Promise.race([preloadUrls(criticalUrls), sleep(PRELOADER_MAX_MS)]);
 
   // render sections
   renderList(latestGrid, latest, "latest");
@@ -597,26 +643,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
-    renderList(lovedGrid, loved, "loved");
+    renderList(lovedGrid, loved, "loved"); // (re-renders + re-reveals)
   })().catch(() => {});
 
-  // ✅ Only wait for DOM images / min time if preloader is showing
-  if (SHOW_PRELOADER) {
-    await Promise.race([
-      (async () => {
-        try { await document.fonts?.ready; } catch {}
-        await waitForAllImgsInDom();
-      })(),
-      sleep(PRELOADER_MAX_MS)
-    ]);
+  // wait for DOM images
+  await Promise.race([
+    (async () => {
+      try { await document.fonts?.ready; } catch {}
+      await waitForAllImgsInDom();
+    })(),
+    sleep(PRELOADER_MAX_MS)
+  ]);
 
-    const elapsed = performance.now() - start;
-    if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
+  const elapsed = performance.now() - start;
+  if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
 
-    hidePreloader();
-  } else {
-    // safety: ensure not locked and preloader not present
-    lockScroll(false);
-    if (preloaderAlive()) preloader.remove();
-  }
+  hidePreloader();
 });
