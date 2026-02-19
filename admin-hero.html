@@ -1,3 +1,4 @@
+<!-- admin-hero.html (FULL — matches your admin-hero.js exactly) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,12 +7,17 @@
   <meta name="color-scheme" content="light" />
   <title>Admin Hero | KÍKÉLÁRÁ</title>
 
-  <!-- Reuse your premium admin theme -->
+  <!-- Your existing premium admin theme -->
   <link rel="stylesheet" href="admin-dashboard.css" />
+
+  <!-- OPTIONAL: if you have hero-specific css, link it -->
+  <!-- <link rel="stylesheet" href="admin-hero.css" /> -->
 </head>
 <body>
 
-  <noscript><div class="nojs">This admin page requires JavaScript to work.</div></noscript>
+  <noscript>
+    <div class="nojs">This admin page requires JavaScript to work.</div>
+  </noscript>
 
   <header class="dash-header" role="banner" aria-label="Hero admin header">
     <div class="brand">
@@ -35,7 +41,9 @@
     <div class="page-head">
       <div>
         <h1>Hero Slider</h1>
-        <div class="muted">These slides power the homepage hero carousel (<code>/api/hero</code>).</div>
+        <div class="muted">
+          These slides power the homepage hero carousel (<code>/api/hero</code>).
+        </div>
       </div>
 
       <div class="chips">
@@ -66,23 +74,29 @@
         </div>
 
         <div class="row" style="margin-top:10px;">
-          <input id="image_url" type="text" placeholder="Image URL or upload below" />
+          <input id="image_url" type="text" placeholder="Image URL (or upload below)" />
         </div>
 
-        <div class="row" style="margin-top:10px;">
-          <button class="btn gold file-btn" type="button">
+        <div class="row" style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn gold file-btn" type="button" style="position:relative; overflow:hidden;">
             Upload Image
-            <input id="image_file" type="file" accept="image/*" />
+            <input
+              id="image_file"
+              type="file"
+              accept="image/*"
+              style="position:absolute; inset:0; opacity:0; cursor:pointer;"
+            />
           </button>
-          <label class="pill" style="justify-self:end;">
-            <input id="is_active" type="checkbox" checked style="margin-right:8px; transform:translateY(1px);" />
+
+          <label class="pill" style="display:flex; align-items:center; gap:8px;">
+            <input id="is_active" type="checkbox" checked />
             Active
           </label>
         </div>
 
         <div class="divider"></div>
 
-        <div class="row">
+        <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
           <button id="createBtn" class="btn primary" type="button">Add Slide</button>
           <button id="resetBtn" class="btn ghost" type="button">Reset</button>
         </div>
@@ -100,7 +114,7 @@
             <div class="muted small" id="statusLine" aria-live="polite">Loading…</div>
           </div>
 
-          <div class="list-actions">
+          <div class="list-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <div class="search-wrap">
               <input id="search" type="search" placeholder="Search slides…" />
             </div>
@@ -117,7 +131,7 @@
   <!-- Toast container -->
   <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-label="Notifications"></div>
 
-  <!-- Edit Modal -->
+  <!-- Edit Modal (MUST match IDs used in admin-hero.js) -->
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-label="Edit slide">
       <div class="modal-head">
@@ -154,10 +168,34 @@
           <input id="mImage" type="text" />
         </div>
 
-        <div class="row">
-          <button class="btn gold file-btn" type="button">
+        <div class="row" style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn gold file-btn" type="button" style="position:relative; overflow:hidden;">
             Upload New Image
-            <input id="mFile" type="file" accept="image/*" />
+            <input
+              id="mFile"
+              type="file"
+              accept="image/*"
+              style="position:absolute; inset:0; opacity:0; cursor:pointer;"
+            />
           </button>
 
-          <label class="pill" style="ju
+          <label class="pill" style="display:flex; align-items:center; gap:8px;">
+            <input id="mActive" type="checkbox" />
+            Active
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn ghost" id="modalCancel" type="button">Cancel</button>
+        <button class="btn primary" id="modalSave" type="button">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REQUIRED scripts (same order as admin-products) -->
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="admin-hero.js" defer></script>
+</body>
+</html>
