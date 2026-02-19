@@ -246,8 +246,8 @@
   function updateDescCount() {
     if (!desc || !descCount) return;
     const v = desc.value || "";
-    if (v.length > 600) desc.value = v.slice(0, 600);
-    descCount.textContent = `${desc.value.length} / 600`;
+    if (v.length > 6000) desc.value = v.slice(0, 6000);
+    descCount.textContent = `${desc.value.length} / 6000`;
   }
 
   function setActiveUI(valBool) {
