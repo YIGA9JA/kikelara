@@ -3,9 +3,6 @@
    ✅ Upload image: /admin/hero/upload
    ✅ Public uses: /api/hero (homepage slider)
    ✅ Safe rendering (textContent only)
-   ✅ FIX: sends is_active as "true"/"false" (prevents backend Zod validation failed)
-   ✅ FIX: supports backend that returns image_key/key + signedUrl/image_url
-   ✅ FIX: better error messages (shows validation details)
 ================================================ */
 
 (async function () {
@@ -32,7 +29,7 @@
   const descEl = document.getElementById("description");
   const linkEl = document.getElementById("link_url");
   const sortEl = document.getElementById("sort_order");
-  const imageUrlEl = document.getElementById("image_url");
+  const imageUrlEl = document.getElementById("image_url"); // stores KEY or URL
   const fileEl = document.getElementById("image_file");
   const activeEl = document.getElementById("is_active");
   const createBtn = document.getElementById("createBtn");
@@ -47,7 +44,7 @@
   const mDesc = document.getElementById("mDesc");
   const mLink = document.getElementById("mLink");
   const mSort = document.getElementById("mSort");
-  const mImage = document.getElementById("mImage");
+  const mImage = document.getElementById("mImage"); // stores KEY or URL
   const mFile = document.getElementById("mFile");
   const mActive = document.getElementById("mActive");
 
@@ -114,6 +111,14 @@
     setTimeout(() => { try { t.remove(); } catch {} }, 4500);
   }
 
+  function looksLikeStorageKey(val) {
+    const s = String(val || "").trim();
+    if (!s) return false;
+    if (/^https?:\/\//i.test(s)) return false;
+    if (s.startsWith("/uploads/")) return false;
+    return true; // e.g. "hero/tmp/....webp"
+  }
+
   function resolveImageUrl(img) {
     const val = String(img || "").trim();
     if (!val) return "";
@@ -123,66 +128,18 @@
     return val;
   }
 
-  function looksLikeStorageKey(v) {
-    const s = String(v || "").trim();
-    if (!s) return false;
-    if (/^https?:\/\//i.test(s)) return false;
-    if (s.startsWith("/uploads/") || s.startsWith("uploads/")) return false;
-    return true;
-  }
-
-  function setImageDraft(inputEl, { displayUrl = "", key = "" } = {}) {
-    if (!inputEl) return;
-    const u = String(displayUrl || "").trim();
-    const k = String(key || "").trim();
-
-    // show something in the input (prefer a URL for preview, else key)
-    inputEl.value = u || k || "";
-
-    // store key for backend that needs image_key
-    if (k) inputEl.dataset.key = k;
-    else delete inputEl.dataset.key;
-  }
-
-  function getImageKeyFromInput(inputEl) {
-    if (!inputEl) return "";
-    const dsKey = String(inputEl.dataset?.key || "").trim();
-    if (dsKey) return dsKey;
-
-    const v = String(inputEl.value || "").trim();
-    return looksLikeStorageKey(v) ? v : "";
-  }
-
-  function getImageUrlFromInput(inputEl) {
-    return String(inputEl?.value || "").trim();
-  }
-
-  function boolToStr(v) {
-    return v ? "true" : "false";
-  }
-
-  function formatApiError(data, fallbackMsg) {
-    const msg = String(data?.message || data?.msg || fallbackMsg || "Request failed");
-    const details = Array.isArray(data?.details) ? data.details : [];
-    if (!details.length) return msg;
-
-    // details may be: [{field,message}] or Zod issues
-    const lines = details
-      .map((d) => {
-        const field = d?.field ?? (Array.isArray(d?.path) ? d.path.join(".") : d?.path);
-        const m = d?.message || d?.msg || "";
-        if (field && m) return `${field}: ${m}`;
-        return m || field || "";
-      })
-      .filter(Boolean);
-
-    return lines.length ? `${msg} — ${lines.join(" | ")}` : msg;
+  function bestErr(data, res) {
+    const base = data?.message || `Request failed: ${res?.status || "?"}`;
+    const details = Array.isArray(data?.details)
+      ? data.details.map(d => `${d.field}: ${d.message}`).join(" | ")
+      : "";
+    return details ? `${base} — ${details}` : base;
   }
 
   async function getJson(path) {
     const res = await apiFetch(path, { method: "GET" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
+    if (!res.ok) throw new Error(bestErr(data, res));
     return data;
   }
 
@@ -193,7 +150,7 @@
       body: JSON.stringify(payload || {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
+    if (!res.ok) throw new Error(bestErr(data, res));
     return data;
   }
 
@@ -204,28 +161,35 @@
       body: JSON.stringify(payload || {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
+    if (!res.ok) throw new Error(bestErr(data, res));
     return data;
   }
 
   async function del(path) {
     const res = await apiFetch(path, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
+    if (!res.ok) throw new Error(bestErr(data, res));
     return data;
   }
 
   function normalizeItem(it) {
+    const key = String(it?.image_url_key || it?.image_key || it?.image_url || "").trim();
+    const signed = String(it?.image_url_signed || it?.signedUrl || "").trim();
+
+    // For previews: signedUrl preferred. If not, use key if it's already a URL or /uploads.
+    const displaySrc = signed
+      ? signed
+      : (!looksLikeStorageKey(key) ? resolveImageUrl(key) : "");
+
     return {
       id: it?.id,
       title: String(it?.title || "").trim(),
       description: String(it?.description || "").trim(),
-      link_url: String(it?.link_url || it?.linkUrl || "").trim(),
-      // admin list may return signed URL here:
-      image_url: String(it?.image_url || it?.imageUrl || "").trim(),
-      // some backends also provide the storage key:
-      image_key: String(it?.image_key || it?.imageKey || it?.key || "").trim(),
-      sort_order: Number(it?.sort_order ?? it?.sortOrder ?? 0),
+      link_url: String(it?.link_url || "").trim(),
+      image_key: key,            // persisted value
+      image_signed: signed,      // preview url if any
+      image_display: displaySrc, // final preview src
+      sort_order: Number(it?.sort_order || 0),
       is_active: it?.is_active === undefined ? true : Boolean(it.is_active),
       created_at: it?.created_at || null,
     };
@@ -246,13 +210,8 @@
     if (mLink) mLink.value = item.link_url || "";
     if (mSort) mSort.value = String(item.sort_order ?? 0);
 
-    // show URL (for preview) but keep key in dataset if we have it
-    if (mImage) {
-      mImage.value = item.image_url || item.image_key || "";
-      if (item.image_key) mImage.dataset.key = item.image_key;
-      else delete mImage.dataset.key;
-    }
-
+    // ✅ store KEY (not signed)
+    if (mImage) mImage.value = item.image_key || "";
     if (mActive) mActive.checked = !!item.is_active;
     if (mFile) mFile.value = "";
 
@@ -281,56 +240,18 @@
 
   async function uploadFile(file) {
     if (!file) throw new Error("No file selected");
+    const fd = new FormData();
+    fd.append("file", file);
 
-    async function tryUpload(fieldName) {
-      const fd = new FormData();
-      fd.append(fieldName, file);
+    const res = await apiFetch("/admin/hero/upload", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(bestErr(data, res));
 
-      const res = await apiFetch("/admin/hero/upload", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
-      return { res, data };
-    }
+    const key = String(data?.key || data?.path || "").trim();
+    const signedUrl = String(data?.signedUrl || data?.url || data?.image_url || "").trim();
 
-    // Try common field name(s) without breaking multer.single("..."):
-    // - most setups: "file"
-    // - other setups: "image"
-    let out = await tryUpload("file");
-    if (!out.res.ok) {
-      const msg = String(out.data?.message || out.data?.msg || "");
-      const unexpected = /unexpected field/i.test(msg);
-      if (unexpected || out.res.status === 400) {
-        // retry with "image" if backend expects multer.single("image")
-        out = await tryUpload("image");
-      }
-    }
-
-    if (!out.res.ok) {
-      if (out.res.status === 404) throw new Error("Upload route not found: POST /admin/hero/upload");
-      throw new Error(formatApiError(out.data, `Upload failed: ${out.res.status}`));
-    }
-
-    // Prefer returning a storage key if available
-    const key =
-      out.data?.image_key ||
-      out.data?.key ||
-      out.data?.path_key ||
-      "";
-
-    const url =
-      out.data?.signedUrl ||
-      out.data?.signed_url ||
-      out.data?.url ||
-      out.data?.image_url ||
-      out.data?.path ||
-      "";
-
-    const displayUrl = String(url || "").trim();
-    const k = String(key || "").trim();
-
-    // If backend returns only a key, we still return it
-    if (!displayUrl && !k) throw new Error("Upload succeeded but no key/url returned");
-
-    return { displayUrl: displayUrl || k, key: k };
+    if (!key) throw new Error("Upload succeeded but no key returned");
+    return { key, signedUrl };
   }
 
   function el(tag, cls, txt) {
@@ -341,7 +262,6 @@
   }
 
   async function swapSort(a, b) {
-    // swap sort_order of 2 items (simple + reliable)
     const aOrder = Number(a.sort_order || 0);
     const bOrder = Number(b.sort_order || 0);
 
@@ -363,7 +283,6 @@
       : items;
 
     updateChips(filtered);
-
     if (emptyEl) emptyEl.style.display = filtered.length ? "none" : "block";
 
     filtered.forEach((it, idx) => {
@@ -386,7 +305,7 @@
 
       const img = document.createElement("img");
       img.alt = it.title || "Hero slide";
-      img.src = resolveImageUrl(it.image_url) || "";
+      img.src = it.image_display || ""; // ✅ uses signed url when available
       img.style.width = "100%";
       img.style.height = "100%";
       img.style.objectFit = "cover";
@@ -476,8 +395,7 @@
 
       toggle.addEventListener("click", async () => {
         try {
-          // ✅ send as string to satisfy backend zod schema that expects string
-          await putJson(`/admin/hero/${encodeURIComponent(it.id)}`, { is_active: boolToStr(!it.is_active) });
+          await putJson(`/admin/hero/${encodeURIComponent(it.id)}`, { is_active: !it.is_active });
           toast("ok", "Saved", it.is_active ? "Slide disabled." : "Slide enabled.");
           await load();
         } catch (e) {
@@ -521,7 +439,6 @@
         const ao = Number(a.sort_order || 0);
         const bo = Number(b.sort_order || 0);
         if (ao !== bo) return ao - bo;
-        // newest last to keep stable ordering by sort
         return String(a.created_at || "").localeCompare(String(b.created_at || ""));
       });
       render(allItems);
@@ -537,10 +454,7 @@
     if (descEl) descEl.value = "";
     if (linkEl) linkEl.value = "";
     if (sortEl) sortEl.value = "0";
-    if (imageUrlEl) {
-      imageUrlEl.value = "";
-      delete imageUrlEl.dataset.key;
-    }
+    if (imageUrlEl) imageUrlEl.value = "";
     if (fileEl) fileEl.value = "";
     if (activeEl) activeEl.checked = true;
   }
@@ -551,7 +465,7 @@
       if (!f) return;
       setStatus("Uploading image…", "info");
       const up = await uploadFile(f);
-      setImageDraft(imageUrlEl, up);
+      if (imageUrlEl) imageUrlEl.value = up.key; // ✅ save KEY (not signed URL)
       toast("ok", "Uploaded", "Image uploaded successfully.");
       setStatus("Ready ✅", "ok");
     } catch (e) {
@@ -566,7 +480,7 @@
       if (!f) return;
       setStatus("Uploading image…", "info");
       const up = await uploadFile(f);
-      setImageDraft(mImage, up);
+      if (mImage) mImage.value = up.key; // ✅ save KEY
       toast("ok", "Uploaded", "New image uploaded.");
       setStatus("Ready ✅", "ok");
     } catch (e) {
@@ -577,24 +491,16 @@
 
   createBtn?.addEventListener("click", async () => {
     try {
-      const image_url = getImageUrlFromInput(imageUrlEl);
-      const image_key = getImageKeyFromInput(imageUrlEl);
-
       const payload = {
         title: String(titleEl?.value || "").trim(),
         description: String(descEl?.value || "").trim(),
         link_url: String(linkEl?.value || "").trim(),
         sort_order: Number(sortEl?.value || 0),
-
-        // send BOTH for compatibility (backend can pick what it needs)
-        image_url,
-        image_key: image_key || undefined,
-
-        // ✅ IMPORTANT: send string not boolean (fixes "validation failed")
-        is_active: boolToStr(!!activeEl?.checked),
+        image_url: String(imageUrlEl?.value || "").trim(), // KEY or URL
+        is_active: !!activeEl?.checked,
       };
 
-      if (!payload.image_url && !payload.image_key) {
+      if (!payload.image_url) {
         toast("warn", "Missing image", "Please provide an image URL or upload an image.");
         return;
       }
@@ -617,24 +523,16 @@
   modalSave?.addEventListener("click", async () => {
     if (!editing) return;
     try {
-      const image_url = getImageUrlFromInput(mImage);
-      const image_key = getImageKeyFromInput(mImage) || String(editing.image_key || "").trim();
-
       const payload = {
         title: String(mTitle?.value || "").trim(),
         description: String(mDesc?.value || "").trim(),
         link_url: String(mLink?.value || "").trim(),
         sort_order: Number(mSort?.value || 0),
-
-        // send BOTH for compatibility
-        image_url,
-        image_key: image_key || undefined,
-
-        // ✅ IMPORTANT: send string not boolean
-        is_active: boolToStr(!!mActive?.checked),
+        image_url: String(mImage?.value || "").trim(), // KEY or URL
+        is_active: !!mActive?.checked,
       };
 
-      if (!payload.image_url && !payload.image_key) {
+      if (!payload.image_url) {
         toast("warn", "Missing image", "Image URL cannot be empty.");
         return;
       }
@@ -651,4 +549,11 @@
   });
 
   await load();
+
+  function setStatus(text, type) {
+    if (!statusLine) return;
+    statusLine.textContent = text || "";
+    if (type) statusLine.setAttribute("data-type", type);
+    else statusLine.removeAttribute("data-type");
+  }
 })();
