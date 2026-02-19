@@ -1,11 +1,10 @@
-/* ================= INDEX.JS (PRODUCTION — TOP NOTCH) =================
+/* ================= INDEX.JS (PRODUCTION + PRELOADER WAITS FOR IMAGES ✅) =================
    ✅ Latest Drops (newest 4)
    ✅ Most Loved (top 4 by rating summary)
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ Cards show only: image + name + price
-   ✅ FEATURED HERO pulls from /api/featured (Admin Featured)
-   ✅ Premium UX: skeleton loading + featured pause on hidden tab + rail arrows
-========================================================== */
+   ✅ FEATURED HERO pulls from /api/featured
+   ✅ Preloader stays until critical images are loaded
+======================================================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const PRODUCTS_KEY = "allProducts";
@@ -14,22 +13,63 @@ const RATINGS_CACHE_KEY = "ratingsSummary_v1";
 const RATINGS_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const RATINGS_CONCURRENCY = 6;
 
-/* ================= PRELOADER – PER TAB ================= */
-window.addEventListener("load", () => {
-  const preloader = document.getElementById("preloader");
+/* ================= PRELOADER CONTROL (WAIT FOR IMAGES) ================= */
+const preloader = document.getElementById("preloader");
+const PRELOADER_MIN_MS = 450;     // avoid flash
+const PRELOADER_MAX_MS = 12000;   // safety escape (don’t trap users forever)
 
-  if (!sessionStorage.getItem("visited")) {
-    sessionStorage.setItem("visited", "true");
-    setTimeout(() => {
-      if (preloader) {
-        preloader.style.opacity = "0";
-        setTimeout(() => preloader.remove(), 550);
-      }
-    }, 900);
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function lockScroll(lock){
+  if (!preloader) return;
+  if (lock){
+    document.body.dataset._prevOverflow = document.body.style.overflow || "";
+    document.body.style.overflow = "hidden";
   } else {
-    if (preloader) preloader.remove();
+    document.body.style.overflow = document.body.dataset._prevOverflow || "";
+    delete document.body.dataset._prevOverflow;
   }
-});
+}
+
+function hidePreloader(){
+  if (!preloader) return;
+  preloader.style.opacity = "0";
+  setTimeout(() => preloader.remove(), 550);
+  lockScroll(false);
+}
+
+function waitForImgEl(img){
+  return new Promise((resolve) => {
+    if (!img) return resolve();
+    if (img.complete && img.naturalWidth > 0) return resolve();
+
+    const done = () => resolve();
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", done, { once: true });
+  });
+}
+
+async function waitForAllImgsInDom(){
+  const imgs = Array.from(document.querySelectorAll("img"))
+    .filter(i => i && i.getAttribute("src"));
+
+  await Promise.all(imgs.map(waitForImgEl));
+}
+
+function preloadUrl(src){
+  return new Promise((resolve) => {
+    if (!src) return resolve();
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
+async function preloadUrls(urls){
+  const uniq = Array.from(new Set((urls || []).filter(Boolean)));
+  await Promise.all(uniq.map(preloadUrl));
+}
 
 /* ================= HERO VIDEO (LAZY + SAFE) ================= */
 (function initHeroVideo() {
@@ -78,7 +118,7 @@ window.addEventListener("load", () => {
           io.disconnect();
         }
       },
-      { threshold: 0.12, rootMargin: "220px" }
+      { threshold: 0.12, rootMargin: "200px" }
     );
     io.observe(v);
   } else {
@@ -108,7 +148,7 @@ function safeSetSessionJSON(key, val) {
 
 function formatNaira(n) {
   const num = Number(n || 0);
-  try { return `₦${num.toLocaleString()}`; } catch { return `₦${num}`; }
+  return `₦${num.toLocaleString()}`;
 }
 
 function resolveImageUrl(img) {
@@ -197,7 +237,9 @@ function setCachedRating(cache, productId, avg, count) {
 async function fetchReviewSummary(productId) {
   if (!API_BASE) return { avg: 0, count: 0 };
   try {
-    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews/summary`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews/summary`, {
+      cache: "no-store",
+    });
     if (!res.ok) return { avg: 0, count: 0 };
     const data = await res.json().catch(() => null);
     const avg = Number(data?.summary?.avg || 0);
@@ -284,15 +326,19 @@ function makeCard(p, kind) {
   const card = document.createElement("a");
   card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
   card.href = productUrl(p.id);
+  card.style.textDecoration = "none";
 
   const media = document.createElement("div");
   media.className = "p-media";
 
   const img = document.createElement("img");
-  img.loading = "lazy";
-  img.decoding = "async";
-  img.alt = p.name || "Product";
+  img.alt = p.name;
   img.src = resolveImageUrl(p.image_url);
+  img.decoding = "async";
+
+  // ✅ IMPORTANT: if you want preloader to wait for these images, DON'T lazy-load them
+  img.loading = "eager";
+
   media.appendChild(img);
 
   if (kind === "loved") {
@@ -322,132 +368,178 @@ function makeCard(p, kind) {
 
 function renderList(container, items, kind) {
   if (!container) return;
-  container.replaceChildren();
+  container.innerHTML = "";
   items.forEach((p) => container.appendChild(makeCard(p, kind)));
-}
-
-/* ================= SKELETONS ================= */
-function makeSkeletonCard(kind) {
-  const wrap = document.createElement("div");
-  wrap.className = `skel ${kind === "loved" ? "p-loved" : ""}`;
-  const m = document.createElement("div");
-  m.className = "skel-media";
-  const b = document.createElement("div");
-  b.className = "skel-body";
-  const l1 = document.createElement("div");
-  l1.className = "skel-line long";
-  const l2 = document.createElement("div");
-  l2.className = "skel-line short";
-  b.appendChild(l1);
-  b.appendChild(l2);
-  wrap.appendChild(m);
-  wrap.appendChild(b);
-  return wrap;
-}
-
-function renderSkeletons(latestGrid, lovedRail) {
-  if (latestGrid) {
-    latestGrid.replaceChildren();
-    for (let i = 0; i < 4; i++) latestGrid.appendChild(makeSkeletonCard("latest"));
-  }
-  if (lovedRail) {
-    lovedRail.replaceChildren();
-    for (let i = 0; i < 4; i++) lovedRail.appendChild(makeSkeletonCard("loved"));
-  }
 }
 
 /* ================= FEATURED HERO ================= */
 let featuredIndex = 0;
 let featuredPool = [];
-let featuredTimer = null;
 
 const featuredImg = document.getElementById("featuredImage");
 const featuredName = document.getElementById("featuredName");
 const featuredLinkEl = document.getElementById("featuredLink");
-
-function preloadImage(src) {
-  return new Promise((resolve) => {
-    const i = new Image();
-    i.onload = () => resolve(true);
-    i.onerror = () => resolve(false);
-    i.src = src;
-  });
-}
 
 function setFeaturedLink(url) {
   const u = String(url || "").trim();
   if (featuredLinkEl) featuredLinkEl.href = u || "products.html";
 }
 
-async function switchFeatured() {
+function setFeaturedNow(item){
+  if (!featuredImg || !item) return;
+
+  const src = resolveImageUrl(item.image_url);
+  const title = item.title || "Featured";
+  const link = item.link_url || "products.html";
+
+  featuredImg.src = src;
+  featuredImg.alt = title;
+  if (featuredName) featuredName.textContent = title;
+  setFeaturedLink(link);
+}
+
+function switchFeatured() {
   if (!featuredImg || !featuredPool.length) return;
 
   const next = featuredPool[featuredIndex];
   const src = resolveImageUrl(next.image_url);
-  const title = next.title || "";
-  const link = next.link_url || "products.html";
 
-  // fade out
   featuredImg.style.opacity = "0";
   if (featuredName) featuredName.style.opacity = "0";
 
-  await preloadImage(src);
-
-  // swap
-  featuredImg.src = src;
-  featuredImg.alt = title ? title : "Featured";
-  if (featuredName) featuredName.textContent = title;
-  setFeaturedLink(link);
-
-  // fade in
-  requestAnimationFrame(() => {
-    featuredImg.style.opacity = "1";
-    if (featuredName) featuredName.style.opacity = "1";
+  preloadUrl(src).then(() => {
+    setTimeout(() => {
+      setFeaturedNow(next);
+      featuredImg.style.opacity = "1";
+      if (featuredName) featuredName.style.opacity = "1";
+      featuredIndex = (featuredIndex + 1) % featuredPool.length;
+    }, 220);
   });
-
-  featuredIndex = (featuredIndex + 1) % featuredPool.length;
 }
 
-function startFeaturedRotation() {
-  if (featuredTimer) clearInterval(featuredTimer);
-  featuredTimer = setInterval(() => {
-    if (document.visibilityState !== "visible") return;
-    switchFeatured();
-  }, 4200);
-}
-function stopFeaturedRotation() {
-  if (featuredTimer) clearInterval(featuredTimer);
-  featuredTimer = null;
-}
-
-/* ================= MOST LOVED RAIL CONTROLS ================= */
-function initRailControls() {
+/* ================= MOST LOVED RAIL SCROLL BUTTONS ================= */
+function initLovedRailControls(){
   const rail = document.getElementById("homeProducts");
-  const wrap = rail?.closest?.(".loved-wrap");
-  if (!rail || !wrap) return;
+  const prev = document.querySelector(".rail-prev");
+  const next = document.querySelector(".rail-next");
+  if (!rail || !prev || !next) return;
 
-  const prev = wrap.querySelector(".rail-prev");
-  const next = wrap.querySelector(".rail-next");
+  function scrollByAmt(dir){
+    const amt = Math.max(240, Math.floor(rail.clientWidth * 0.72));
+    rail.scrollBy({ left: dir * amt, behavior: "smooth" });
+  }
+  prev.addEventListener("click", () => scrollByAmt(-1));
+  next.addEventListener("click", () => scrollByAmt(1));
+}
 
-  function scrollByCard(dir) {
-    const card = rail.querySelector(".p-card, .skel");
-    const w = card ? card.getBoundingClientRect().width : 260;
-    rail.scrollBy({ left: dir * (w + 12), behavior: "smooth" });
+/* ================= HERO BRAND ANIMATION: BUBBLES + LETTER REVEAL ================= */
+function initHeroBrandAnimation(){
+  const brandEl = document.getElementById("heroBrandmark");
+  const bubbleWrap = document.getElementById("heroBubbles");
+  if (!brandEl) return;
+
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  const TEXT = "KIKELARA";
+
+  function buildWordmark(text){
+    brandEl.replaceChildren();
+    const chars = Array.from(String(text || ""));
+    const spans = [];
+    for (const ch of chars){
+      const s = document.createElement("span");
+      s.className = "hm-letter";
+      s.textContent = ch === " " ? "\u00A0" : ch;
+      brandEl.appendChild(s);
+      spans.push(s);
+    }
+    return spans;
   }
 
-  prev?.addEventListener("click", () => scrollByCard(-1));
-  next?.addEventListener("click", () => scrollByCard(1));
+  const letters = buildWordmark(TEXT);
+
+  function revealLetters(){
+    brandEl.classList.remove("done");
+    if (reduce){
+      letters.forEach(s => s.classList.add("on"));
+      brandEl.classList.add("done");
+      return;
+    }
+
+    const baseDelay = 110;
+    const startDelay = 140;
+
+    letters.forEach((s, i) => {
+      setTimeout(() => s.classList.add("on"), startDelay + i * baseDelay);
+    });
+
+    setTimeout(() => brandEl.classList.add("done"), startDelay + letters.length * baseDelay + 220);
+  }
+
+  revealLetters();
+
+  if (!bubbleWrap || reduce) return;
+
+  function rand(min, max){ return Math.random() * (max - min) + min; }
+  let timer = null;
+
+  function spawnBubble(){
+    if (document.visibilityState !== "visible") return;
+
+    const b = document.createElement("span");
+    b.className = "bubble";
+
+    const size = rand(14, 64);
+    const left = rand(-6, 106);
+    const bottom = rand(-18, 14);
+
+    b.style.setProperty("--s", `${size}px`);
+    b.style.setProperty("--l", `${left}%`);
+    b.style.setProperty("--b", `${bottom}%`);
+    b.style.setProperty("--dur", `${rand(6.5, 13.5)}s`);
+    b.style.setProperty("--x", `${rand(-36, 36)}px`);
+    b.style.setProperty("--o", `${rand(0.08, 0.20)}`);
+    b.style.setProperty("--blur", `${rand(0, 6)}px`);
+
+    b.addEventListener("animationend", () => b.remove());
+    bubbleWrap.appendChild(b);
+
+    if (bubbleWrap.childElementCount > 26) bubbleWrap.firstElementChild?.remove();
+  }
+
+  function start(){
+    if (timer) return;
+    for (let i = 0; i < 8; i++) spawnBubble();
+    timer = setInterval(spawnBubble, 360);
+  }
+
+  function stop(){
+    if (!timer) return;
+    clearInterval(timer);
+    timer = null;
+  }
+
+  start();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") start();
+    else stop();
+  });
 }
 
-/* ================= INIT ================= */
+/* ================= INIT (WITH IMAGE-GATED PRELOADER) ================= */
 document.addEventListener("DOMContentLoaded", async () => {
+  const start = performance.now();
+  lockScroll(true);
+
+  // allow header/footer injection to mount first
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  initLovedRailControls();
+  initHeroBrandAnimation();
+
   const latestGrid = document.getElementById("latestProducts");
   const lovedRail = document.getElementById("homeProducts");
 
-  // premium feel while fetching
-  renderSkeletons(latestGrid, lovedRail);
-  initRailControls();
-
+  // 1) fetch featured + products
   const [featuredItems, products] = await Promise.all([
     fetchFeaturedItems(),
     fetchProducts(),
@@ -455,16 +547,63 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   safeSetSessionJSON(PRODUCTS_KEY, products);
 
-  if (products.length) {
-    const sortedLatest = [...products].sort(sortLatestDesc);
-    const latest = sortedLatest.slice(0, 4);
+  const sortedLatest = [...products].sort(sortLatestDesc);
+  const latest = sortedLatest.slice(0, 4);
 
-    renderList(latestGrid, latest, "latest");
-    renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
+  // base loved (fast) before ratings
+  const baseLoved = sortedLatest.slice(0, 4);
 
+  // 2) decide featured pool (admin first, else fallback)
+  if (featuredItems.length) {
+    featuredPool = featuredItems
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .slice(0, 10)
+      .map((x) => ({ image_url: x.image_url, title: x.title, link_url: x.link_url }));
+  } else {
+    const seen = new Set();
+    featuredPool = [];
+    [...baseLoved, ...latest, ...sortedLatest].forEach((p) => {
+      const k = String(p.id);
+      if (!p.id || seen.has(k)) return;
+      seen.add(k);
+      featuredPool.push({ image_url: p.image_url, title: p.name, link_url: productUrl(p.id) });
+    });
+    featuredPool = featuredPool.slice(0, 6);
+  }
+
+  // 3) PRELOAD critical images BEFORE reveal
+  const heroPoster = document.getElementById("heroBgVideo")?.getAttribute("poster") || "";
+  const criticalUrls = [
+    heroPoster,
+    featuredPool[0]?.image_url ? resolveImageUrl(featuredPool[0].image_url) : "",
+    ...latest.map(p => resolveImageUrl(p.image_url)),
+    ...baseLoved.map(p => resolveImageUrl(p.image_url)),
+  ];
+
+  // preload the URLs first
+  await Promise.race([
+    preloadUrls(criticalUrls),
+    sleep(PRELOADER_MAX_MS)
+  ]);
+
+  // 4) render UI now (images already likely cached from preloads)
+  renderList(latestGrid, latest, "latest");
+  renderList(lovedRail, baseLoved, "loved");
+
+  // set first featured immediately
+  if (featuredPool.length) {
+    featuredIndex = 0;
+    setFeaturedNow(featuredPool[0]);
+    featuredIndex = (featuredIndex + 1) % featuredPool.length;
+    setInterval(switchFeatured, 4200);
+  }
+
+  // 5) hydrate ratings (does NOT block preloader — faster perceived)
+  (async () => {
     const cache = loadRatingsCache();
 
-    const ratedProducts = products.map((p) => {
+    const ratedProducts = [...products].map((p) => {
       const c = getCachedRating(cache, p.id);
       return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
     });
@@ -484,38 +623,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
     renderList(lovedRail, loved, "loved");
+  })().catch(() => {});
 
-    // fallback featured from products if admin featured empty
-    if (!featuredItems.length) {
-      const seen = new Set();
-      featuredPool = [];
-      [...loved, ...latest, ...sortedLatest].forEach((p) => {
-        const k = String(p.id);
-        if (!p.id || seen.has(k)) return;
-        seen.add(k);
-        featuredPool.push({ image_url: p.image_url, title: p.name, link_url: productUrl(p.id) });
-      });
-      featuredPool = featuredPool.slice(0, 6);
-    }
-  }
+  // 6) Now wait for all DOM imgs (including header logo) to complete
+  await Promise.race([
+    (async () => {
+      // wait for fonts too (optional, helps polish)
+      try { await document.fonts?.ready; } catch {}
+      await waitForAllImgsInDom();
+    })(),
+    sleep(PRELOADER_MAX_MS)
+  ]);
 
-  // featured admin items priority
-  if (featuredItems.length) {
-    featuredPool = featuredItems
-      .slice()
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-      .slice(0, 10)
-      .map((x) => ({ image_url: x.image_url, title: x.title, link_url: x.link_url || "products.html" }));
-  }
-
-  if (featuredPool.length) {
-    featuredIndex = 0;
-    await switchFeatured();
-    startFeaturedRotation();
-
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") startFeaturedRotation();
-      else stopFeaturedRotation();
-    });
-  }
+  // 7) keep preloader for minimum time, then hide
+  const elapsed = performance.now() - start;
+  if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
+  hidePreloader();
 });

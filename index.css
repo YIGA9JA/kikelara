@@ -934,3 +934,239 @@ img{ max-width: 100%; display:block; }
   .hero-bubbles{ display:none; }
   .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
 }
+
+
+/* ================= BASICS / ACCESSIBILITY ================= */
+.skip-link{
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 9999;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.22);
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  transform: translateY(-160%);
+  transition: transform .18s ease;
+  text-decoration:none;
+  font-weight: 950;
+}
+.skip-link:focus{ transform: translateY(0); }
+
+/* Preloader small text */
+.pl-small{
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: .78;
+  font-weight: 800;
+}
+
+/* ================= MICRO PROOF ================= */
+.micro-proof{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.micro-pill{
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.20);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  box-shadow: 0 12px 24px rgba(0,0,0,.08);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+/* Panel subtitle */
+.section-sub{
+  margin: 8px 0 0;
+  color: rgba(31,22,15,.72);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* Panel hint */
+.panel-hint{
+  font-size: 11px;
+  font-weight: 900;
+  opacity: .78;
+}
+
+/* Featured fade */
+.feature-link{ display:block; text-decoration:none; color:inherit; }
+.feature-media{ position:relative; }
+.feature-fade{
+  position:absolute;
+  inset:0;
+  background: radial-gradient(900px 360px at 50% 30%, rgba(255,255,255,.18), rgba(255,255,255,0) 58%);
+  pointer-events:none;
+}
+
+/* ================= MOST LOVED RAIL CONTROLS ================= */
+.loved-wrap{
+  position: relative;
+  margin-top: 14px;
+}
+.rail-btn{
+  position:absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.22);
+
+  background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+  backdrop-filter: blur(18px) saturate(1.45);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+
+  box-shadow: 0 16px 36px rgba(0,0,0,.12);
+  cursor:pointer;
+  z-index: 5;
+  font-weight: 1000;
+  font-size: 22px;
+  line-height: 1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  -webkit-tap-highlight-color: transparent;
+}
+.rail-prev{ left: 8px; }
+.rail-next{ right: 8px; }
+
+.rail-fade{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width: 52px;
+  pointer-events:none;
+  z-index: 4;
+}
+.rail-fade-left{
+  left:0;
+  background: linear-gradient(90deg, rgba(255,239,213,.75), rgba(255,239,213,0));
+}
+.rail-fade-right{
+  right:0;
+  background: linear-gradient(270deg, rgba(255,239,213,.75), rgba(255,239,213,0));
+}
+
+/* Hide rail buttons on small screens (swipe is better) */
+@media (max-width: 600px){
+  .rail-btn{ display:none; }
+  .rail-fade{ display:none; }
+}
+
+/* ================= HERO BRAND ANIMATION (BUBBLES + LETTER REVEAL) ================= */
+
+/* Ensure hero layering: video (0), overlay (1), bubbles (2), grain (3), content (4) */
+.hero-bg-video{ z-index: 0; }
+.hero-overlay{ z-index: 1; }
+.hero-bubbles{ z-index: 2; }
+.hero-grain{ z-index: 3; }
+.hero-grid{ z-index: 4; }
+
+/* Bubble layer */
+.hero-bubbles{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+}
+
+/* Each bubble */
+.hero-bubbles .bubble{
+  position:absolute;
+  border-radius: 999px;
+  width: var(--s, 28px);
+  height: var(--s, 28px);
+  left: var(--l, 50%);
+  bottom: var(--b, -10%);
+  opacity: var(--o, .14);
+  filter: blur(var(--blur, 2px));
+  transform: translate3d(0,0,0) scale(.95);
+
+  background:
+    radial-gradient(circle at 30% 30%,
+      rgba(255,255,255,.55),
+      rgba(212,175,55,.18) 38%,
+      rgba(255,255,255,0) 72%);
+
+  mix-blend-mode: screen;
+  animation: bubbleRise var(--dur, 10s) linear forwards;
+}
+
+@keyframes bubbleRise{
+  0%   { transform: translate3d(0, 0, 0) scale(.92); opacity: var(--o, .14); }
+  70%  { opacity: calc(var(--o, .14) * .9); }
+  100% { transform: translate3d(var(--x, 0px), -120vh, 0) scale(1.18); opacity: 0; }
+}
+
+/* Thick wordmark */
+.hero-brandmark{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 2px;
+
+  margin: 0 0 10px;
+  line-height: 1;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+
+  font-size: clamp(2.1rem, 6vw, 4.2rem);
+  font-weight: 1000;
+
+  user-select:none;
+  -webkit-user-select:none;
+}
+
+/* Letters start as soft outline */
+.hm-letter{
+  display:inline-block;
+  opacity: 0;
+  transform: translateY(12px) scale(.985);
+  filter: blur(8px);
+
+  color: rgba(31,22,15,.10);
+  -webkit-text-stroke: 2px rgba(31,22,15,.55);
+  text-shadow: 0 18px 60px rgba(0,0,0,.18);
+
+  transition:
+    opacity .45s ease,
+    transform .55s cubic-bezier(.2,.85,.2,1),
+    filter .60s ease,
+    color .60s ease,
+    -webkit-text-stroke .60s ease;
+}
+
+/* Letter becomes solid */
+.hm-letter.on{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+
+  color: rgba(31,22,15,.92);
+  -webkit-text-stroke: 0px rgba(0,0,0,0);
+}
+
+/* Final “thick premium” look */
+.hero-brandmark.done .hm-letter{
+  background: linear-gradient(135deg, rgba(212,175,55,.95), rgba(237,204,159,.75));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+
+  -webkit-text-stroke: 1px rgba(31,22,15,.18);
+  text-shadow: 0 22px 70px rgba(0,0,0,.18);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .hero-bubbles{ display:none; }
+  .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
+}

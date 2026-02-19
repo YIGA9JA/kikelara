@@ -8,6 +8,9 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="theme-color" content="#ffefd5" />
 
+  <!-- (Optional) preload your hero poster image -->
+  <link rel="preload" as="image" href="images/about-hero.jpg">
+
   <!-- Styles -->
   <link rel="stylesheet" href="header.css" />
   <link rel="stylesheet" href="index.css" />
@@ -43,12 +46,13 @@
   <!-- Skip link -->
   <a class="skip-link" href="#mainContent">Skip to content</a>
 
-  <!-- PRELOADER -->
+  <!-- PRELOADER (stays until we explicitly hide it in JS) -->
   <div id="preloader" aria-label="Loading">
     <div class="pl-card">
       <div class="pl-brand">KÍKÉLÁRÁ</div>
       <div class="pl-sub">Luxury Skincare</div>
       <div class="pl-bar"><span></span></div>
+      <div class="pl-small">Loading images…</div>
     </div>
   </div>
 
@@ -70,11 +74,17 @@
         aria-hidden="true">
       </video>
 
+      <!-- ✅ bubbles layer -->
+      <div id="heroBubbles" class="hero-bubbles" aria-hidden="true"></div>
+
       <div class="hero-overlay" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
 
       <div class="container hero-grid">
         <div class="hero-left">
+          <!-- ✅ animated wordmark -->
+          <div id="heroBrandmark" class="hero-brandmark" aria-label="KIKELARA"></div>
+
           <div class="badge">✨ PREMIUM SKIN RITUAL</div>
 
           <h1 class="h1">
@@ -166,6 +176,7 @@
               <button class="rail-btn rail-prev" type="button" aria-label="Scroll left">‹</button>
               <div class="loved-rail" id="homeProducts" aria-live="polite"></div>
               <button class="rail-btn rail-next" type="button" aria-label="Scroll right">›</button>
+
               <div class="rail-fade rail-fade-left" aria-hidden="true"></div>
               <div class="rail-fade rail-fade-right" aria-hidden="true"></div>
             </div>
