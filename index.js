@@ -1,9 +1,10 @@
-/* ================= INDEX.JS (PRODUCTION) =================
+/* ================= INDEX.JS (PRODUCTION — TOP NOTCH) =================
    ✅ Latest Drops (newest 4)
    ✅ Most Loved (top 4 by rating summary)
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ Cards show only: image + name + price (no extra wording)
+   ✅ Cards show only: image + name + price
    ✅ FEATURED HERO pulls from /api/featured (Admin Featured)
+   ✅ Premium UX: skeleton loading + featured pause on hidden tab + rail arrows
 ========================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
@@ -77,7 +78,7 @@ window.addEventListener("load", () => {
           io.disconnect();
         }
       },
-      { threshold: 0.12, rootMargin: "200px" }
+      { threshold: 0.12, rootMargin: "220px" }
     );
     io.observe(v);
   } else {
@@ -107,7 +108,7 @@ function safeSetSessionJSON(key, val) {
 
 function formatNaira(n) {
   const num = Number(n || 0);
-  return `₦${num.toLocaleString()}`;
+  try { return `₦${num.toLocaleString()}`; } catch { return `₦${num}`; }
 }
 
 function resolveImageUrl(img) {
@@ -147,7 +148,7 @@ async function fetchProducts() {
   }
 }
 
-/* ================= FETCH FEATURED (ADMIN FEATURED -> PUBLIC) ================= */
+/* ================= FETCH FEATURED ================= */
 function normalizeFeaturedItem(it) {
   return {
     id: it?.id,
@@ -168,7 +169,7 @@ async function fetchFeaturedItems() {
     const items = Array.isArray(data?.items) ? data.items : [];
     return items
       .map(normalizeFeaturedItem)
-      .filter((x) => x.image_url); // must have image
+      .filter((x) => x.image_url);
   } catch {
     return [];
   }
@@ -196,9 +197,7 @@ function setCachedRating(cache, productId, avg, count) {
 async function fetchReviewSummary(productId) {
   if (!API_BASE) return { avg: 0, count: 0 };
   try {
-    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews/summary`, {
-      cache: "no-store",
-    });
+    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews/summary`, { cache: "no-store" });
     if (!res.ok) return { avg: 0, count: 0 };
     const data = await res.json().catch(() => null);
     const avg = Number(data?.summary?.avg || 0);
@@ -285,18 +284,17 @@ function makeCard(p, kind) {
   const card = document.createElement("a");
   card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
   card.href = productUrl(p.id);
-  card.style.textDecoration = "none";
 
   const media = document.createElement("div");
   media.className = "p-media";
 
   const img = document.createElement("img");
   img.loading = "lazy";
-  img.alt = p.name;
+  img.decoding = "async";
+  img.alt = p.name || "Product";
   img.src = resolveImageUrl(p.image_url);
   media.appendChild(img);
 
-  // ✅ Rating ON IMAGE for Most Loved
   if (kind === "loved") {
     const badge = makeRatingBadge(p.avg_rating, p.review_count);
     if (badge) media.appendChild(badge);
@@ -324,62 +322,121 @@ function makeCard(p, kind) {
 
 function renderList(container, items, kind) {
   if (!container) return;
-  container.innerHTML = "";
+  container.replaceChildren();
   items.forEach((p) => container.appendChild(makeCard(p, kind)));
 }
 
-/* ================= FEATURED HERO (ADMIN FEATURED) ================= */
+/* ================= SKELETONS ================= */
+function makeSkeletonCard(kind) {
+  const wrap = document.createElement("div");
+  wrap.className = `skel ${kind === "loved" ? "p-loved" : ""}`;
+  const m = document.createElement("div");
+  m.className = "skel-media";
+  const b = document.createElement("div");
+  b.className = "skel-body";
+  const l1 = document.createElement("div");
+  l1.className = "skel-line long";
+  const l2 = document.createElement("div");
+  l2.className = "skel-line short";
+  b.appendChild(l1);
+  b.appendChild(l2);
+  wrap.appendChild(m);
+  wrap.appendChild(b);
+  return wrap;
+}
+
+function renderSkeletons(latestGrid, lovedRail) {
+  if (latestGrid) {
+    latestGrid.replaceChildren();
+    for (let i = 0; i < 4; i++) latestGrid.appendChild(makeSkeletonCard("latest"));
+  }
+  if (lovedRail) {
+    lovedRail.replaceChildren();
+    for (let i = 0; i < 4; i++) lovedRail.appendChild(makeSkeletonCard("loved"));
+  }
+}
+
+/* ================= FEATURED HERO ================= */
 let featuredIndex = 0;
 let featuredPool = [];
+let featuredTimer = null;
+
 const featuredImg = document.getElementById("featuredImage");
 const featuredName = document.getElementById("featuredName");
-const featuredLinkEl = document.getElementById("featuredLink"); // optional <a id="featuredLink">
+const featuredLinkEl = document.getElementById("featuredLink");
 
-function preloadImage(src, cb) {
-  const i = new Image();
-  i.onload = cb;
-  i.onerror = cb;
-  i.src = src;
+function preloadImage(src) {
+  return new Promise((resolve) => {
+    const i = new Image();
+    i.onload = () => resolve(true);
+    i.onerror = () => resolve(false);
+    i.src = src;
+  });
 }
 
 function setFeaturedLink(url) {
   const u = String(url || "").trim();
-  if (featuredLinkEl) {
-    featuredLinkEl.href = u || "#";
-    return;
-  }
-  // fallback: if the image is inside an <a>
-  const a = featuredImg?.closest?.("a");
-  if (a) a.href = u || "#";
+  if (featuredLinkEl) featuredLinkEl.href = u || "products.html";
 }
 
-function switchFeatured() {
+async function switchFeatured() {
   if (!featuredImg || !featuredPool.length) return;
 
+  const next = featuredPool[featuredIndex];
+  const src = resolveImageUrl(next.image_url);
+  const title = next.title || "";
+  const link = next.link_url || "products.html";
+
+  // fade out
   featuredImg.style.opacity = "0";
   if (featuredName) featuredName.style.opacity = "0";
 
-  const next = featuredPool[featuredIndex];
+  await preloadImage(src);
 
-  // Featured item shape:
-  // { image_url, title, link_url }
-  const src = resolveImageUrl(next.image_url);
-  const title = next.title || "";
-  const link = next.link_url || "";
+  // swap
+  featuredImg.src = src;
+  featuredImg.alt = title ? title : "Featured";
+  if (featuredName) featuredName.textContent = title;
+  setFeaturedLink(link);
 
-  preloadImage(src, () => {
-    setTimeout(() => {
-      featuredImg.src = src;
-      featuredImg.alt = title ? title : "Featured";
-      if (featuredName) featuredName.textContent = title;
-      setFeaturedLink(link);
-
-      featuredImg.style.opacity = "1";
-      if (featuredName) featuredName.style.opacity = "1";
-
-      featuredIndex = (featuredIndex + 1) % featuredPool.length;
-    }, 240);
+  // fade in
+  requestAnimationFrame(() => {
+    featuredImg.style.opacity = "1";
+    if (featuredName) featuredName.style.opacity = "1";
   });
+
+  featuredIndex = (featuredIndex + 1) % featuredPool.length;
+}
+
+function startFeaturedRotation() {
+  if (featuredTimer) clearInterval(featuredTimer);
+  featuredTimer = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    switchFeatured();
+  }, 4200);
+}
+function stopFeaturedRotation() {
+  if (featuredTimer) clearInterval(featuredTimer);
+  featuredTimer = null;
+}
+
+/* ================= MOST LOVED RAIL CONTROLS ================= */
+function initRailControls() {
+  const rail = document.getElementById("homeProducts");
+  const wrap = rail?.closest?.(".loved-wrap");
+  if (!rail || !wrap) return;
+
+  const prev = wrap.querySelector(".rail-prev");
+  const next = wrap.querySelector(".rail-next");
+
+  function scrollByCard(dir) {
+    const card = rail.querySelector(".p-card, .skel");
+    const w = card ? card.getBoundingClientRect().width : 260;
+    rail.scrollBy({ left: dir * (w + 12), behavior: "smooth" });
+  }
+
+  prev?.addEventListener("click", () => scrollByCard(-1));
+  next?.addEventListener("click", () => scrollByCard(1));
 }
 
 /* ================= INIT ================= */
@@ -387,32 +444,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   const latestGrid = document.getElementById("latestProducts");
   const lovedRail = document.getElementById("homeProducts");
 
-  // fetch featured + products in parallel
+  // premium feel while fetching
+  renderSkeletons(latestGrid, lovedRail);
+  initRailControls();
+
   const [featuredItems, products] = await Promise.all([
     fetchFeaturedItems(),
     fetchProducts(),
   ]);
 
-  // ---- PRODUCTS SECTION ----
   safeSetSessionJSON(PRODUCTS_KEY, products);
 
-  if (!products.length) {
-    renderList(latestGrid, [], "latest");
-    renderList(lovedRail, [], "loved");
-  } else {
+  if (products.length) {
     const sortedLatest = [...products].sort(sortLatestDesc);
     const latest = sortedLatest.slice(0, 4);
 
-    // show latest immediately
     renderList(latestGrid, latest, "latest");
-
-    // show loved quickly (will re-render after ratings fetch)
     renderList(lovedRail, sortedLatest.slice(0, 4), "loved");
 
-    // ratings hydration
     const cache = loadRatingsCache();
 
-    const ratedProducts = [...products].map((p) => {
+    const ratedProducts = products.map((p) => {
       const c = getCachedRating(cache, p.id);
       return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
     });
@@ -433,7 +485,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
     renderList(lovedRail, loved, "loved");
 
-    // fallback featured pool from products if admin featured is empty
+    // fallback featured from products if admin featured empty
     if (!featuredItems.length) {
       const seen = new Set();
       featuredPool = [];
@@ -447,19 +499,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ---- FEATURED HERO SECTION (ADMIN FEATURED FIRST) ----
+  // featured admin items priority
   if (featuredItems.length) {
-    // use admin featured items
     featuredPool = featuredItems
       .slice()
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
       .slice(0, 10)
-      .map((x) => ({ image_url: x.image_url, title: x.title, link_url: x.link_url }));
+      .map((x) => ({ image_url: x.image_url, title: x.title, link_url: x.link_url || "products.html" }));
   }
 
   if (featuredPool.length) {
     featuredIndex = 0;
-    switchFeatured();
-    setInterval(switchFeatured, 4200);
+    await switchFeatured();
+    startFeaturedRotation();
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") startFeaturedRotation();
+      else stopFeaturedRotation();
+    });
   }
 });

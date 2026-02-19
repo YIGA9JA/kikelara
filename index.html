@@ -1,9 +1,3 @@
-<!-- ================= index.html (FULL — LIQUID GLASS HOMEPAGE) =================
-  ✅ Uses injected header/footer (header.js + footer.js)
-  ✅ Fixes your hero structure (proper <section class="hero"> ... </section>)
-  ✅ Includes hCaptcha onload dispatcher required by footer.js
-  ✅ Keeps your IDs: #siteHeader, #siteFooter, #mainContent, #latestProducts, #homeProducts
-============================================================================= -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,6 +6,7 @@
 
   <title>KÍKÉLÁRÁ | Luxury Skincare</title>
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
+  <meta name="theme-color" content="#ffefd5" />
 
   <!-- Styles -->
   <link rel="stylesheet" href="header.css" />
@@ -30,7 +25,7 @@
   </script>
   <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnload" async defer></script>
 
-  <!-- ✅ Cart store FIRST (cart-only, sessionStorage) -->
+  <!-- Cart store -->
   <script defer src="store.js"></script>
 
   <!-- Injected header/footer -->
@@ -45,6 +40,9 @@
   <!-- HEADER INJECT MOUNT -->
   <div id="siteHeader"></div>
 
+  <!-- Skip link -->
+  <a class="skip-link" href="#mainContent">Skip to content</a>
+
   <!-- PRELOADER -->
   <div id="preloader" aria-label="Loading">
     <div class="pl-card">
@@ -54,12 +52,10 @@
     </div>
   </div>
 
-  <!-- ✅ Skip target for header.js -->
   <main id="mainContent">
 
     <!-- ================= HERO ================= -->
     <section class="hero" aria-label="KÍKÉLÁRÁ hero">
-      <!-- Background video (optional). If you don’t have a video, leave data-mp4/data-webm empty and it won’t load. -->
       <video
         id="heroBgVideo"
         class="hero-bg-video"
@@ -94,21 +90,32 @@
             <a class="btn btn-gold" href="products.html">Shop Collection</a>
             <a class="btn btn-ghost" href="#shopPanels">Explore</a>
           </div>
+
+          <div class="micro-proof" aria-label="Brand values">
+            <div class="micro-pill">✨ Premium Texture</div>
+            <div class="micro-pill">🌿 Natural Ingredients</div>
+            <div class="micro-pill">💛 Made with Care</div>
+          </div>
         </div>
 
         <div class="hero-right">
-          <div class="feature-card">
+          <div class="feature-card" aria-label="Featured spotlight">
             <div class="feature-top">
               <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
               <div class="feature-title">Featured</div>
             </div>
 
-            <div class="feature-media">
-              <img id="featuredImage" alt="Featured product" />
-            </div>
+            <!-- ✅ Clickable featured -->
+            <a id="featuredLink" class="feature-link" href="products.html" aria-label="View featured item">
+              <div class="feature-media">
+                <img id="featuredImage" alt="Featured product" />
+                <div class="feature-fade" aria-hidden="true"></div>
+              </div>
+            </a>
 
             <div class="feature-bottom">
               <div class="feature-name" id="featuredName"></div>
+
               <div class="feature-actions">
                 <a class="chip" href="products.html">Shop</a>
                 <a class="chip" href="contact.html">Contact</a>
@@ -116,7 +123,7 @@
             </div>
           </div>
 
-          <div class="float-card">
+          <div class="float-card" aria-label="Glow tip">
             <div class="float-title">Glow Tip</div>
             <div class="float-text">
               Apply oil on damp skin, then seal with butter for an all-day glow.
@@ -127,28 +134,41 @@
     </section>
 
     <!-- ================= SHOP PANELS ================= -->
-    <section class="section" id="shopPanels">
+    <section class="section" id="shopPanels" aria-label="Shop panels">
       <div class="container">
         <div class="section-head">
-          <h2>Shop what’s trending</h2>
+          <div>
+            <h2>Shop what’s trending</h2>
+            <p class="section-sub">Fresh drops and customer favorites — curated for you.</p>
+          </div>
           <a class="link" href="products.html">View all →</a>
         </div>
 
         <div class="duo">
           <!-- Latest -->
-          <div class="panel">
+          <div class="panel" aria-label="Latest drops">
             <div class="panel-head">
               <div class="panel-title">Latest Drops</div>
+              <div class="panel-hint">New in</div>
             </div>
-            <div class="latest-grid" id="latestProducts"></div>
+
+            <div class="latest-grid" id="latestProducts" aria-live="polite"></div>
           </div>
 
           <!-- Most Loved -->
-          <div class="panel">
+          <div class="panel" aria-label="Most loved">
             <div class="panel-head">
               <div class="panel-title">Most Loved</div>
+              <div class="panel-hint">Top rated</div>
             </div>
-            <div class="loved-rail" id="homeProducts"></div>
+
+            <div class="loved-wrap">
+              <button class="rail-btn rail-prev" type="button" aria-label="Scroll left">‹</button>
+              <div class="loved-rail" id="homeProducts" aria-live="polite"></div>
+              <button class="rail-btn rail-next" type="button" aria-label="Scroll right">›</button>
+              <div class="rail-fade rail-fade-left" aria-hidden="true"></div>
+              <div class="rail-fade rail-fade-right" aria-hidden="true"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -158,7 +178,10 @@
     <section class="section soft" aria-label="Routine">
       <div class="container">
         <div class="section-head">
-          <h2>Simple routine. Real results.</h2>
+          <div>
+            <h2>Simple routine. Real results.</h2>
+            <p class="section-sub">A clean ritual that keeps your skin soft, bright, and healthy.</p>
+          </div>
         </div>
 
         <div class="how-grid">
@@ -183,7 +206,7 @@
           <div class="how-card">
             <div class="how-badge">04</div>
             <h3>Repeat</h3>
-            <p>Consistency is the luxury—daily wins.</p>
+            <p>Consistency is the luxury — daily wins.</p>
           </div>
         </div>
       </div>
@@ -193,9 +216,10 @@
     <section class="section" aria-label="Social proof and call to action">
       <div class="container">
         <div class="duo duo-cta">
-          <div class="panel">
+          <div class="panel" aria-label="Customer feedback">
             <div class="panel-head">
               <div class="panel-title">Customer feedback</div>
+              <div class="panel-hint">Real people</div>
             </div>
 
             <div class="quotes">
@@ -214,7 +238,7 @@
             </div>
           </div>
 
-          <div class="panel cta-panel">
+          <div class="panel cta-panel" aria-label="Call to action">
             <div class="cta-badge">KÍKÉLÁRÁ</div>
             <h2 class="cta-title">Feed your skin with beauty.</h2>
             <p class="cta-text">Shop the collection and start your glow ritual today.</p>

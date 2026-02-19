@@ -1,9 +1,7 @@
 /* ===========================
    CART.CSS — MATCH PRODUCTS.CSS (FULL TRANSPARENT LIQUID GLASS)
-   ✅ Same butter palette + ink tones
-   ✅ True see-through glass (low alpha)
-   ✅ Strong blur + liquid sheen + inner stroke
-   ✅ Animated shimmer (liquid sweep) + subtle refraction drift
+   ✅ Sticky summary (desktop/tablet)
+   ✅ Best mobile: summary becomes normal + sticky bottom checkout bar
 =========================== */
 
 :root{
@@ -45,6 +43,9 @@
   --shimmerDur: 10s;
   --shimmerDur2: 14s;
   --refractDur: 18s;
+
+  /* ✅ Sticky offset under fixed header */
+  --stickyTop: 96px;
 }
 
 *{ margin:0; padding:0; box-sizing:border-box; }
@@ -57,7 +58,6 @@ body{
   background: var(--butter);
   overflow-x:hidden;
 
-  /* soft depth so glass pops */
   background:
     radial-gradient(1100px 680px at 18% -10%, rgba(237,204,159,.60), transparent 62%),
     radial-gradient(900px 560px at 105% 0%, rgba(212,175,55,.18), transparent 56%),
@@ -177,12 +177,12 @@ body::before{
   display:grid;
   grid-template-columns: 1.2fr .8fr;
   gap: 22px;
-  align-items:start;
+  align-items:start; /* ✅ required for sticky */
   padding: 0 10px;
 }
 .cart-items{ display:grid; gap: 12px; }
 
-/* ================= ITEM CARD (TRANSPARENT LIQUID GLASS) ================= */
+/* ================= ITEM CARD ================= */
 .cart-item{
   display:grid;
   grid-template-columns: 108px 1fr;
@@ -193,7 +193,6 @@ body::before{
   border-radius: var(--r28);
   border: 1px solid rgba(59,47,28,.10);
 
-  /* VERY transparent */
   background:
     radial-gradient(520px 260px at 30% 10%,
       rgba(212,175,55,.12),
@@ -209,7 +208,6 @@ body::before{
   position: relative;
 }
 
-/* shimmer sweep */
 .cart-item::before{
   content:"";
   position:absolute;
@@ -223,8 +221,6 @@ body::before{
   animation: liquidSweep var(--shimmerDur) ease-in-out infinite;
   will-change: transform, opacity;
 }
-
-/* inner stroke */
 .cart-item::after{
   content:"";
   position:absolute;
@@ -240,7 +236,6 @@ body::before{
   border-radius: var(--r22);
   overflow:hidden;
   border: 1px solid rgba(59,47,28,.08);
-
   background: linear-gradient(135deg, rgba(255,244,218,.14), rgba(255,239,213,.08));
   aspect-ratio: 1 / 1;
   display:flex;
@@ -365,11 +360,8 @@ body::before{
 .remove:hover{ filter: brightness(1.02); box-shadow: 0 14px 30px rgba(59,47,28,.12); }
 .remove:active{ transform: scale(0.98); }
 
-/* ================= SUMMARY (TRANSPARENT LIQUID GLASS) ================= */
+/* ================= SUMMARY (✅ STICKY) ================= */
 .cart-summary{
-  position: sticky;
-  top: 96px;
-
   padding: 16px;
   border-radius: var(--r28);
   border: 1px solid rgba(59,47,28,.10);
@@ -387,9 +379,18 @@ body::before{
   box-shadow: var(--shadow1);
   overflow:hidden;
   position: relative;
+  align-self: start; /* ✅ helps sticky behave nicely */
 }
 
-/* sweep */
+/* ✅ Sticky behavior */
+.cart-summary.is-sticky{
+  position: sticky;
+  top: var(--stickyTop);
+  max-height: calc(100vh - var(--stickyTop) - 18px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .cart-summary::before{
   content:"";
   position:absolute;
@@ -402,8 +403,6 @@ body::before{
   pointer-events:none;
   animation: liquidSweep var(--shimmerDur2) ease-in-out infinite;
 }
-
-/* inner stroke */
 .cart-summary::after{
   content:"";
   position:absolute;
@@ -423,8 +422,6 @@ body::before{
   position: relative;
   z-index: 1;
 }
-
-/* subtle refraction drift */
 .sum-head::after{
   content:"";
   position:absolute;
@@ -688,13 +685,26 @@ body::before{
 .mobile-checkout-btn:disabled{ cursor:not-allowed; opacity:.62; box-shadow:none; }
 
 /* ================= RESPONSIVE ================= */
+@media (max-width: 1100px){
+  :root{ --stickyTop: 84px; }
+}
+
 @media (max-width: 980px){
   .cart-page{
     width: min(1000px, 92vw);
     padding-bottom: 140px;
   }
   .cart-grid{ grid-template-columns: 1fr; }
-  .cart-summary{ position: static; }
+
+  /* ✅ Best mobile: summary not sticky */
+  .cart-summary.is-sticky{
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .mobile-checkout{ display:block; }
 }
 
 @media (max-width: 560px){
