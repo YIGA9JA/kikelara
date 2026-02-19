@@ -3,6 +3,9 @@
    ✅ Upload image: /admin/hero/upload
    ✅ Public uses: /api/hero (homepage slider)
    ✅ Safe rendering (textContent only)
+   ✅ FIX: sends is_active as "true"/"false" (prevents backend Zod validation failed)
+   ✅ FIX: supports backend that returns image_key/key + signedUrl/image_url
+   ✅ FIX: better error messages (shows validation details)
 ================================================ */
 
 (async function () {
@@ -120,10 +123,66 @@
     return val;
   }
 
+  function looksLikeStorageKey(v) {
+    const s = String(v || "").trim();
+    if (!s) return false;
+    if (/^https?:\/\//i.test(s)) return false;
+    if (s.startsWith("/uploads/") || s.startsWith("uploads/")) return false;
+    return true;
+  }
+
+  function setImageDraft(inputEl, { displayUrl = "", key = "" } = {}) {
+    if (!inputEl) return;
+    const u = String(displayUrl || "").trim();
+    const k = String(key || "").trim();
+
+    // show something in the input (prefer a URL for preview, else key)
+    inputEl.value = u || k || "";
+
+    // store key for backend that needs image_key
+    if (k) inputEl.dataset.key = k;
+    else delete inputEl.dataset.key;
+  }
+
+  function getImageKeyFromInput(inputEl) {
+    if (!inputEl) return "";
+    const dsKey = String(inputEl.dataset?.key || "").trim();
+    if (dsKey) return dsKey;
+
+    const v = String(inputEl.value || "").trim();
+    return looksLikeStorageKey(v) ? v : "";
+  }
+
+  function getImageUrlFromInput(inputEl) {
+    return String(inputEl?.value || "").trim();
+  }
+
+  function boolToStr(v) {
+    return v ? "true" : "false";
+  }
+
+  function formatApiError(data, fallbackMsg) {
+    const msg = String(data?.message || data?.msg || fallbackMsg || "Request failed");
+    const details = Array.isArray(data?.details) ? data.details : [];
+    if (!details.length) return msg;
+
+    // details may be: [{field,message}] or Zod issues
+    const lines = details
+      .map((d) => {
+        const field = d?.field ?? (Array.isArray(d?.path) ? d.path.join(".") : d?.path);
+        const m = d?.message || d?.msg || "";
+        if (field && m) return `${field}: ${m}`;
+        return m || field || "";
+      })
+      .filter(Boolean);
+
+    return lines.length ? `${msg} — ${lines.join(" | ")}` : msg;
+  }
+
   async function getJson(path) {
     const res = await apiFetch(path, { method: "GET" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `Request failed: ${res.status}`);
+    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
     return data;
   }
 
@@ -134,7 +193,7 @@
       body: JSON.stringify(payload || {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `Request failed: ${res.status}`);
+    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
     return data;
   }
 
@@ -145,14 +204,14 @@
       body: JSON.stringify(payload || {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `Request failed: ${res.status}`);
+    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
     return data;
   }
 
   async function del(path) {
     const res = await apiFetch(path, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `Request failed: ${res.status}`);
+    if (!res.ok) throw new Error(formatApiError(data, `Request failed: ${res.status}`));
     return data;
   }
 
@@ -161,9 +220,12 @@
       id: it?.id,
       title: String(it?.title || "").trim(),
       description: String(it?.description || "").trim(),
-      link_url: String(it?.link_url || "").trim(),
-      image_url: String(it?.image_url || "").trim(),
-      sort_order: Number(it?.sort_order || 0),
+      link_url: String(it?.link_url || it?.linkUrl || "").trim(),
+      // admin list may return signed URL here:
+      image_url: String(it?.image_url || it?.imageUrl || "").trim(),
+      // some backends also provide the storage key:
+      image_key: String(it?.image_key || it?.imageKey || it?.key || "").trim(),
+      sort_order: Number(it?.sort_order ?? it?.sortOrder ?? 0),
       is_active: it?.is_active === undefined ? true : Boolean(it.is_active),
       created_at: it?.created_at || null,
     };
@@ -183,7 +245,14 @@
     if (mDesc) mDesc.value = item.description || "";
     if (mLink) mLink.value = item.link_url || "";
     if (mSort) mSort.value = String(item.sort_order ?? 0);
-    if (mImage) mImage.value = item.image_url || "";
+
+    // show URL (for preview) but keep key in dataset if we have it
+    if (mImage) {
+      mImage.value = item.image_url || item.image_key || "";
+      if (item.image_key) mImage.dataset.key = item.image_key;
+      else delete mImage.dataset.key;
+    }
+
     if (mActive) mActive.checked = !!item.is_active;
     if (mFile) mFile.value = "";
 
@@ -212,16 +281,56 @@
 
   async function uploadFile(file) {
     if (!file) throw new Error("No file selected");
-    const fd = new FormData();
-    fd.append("file", file);
 
-    const res = await apiFetch("/admin/hero/upload", { method: "POST", body: fd });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `Upload failed: ${res.status}`);
+    async function tryUpload(fieldName) {
+      const fd = new FormData();
+      fd.append(fieldName, file);
 
-    const path = data?.path || data?.url || data?.image_url;
-    if (!path) throw new Error("Upload succeeded but no path returned");
-    return String(path);
+      const res = await apiFetch("/admin/hero/upload", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      return { res, data };
+    }
+
+    // Try common field name(s) without breaking multer.single("..."):
+    // - most setups: "file"
+    // - other setups: "image"
+    let out = await tryUpload("file");
+    if (!out.res.ok) {
+      const msg = String(out.data?.message || out.data?.msg || "");
+      const unexpected = /unexpected field/i.test(msg);
+      if (unexpected || out.res.status === 400) {
+        // retry with "image" if backend expects multer.single("image")
+        out = await tryUpload("image");
+      }
+    }
+
+    if (!out.res.ok) {
+      if (out.res.status === 404) throw new Error("Upload route not found: POST /admin/hero/upload");
+      throw new Error(formatApiError(out.data, `Upload failed: ${out.res.status}`));
+    }
+
+    // Prefer returning a storage key if available
+    const key =
+      out.data?.image_key ||
+      out.data?.key ||
+      out.data?.path_key ||
+      "";
+
+    const url =
+      out.data?.signedUrl ||
+      out.data?.signed_url ||
+      out.data?.url ||
+      out.data?.image_url ||
+      out.data?.path ||
+      "";
+
+    const displayUrl = String(url || "").trim();
+    const k = String(key || "").trim();
+
+    // If backend returns only a key, we still return it
+    if (!displayUrl && !k) throw new Error("Upload succeeded but no key/url returned");
+
+    return { displayUrl: displayUrl || k, key: k };
   }
 
   function el(tag, cls, txt) {
@@ -367,7 +476,8 @@
 
       toggle.addEventListener("click", async () => {
         try {
-          await putJson(`/admin/hero/${encodeURIComponent(it.id)}`, { is_active: !it.is_active });
+          // ✅ send as string to satisfy backend zod schema that expects string
+          await putJson(`/admin/hero/${encodeURIComponent(it.id)}`, { is_active: boolToStr(!it.is_active) });
           toast("ok", "Saved", it.is_active ? "Slide disabled." : "Slide enabled.");
           await load();
         } catch (e) {
@@ -427,7 +537,10 @@
     if (descEl) descEl.value = "";
     if (linkEl) linkEl.value = "";
     if (sortEl) sortEl.value = "0";
-    if (imageUrlEl) imageUrlEl.value = "";
+    if (imageUrlEl) {
+      imageUrlEl.value = "";
+      delete imageUrlEl.dataset.key;
+    }
     if (fileEl) fileEl.value = "";
     if (activeEl) activeEl.checked = true;
   }
@@ -437,8 +550,8 @@
       const f = fileEl.files?.[0];
       if (!f) return;
       setStatus("Uploading image…", "info");
-      const path = await uploadFile(f);
-      if (imageUrlEl) imageUrlEl.value = path;
+      const up = await uploadFile(f);
+      setImageDraft(imageUrlEl, up);
       toast("ok", "Uploaded", "Image uploaded successfully.");
       setStatus("Ready ✅", "ok");
     } catch (e) {
@@ -452,8 +565,8 @@
       const f = mFile.files?.[0];
       if (!f) return;
       setStatus("Uploading image…", "info");
-      const path = await uploadFile(f);
-      if (mImage) mImage.value = path;
+      const up = await uploadFile(f);
+      setImageDraft(mImage, up);
       toast("ok", "Uploaded", "New image uploaded.");
       setStatus("Ready ✅", "ok");
     } catch (e) {
@@ -464,16 +577,24 @@
 
   createBtn?.addEventListener("click", async () => {
     try {
+      const image_url = getImageUrlFromInput(imageUrlEl);
+      const image_key = getImageKeyFromInput(imageUrlEl);
+
       const payload = {
         title: String(titleEl?.value || "").trim(),
         description: String(descEl?.value || "").trim(),
         link_url: String(linkEl?.value || "").trim(),
         sort_order: Number(sortEl?.value || 0),
-        image_url: String(imageUrlEl?.value || "").trim(),
-        is_active: !!activeEl?.checked,
+
+        // send BOTH for compatibility (backend can pick what it needs)
+        image_url,
+        image_key: image_key || undefined,
+
+        // ✅ IMPORTANT: send string not boolean (fixes "validation failed")
+        is_active: boolToStr(!!activeEl?.checked),
       };
 
-      if (!payload.image_url) {
+      if (!payload.image_url && !payload.image_key) {
         toast("warn", "Missing image", "Please provide an image URL or upload an image.");
         return;
       }
@@ -496,16 +617,24 @@
   modalSave?.addEventListener("click", async () => {
     if (!editing) return;
     try {
+      const image_url = getImageUrlFromInput(mImage);
+      const image_key = getImageKeyFromInput(mImage) || String(editing.image_key || "").trim();
+
       const payload = {
         title: String(mTitle?.value || "").trim(),
         description: String(mDesc?.value || "").trim(),
         link_url: String(mLink?.value || "").trim(),
         sort_order: Number(mSort?.value || 0),
-        image_url: String(mImage?.value || "").trim(),
-        is_active: !!mActive?.checked,
+
+        // send BOTH for compatibility
+        image_url,
+        image_key: image_key || undefined,
+
+        // ✅ IMPORTANT: send string not boolean
+        is_active: boolToStr(!!mActive?.checked),
       };
 
-      if (!payload.image_url) {
+      if (!payload.image_url && !payload.image_key) {
         toast("warn", "Missing image", "Image URL cannot be empty.");
         return;
       }
