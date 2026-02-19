@@ -3,6 +3,7 @@
    ✅ Checks auth once (cookie session) then loads KPI counts
    ✅ Shows API base in header pill
    ✅ Navigates cards reliably (click + keyboard)
+   ✅ ADDED: Featured KPI count via /admin/featured
 ================================================ */
 
 (async function () {
@@ -16,10 +17,12 @@
   const kPending = document.getElementById("kPending");
   const kProducts = document.getElementById("kProducts");
   const kMessages = document.getElementById("kMessages");
+  const kFeatured = document.getElementById("kFeatured"); // ✅ NEW
 
   const chipOrders = document.getElementById("chipOrders");
   const chipProducts = document.getElementById("chipProducts");
   const chipMessages = document.getElementById("chipMessages");
+  const chipFeatured = document.getElementById("chipFeatured"); // ✅ NEW
 
   const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
@@ -119,20 +122,17 @@
   const productsPromise = tryCount(
     "products",
     ["/admin/products"],
-    (d) => Array.isArray(d?.products) ? d.products.length : NaN
+    (d) => (Array.isArray(d?.products) ? d.products.length : NaN)
   );
 
-  // Orders: may be /admin/orders (common). If your server uses another route,
-  // this will just show — instead of crashing.
+  // Orders: /admin/orders or /admin/orders/list
   const ordersPromise = (async () => {
-    // Try /admin/orders first
     try {
       const d = await getJson("/admin/orders");
       const arr = Array.isArray(d?.orders) ? d.orders : (Array.isArray(d) ? d : []);
       const { total, pending } = computePendingFromOrdersArray(arr);
       return { ok: Number.isFinite(total), total, pending };
     } catch {
-      // Fallback: sometimes it's /admin/orders/list
       try {
         const d = await getJson("/admin/orders/list");
         const arr = Array.isArray(d?.orders) ? d.orders : (Array.isArray(d) ? d : []);
@@ -144,23 +144,30 @@
     }
   })();
 
-  // Messages: may be /admin/messages
+  // ✅ Featured: your backend returns { success:true, items:[...] }
+  const featuredPromise = tryCount(
+    "featured",
+    ["/admin/featured"],
+    (d) => (Array.isArray(d?.items) ? d.items.length : NaN)
+  );
+
+  // Messages: /admin/messages returns raw array in your backend (NOT {messages:[]})
   const messagesPromise = tryCount(
     "messages",
     ["/admin/messages", "/admin/contact", "/admin/inbox"],
-    (d) => Array.isArray(d?.messages) ? d.messages.length : NaN
+    (d) => (Array.isArray(d) ? d.length : (Array.isArray(d?.messages) ? d.messages.length : NaN))
   );
 
-  // Delivery: we don’t show count (just navigation), so no need to fetch it here.
-
-  const [prodR, ordersR, msgR] = await Promise.allSettled([
+  const [prodR, ordersR, featR, msgR] = await Promise.allSettled([
     productsPromise,
     ordersPromise,
-    messagesPromise
+    featuredPromise,
+    messagesPromise,
   ]);
 
   const prod = prodR.status === "fulfilled" ? prodR.value : { ok: false };
   const ord = ordersR.status === "fulfilled" ? ordersR.value : { ok: false };
+  const feat = featR.status === "fulfilled" ? featR.value : { ok: false };
   const msg = msgR.status === "fulfilled" ? msgR.value : { ok: false };
 
   // Set KPIs
@@ -172,15 +179,20 @@
 
   if (kPending) kPending.textContent = ord.ok ? fmt(ord.pending) : "—";
 
+  if (kFeatured) kFeatured.textContent = feat.ok ? fmt(feat.count) : "—";
+  if (chipFeatured) chipFeatured.textContent = feat.ok ? fmt(feat.count) : "—";
+
   if (kMessages) kMessages.textContent = msg.ok ? fmt(msg.count) : "—";
   if (chipMessages) chipMessages.textContent = msg.ok ? fmt(msg.count) : "—";
 
   // Status line summary
-  const anyOk = !!(prod.ok || ord.ok || msg.ok);
+  const anyOk = !!(prod.ok || ord.ok || feat.ok || msg.ok);
   if (anyOk) {
     setStatus("Dashboard ready ✅", "ok");
   } else {
-    // This typically means your orders/messages routes differ.
-    setStatus("Logged in ✅ (Some KPI endpoints not found — update routes in admin-dashboard.js if needed)", "warn");
+    setStatus(
+      "Logged in ✅ (Some KPI endpoints not found — update routes in admin-dashboard.js if needed)",
+      "warn"
+    );
   }
 })();
