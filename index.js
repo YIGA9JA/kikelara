@@ -1,22 +1,23 @@
-/* ================= INDEX.JS (PRODUCTION + PRELOADER WAITS FOR IMAGES ✅) =================
+/* ================= INDEX.JS (PRODUCTION + PREMIUM LAYOUT) =================
    ✅ Latest Drops (newest 4)
-   ✅ Most Loved (top 4 by rating summary)
+   ✅ Most Loved (top 4 by rating summary) -> 4-grid
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ FEATURED HERO pulls from /api/featured
-   ✅ Preloader stays until critical images are loaded
-======================================================================================== */
+   ✅ FEATURED HERO pulls from /api/featured (Admin Featured)
+   ✅ Featured now uses BIG full-width showcase + clickable thumbnails
+   ✅ Preloader waits for critical images + DOM images
+============================================================================ */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "");
 const PRODUCTS_KEY = "allProducts";
 
 const RATINGS_CACHE_KEY = "ratingsSummary_v1";
-const RATINGS_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+const RATINGS_TTL_MS = 1000 * 60 * 60 * 6;
 const RATINGS_CONCURRENCY = 6;
 
-/* ================= PRELOADER CONTROL (WAIT FOR IMAGES) ================= */
+/* ================= PRELOADER CONTROL ================= */
 const preloader = document.getElementById("preloader");
-const PRELOADER_MIN_MS = 450;     // avoid flash
-const PRELOADER_MAX_MS = 12000;   // safety escape (don’t trap users forever)
+const PRELOADER_MIN_MS = 450;
+const PRELOADER_MAX_MS = 12000;
 
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
@@ -30,7 +31,6 @@ function lockScroll(lock){
     delete document.body.dataset._prevOverflow;
   }
 }
-
 function hidePreloader(){
   if (!preloader) return;
   preloader.style.opacity = "0";
@@ -42,20 +42,16 @@ function waitForImgEl(img){
   return new Promise((resolve) => {
     if (!img) return resolve();
     if (img.complete && img.naturalWidth > 0) return resolve();
-
     const done = () => resolve();
     img.addEventListener("load", done, { once: true });
     img.addEventListener("error", done, { once: true });
   });
 }
-
 async function waitForAllImgsInDom(){
   const imgs = Array.from(document.querySelectorAll("img"))
     .filter(i => i && i.getAttribute("src"));
-
   await Promise.all(imgs.map(waitForImgEl));
 }
-
 function preloadUrl(src){
   return new Promise((resolve) => {
     if (!src) return resolve();
@@ -65,7 +61,6 @@ function preloadUrl(src){
     img.src = src;
   });
 }
-
 async function preloadUrls(urls){
   const uniq = Array.from(new Set((urls || []).filter(Boolean)));
   await Promise.all(uniq.map(preloadUrl));
@@ -148,7 +143,7 @@ function safeSetSessionJSON(key, val) {
 
 function formatNaira(n) {
   const num = Number(n || 0);
-  return `₦${num.toLocaleString()}`;
+  try { return `₦${num.toLocaleString()}`; } catch { return `₦${num}`; }
 }
 
 function resolveImageUrl(img) {
@@ -198,7 +193,6 @@ function normalizeFeaturedItem(it) {
     image_url: resolveImageUrl(it?.image_url || ""),
   };
 }
-
 async function fetchFeaturedItems() {
   if (!API_BASE) return [];
   try {
@@ -324,7 +318,7 @@ function makeRatingBadge(avg, count) {
 /* ================= RENDER CARDS ================= */
 function makeCard(p, kind) {
   const card = document.createElement("a");
-  card.className = kind === "latest" ? "p-card p-latest" : "p-card p-loved";
+  card.className = "p-card";
   card.href = productUrl(p.id);
   card.style.textDecoration = "none";
 
@@ -335,10 +329,7 @@ function makeCard(p, kind) {
   img.alt = p.name;
   img.src = resolveImageUrl(p.image_url);
   img.decoding = "async";
-
-  // ✅ IMPORTANT: if you want preloader to wait for these images, DON'T lazy-load them
-  img.loading = "eager";
-
+  img.loading = "eager"; // because you want images loaded before preloader hides
   media.appendChild(img);
 
   if (kind === "loved") {
@@ -372,17 +363,21 @@ function renderList(container, items, kind) {
   items.forEach((p) => container.appendChild(makeCard(p, kind)));
 }
 
-/* ================= FEATURED HERO ================= */
+/* ================= FEATURED (BIG SHOWCASE) ================= */
 let featuredIndex = 0;
 let featuredPool = [];
 
 const featuredImg = document.getElementById("featuredImage");
 const featuredName = document.getElementById("featuredName");
 const featuredLinkEl = document.getElementById("featuredLink");
+const featuredCtaEl = document.getElementById("featuredCta");
+const featuredThumbs = document.getElementById("featuredThumbs");
 
 function setFeaturedLink(url) {
   const u = String(url || "").trim();
-  if (featuredLinkEl) featuredLinkEl.href = u || "products.html";
+  const href = u || "products.html";
+  if (featuredLinkEl) featuredLinkEl.href = href;
+  if (featuredCtaEl) featuredCtaEl.href = href;
 }
 
 function setFeaturedNow(item){
@@ -392,47 +387,62 @@ function setFeaturedNow(item){
   const title = item.title || "Featured";
   const link = item.link_url || "products.html";
 
-  featuredImg.src = src;
-  featuredImg.alt = title;
-  if (featuredName) featuredName.textContent = title;
-  setFeaturedLink(link);
-}
-
-function switchFeatured() {
-  if (!featuredImg || !featuredPool.length) return;
-
-  const next = featuredPool[featuredIndex];
-  const src = resolveImageUrl(next.image_url);
-
   featuredImg.style.opacity = "0";
-  if (featuredName) featuredName.style.opacity = "0";
-
   preloadUrl(src).then(() => {
-    setTimeout(() => {
-      setFeaturedNow(next);
-      featuredImg.style.opacity = "1";
-      if (featuredName) featuredName.style.opacity = "1";
-      featuredIndex = (featuredIndex + 1) % featuredPool.length;
-    }, 220);
+    featuredImg.src = src;
+    featuredImg.alt = title;
+    if (featuredName) featuredName.textContent = title;
+    setFeaturedLink(link);
+    requestAnimationFrame(() => (featuredImg.style.opacity = "1"));
   });
 }
 
-/* ================= MOST LOVED RAIL SCROLL BUTTONS ================= */
-function initLovedRailControls(){
-  const rail = document.getElementById("homeProducts");
-  const prev = document.querySelector(".rail-prev");
-  const next = document.querySelector(".rail-next");
-  if (!rail || !prev || !next) return;
+function buildFeaturedThumbs(){
+  if (!featuredThumbs) return;
+  featuredThumbs.innerHTML = "";
 
-  function scrollByAmt(dir){
-    const amt = Math.max(240, Math.floor(rail.clientWidth * 0.72));
-    rail.scrollBy({ left: dir * amt, behavior: "smooth" });
+  const max = Math.min(6, featuredPool.length);
+  for (let i = 0; i < max; i++){
+    const it = featuredPool[i];
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ft";
+    btn.setAttribute("aria-label", `Featured item ${i+1}`);
+    btn.setAttribute("aria-current", i === 0 ? "true" : "false");
+
+    const im = document.createElement("img");
+    im.alt = it.title || `Featured ${i+1}`;
+    im.src = resolveImageUrl(it.image_url);
+    im.decoding = "async";
+    im.loading = "eager";
+
+    btn.appendChild(im);
+    btn.addEventListener("click", () => {
+      featuredIndex = i;
+      Array.from(featuredThumbs.querySelectorAll(".ft")).forEach((x, idx) => {
+        x.setAttribute("aria-current", idx === i ? "true" : "false");
+      });
+      setFeaturedNow(featuredPool[i]);
+    });
+
+    featuredThumbs.appendChild(btn);
   }
-  prev.addEventListener("click", () => scrollByAmt(-1));
-  next.addEventListener("click", () => scrollByAmt(1));
 }
 
-/* ================= HERO BRAND ANIMATION: BUBBLES + LETTER REVEAL ================= */
+function switchFeatured() {
+  if (!featuredPool.length) return;
+  featuredIndex = (featuredIndex + 1) % featuredPool.length;
+
+  if (featuredThumbs) {
+    Array.from(featuredThumbs.querySelectorAll(".ft")).forEach((x, idx) => {
+      x.setAttribute("aria-current", idx === featuredIndex ? "true" : "false");
+    });
+  }
+
+  setFeaturedNow(featuredPool[featuredIndex]);
+}
+
+/* ================= HERO BRAND ANIMATION ================= */
 function initHeroBrandAnimation(){
   const brandEl = document.getElementById("heroBrandmark");
   const bubbleWrap = document.getElementById("heroBubbles");
@@ -464,14 +474,12 @@ function initHeroBrandAnimation(){
       brandEl.classList.add("done");
       return;
     }
-
     const baseDelay = 110;
     const startDelay = 140;
 
     letters.forEach((s, i) => {
       setTimeout(() => s.classList.add("on"), startDelay + i * baseDelay);
     });
-
     setTimeout(() => brandEl.classList.add("done"), startDelay + letters.length * baseDelay + 220);
   }
 
@@ -511,7 +519,6 @@ function initHeroBrandAnimation(){
     for (let i = 0; i < 8; i++) spawnBubble();
     timer = setInterval(spawnBubble, 360);
   }
-
   function stop(){
     if (!timer) return;
     clearInterval(timer);
@@ -525,21 +532,19 @@ function initHeroBrandAnimation(){
   });
 }
 
-/* ================= INIT (WITH IMAGE-GATED PRELOADER) ================= */
+/* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", async () => {
   const start = performance.now();
   lockScroll(true);
 
-  // allow header/footer injection to mount first
+  // let header/footer mount
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  initLovedRailControls();
   initHeroBrandAnimation();
 
   const latestGrid = document.getElementById("latestProducts");
-  const lovedRail = document.getElementById("homeProducts");
+  const lovedGrid = document.getElementById("homeProducts");
 
-  // 1) fetch featured + products
   const [featuredItems, products] = await Promise.all([
     fetchFeaturedItems(),
     fetchProducts(),
@@ -549,11 +554,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const sortedLatest = [...products].sort(sortLatestDesc);
   const latest = sortedLatest.slice(0, 4);
+  const baseLoved = sortedLatest.slice(0, 4); // quick placeholder
 
-  // base loved (fast) before ratings
-  const baseLoved = sortedLatest.slice(0, 4);
-
-  // 2) decide featured pool (admin first, else fallback)
+  // featured pool
   if (featuredItems.length) {
     featuredPool = featuredItems
       .slice()
@@ -572,7 +575,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     featuredPool = featuredPool.slice(0, 6);
   }
 
-  // 3) PRELOAD critical images BEFORE reveal
+  // preload critical hero + featured + visible 8 cards
   const heroPoster = document.getElementById("heroBgVideo")?.getAttribute("poster") || "";
   const criticalUrls = [
     heroPoster,
@@ -581,28 +584,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     ...baseLoved.map(p => resolveImageUrl(p.image_url)),
   ];
 
-  // preload the URLs first
-  await Promise.race([
-    preloadUrls(criticalUrls),
-    sleep(PRELOADER_MAX_MS)
-  ]);
+  await Promise.race([preloadUrls(criticalUrls), sleep(PRELOADER_MAX_MS)]);
 
-  // 4) render UI now (images already likely cached from preloads)
+  // render sections
   renderList(latestGrid, latest, "latest");
-  renderList(lovedRail, baseLoved, "loved");
+  renderList(lovedGrid, baseLoved, "loved");
 
-  // set first featured immediately
+  // set featured
   if (featuredPool.length) {
     featuredIndex = 0;
     setFeaturedNow(featuredPool[0]);
-    featuredIndex = (featuredIndex + 1) % featuredPool.length;
+    buildFeaturedThumbs();
     setInterval(switchFeatured, 4200);
   }
 
-  // 5) hydrate ratings (does NOT block preloader — faster perceived)
+  // ratings hydration -> final “most loved”
   (async () => {
     const cache = loadRatingsCache();
-
     const ratedProducts = [...products].map((p) => {
       const c = getCachedRating(cache, p.id);
       return { ...p, avg_rating: c ? c.avg : null, review_count: c ? c.count : null };
@@ -622,21 +620,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const loved = ratedProducts.sort(sortLovedDesc).slice(0, 4);
-    renderList(lovedRail, loved, "loved");
+    renderList(lovedGrid, loved, "loved");
   })().catch(() => {});
 
-  // 6) Now wait for all DOM imgs (including header logo) to complete
+  // wait for DOM images (header logo + featured img + cards)
   await Promise.race([
     (async () => {
-      // wait for fonts too (optional, helps polish)
       try { await document.fonts?.ready; } catch {}
       await waitForAllImgsInDom();
     })(),
     sleep(PRELOADER_MAX_MS)
   ]);
 
-  // 7) keep preloader for minimum time, then hide
   const elapsed = performance.now() - start;
   if (elapsed < PRELOADER_MIN_MS) await sleep(PRELOADER_MIN_MS - elapsed);
+
   hidePreloader();
 });

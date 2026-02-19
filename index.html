@@ -8,7 +8,7 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="theme-color" content="#ffefd5" />
 
-  <!-- (Optional) preload your hero poster image -->
+  <!-- Optional: preload hero poster -->
   <link rel="preload" as="image" href="images/about-hero.jpg">
 
   <!-- Styles -->
@@ -16,10 +16,10 @@
   <link rel="stylesheet" href="index.css" />
   <link rel="stylesheet" href="footer.css" />
 
-  <!-- Config first (API_BASE + HCAPTCHA_SITE_KEY) -->
+  <!-- Config first -->
   <script src="config.js"></script>
 
-  <!-- ✅ hCaptcha (required by footer.js) -->
+  <!-- hCaptcha -->
   <script>
     function hcaptchaOnload(){
       window.__HCAPTCHA_READY__ = true;
@@ -40,13 +40,10 @@
 </head>
 
 <body>
-  <!-- HEADER INJECT MOUNT -->
   <div id="siteHeader"></div>
-
-  <!-- Skip link -->
   <a class="skip-link" href="#mainContent">Skip to content</a>
 
-  <!-- PRELOADER (stays until we explicitly hide it in JS) -->
+  <!-- PRELOADER -->
   <div id="preloader" aria-label="Loading">
     <div class="pl-card">
       <div class="pl-brand">KÍKÉLÁRÁ</div>
@@ -63,26 +60,19 @@
       <video
         id="heroBgVideo"
         class="hero-bg-video"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="none"
+        autoplay muted loop playsinline preload="none"
         poster="images/about-hero.jpg"
-        data-mp4=""
-        data-webm=""
-        aria-hidden="true">
-      </video>
+        data-mp4="" data-webm=""
+        aria-hidden="true"></video>
 
-      <!-- ✅ bubbles layer -->
       <div id="heroBubbles" class="hero-bubbles" aria-hidden="true"></div>
-
       <div class="hero-overlay" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
 
       <div class="container hero-grid">
+
+        <!-- LEFT -->
         <div class="hero-left">
-          <!-- ✅ animated wordmark -->
           <div id="heroBrandmark" class="hero-brandmark" aria-label="KIKELARA"></div>
 
           <div class="badge">✨ PREMIUM SKIN RITUAL</div>
@@ -108,38 +98,52 @@
           </div>
         </div>
 
-        <div class="hero-right">
-          <div class="feature-card" aria-label="Featured spotlight">
-            <div class="feature-top">
-              <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
-              <div class="feature-title">Featured</div>
-            </div>
-
-            <!-- ✅ Clickable featured -->
-            <a id="featuredLink" class="feature-link" href="products.html" aria-label="View featured item">
-              <div class="feature-media">
-                <img id="featuredImage" alt="Featured product" />
-                <div class="feature-fade" aria-hidden="true"></div>
-              </div>
-            </a>
-
-            <div class="feature-bottom">
-              <div class="feature-name" id="featuredName"></div>
-
-              <div class="feature-actions">
-                <a class="chip" href="products.html">Shop</a>
-                <a class="chip" href="contact.html">Contact</a>
-              </div>
-            </div>
+        <!-- RIGHT (small supporting cards, not “featured”) -->
+        <div class="hero-right" aria-label="Why KÍKÉLÁRÁ">
+          <div class="hero-mini">
+            <div class="mini-title">Glow Tip</div>
+            <div class="mini-text">Apply oil on damp skin, then seal with butter for an all-day glow.</div>
           </div>
 
-          <div class="float-card" aria-label="Glow tip">
-            <div class="float-title">Glow Tip</div>
-            <div class="float-text">
-              Apply oil on damp skin, then seal with butter for an all-day glow.
-            </div>
+          <div class="hero-mini">
+            <div class="mini-title">Feel</div>
+            <div class="mini-text">Luxury texture — soft finish, not greasy.</div>
+          </div>
+
+          <div class="hero-mini">
+            <div class="mini-title">Results</div>
+            <div class="mini-text">Moisture, shine, and confidence — daily.</div>
           </div>
         </div>
+
+        <!-- ✅ FULL-WIDTH FEATURED (NOT HALF) -->
+        <div class="featured-showcase" aria-label="Featured showcase">
+          <div class="featured-shell">
+
+            <a id="featuredLink" class="featured-media" href="products.html" aria-label="Open featured item">
+              <img id="featuredImage" alt="Featured product" />
+              <div class="featured-media-overlay" aria-hidden="true"></div>
+              <div class="featured-badge" aria-hidden="true">FEATURED DROP</div>
+            </a>
+
+            <div class="featured-info">
+              <div class="featured-kicker">Hand-picked • Admin Featured</div>
+              <div id="featuredName" class="featured-title"></div>
+              <div class="featured-sub">
+                Limited spotlight — tap to view the featured item.
+              </div>
+
+              <div class="featured-actions">
+                <a id="featuredCta" class="btn btn-gold" href="products.html">Shop Featured</a>
+                <a class="btn btn-ghost" href="products.html">View All</a>
+              </div>
+
+              <div id="featuredThumbs" class="featured-thumbs" aria-label="Featured thumbnails"></div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -155,32 +159,25 @@
         </div>
 
         <div class="duo">
+
           <!-- Latest -->
           <div class="panel" aria-label="Latest drops">
             <div class="panel-head">
               <div class="panel-title">Latest Drops</div>
               <div class="panel-hint">New in</div>
             </div>
-
             <div class="latest-grid" id="latestProducts" aria-live="polite"></div>
           </div>
 
-          <!-- Most Loved -->
+          <!-- ✅ Most Loved = 4 GRID -->
           <div class="panel" aria-label="Most loved">
             <div class="panel-head">
               <div class="panel-title">Most Loved</div>
               <div class="panel-hint">Top rated</div>
             </div>
-
-            <div class="loved-wrap">
-              <button class="rail-btn rail-prev" type="button" aria-label="Scroll left">‹</button>
-              <div class="loved-rail" id="homeProducts" aria-live="polite"></div>
-              <button class="rail-btn rail-next" type="button" aria-label="Scroll right">›</button>
-
-              <div class="rail-fade rail-fade-left" aria-hidden="true"></div>
-              <div class="rail-fade rail-fade-right" aria-hidden="true"></div>
-            </div>
+            <div class="loved-grid" id="homeProducts" aria-live="polite"></div>
           </div>
+
         </div>
       </div>
     </section>
@@ -201,19 +198,16 @@
             <h3>Cleanse</h3>
             <p>Start clean so your skin can absorb better.</p>
           </div>
-
           <div class="how-card">
             <div class="how-badge">02</div>
             <h3>Treat</h3>
             <p>Use oil to nourish and boost glow & tone.</p>
           </div>
-
           <div class="how-card">
             <div class="how-badge">03</div>
             <h3>Seal</h3>
             <p>Butter locks in moisture for soft skin.</p>
           </div>
-
           <div class="how-card">
             <div class="how-badge">04</div>
             <h3>Repeat</h3>
@@ -267,7 +261,6 @@
 
   </main>
 
-  <!-- FOOTER INJECT MOUNT -->
   <div id="siteFooter"></div>
 </body>
 </html>
