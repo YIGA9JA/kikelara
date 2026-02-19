@@ -1,4 +1,4 @@
-/* ===================== ORDER-SUCCESS.JS (FULL UPDATED + UNLOCK BUTTONS ON PAID) ===================== */
+/* ===================== ORDER-SUCCESS.JS (LIQUID GLASS + MOBILE TABLE FIX + STORAGE FIX) ===================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/$/, "");
 const LAST_ORDER_KEY = "kikelara_last_order_v1";
@@ -13,22 +13,17 @@ function formatNaira(n) {
   return "₦" + Number(n || 0).toLocaleString();
 }
 
-function escapeHtml(str) {
-  return String(str ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function safeJSON(key, fallback) {
+function safeJSONFrom(storage, key, fallback) {
   try {
-    const v = JSON.parse(localStorage.getItem(key));
+    const v = JSON.parse(storage.getItem(key));
     return v ?? fallback;
   } catch {
     return fallback;
   }
+}
+
+function setJSONTo(storage, key, value) {
+  try { storage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
 function getRefFromURL() {
@@ -38,19 +33,35 @@ function getRefFromURL() {
 
 function findOrderByRefInBackup(ref) {
   if (!ref) return null;
-  const arr = safeJSON(LOCAL_ORDERS_KEY, []);
-  if (!Array.isArray(arr)) return null;
 
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const o = arr[i];
-    if (o && String(o.reference || "") === String(ref)) return o;
+  // checkout.js uses sessionStorage for backup in your code
+  const fromSession = safeJSONFrom(sessionStorage, LOCAL_ORDERS_KEY, []);
+  if (Array.isArray(fromSession)) {
+    for (let i = fromSession.length - 1; i >= 0; i--) {
+      const o = fromSession[i];
+      if (o && String(o.reference || "") === String(ref)) return o;
+    }
   }
+
+  // fallback localStorage (just in case)
+  const fromLocal = safeJSONFrom(localStorage, LOCAL_ORDERS_KEY, []);
+  if (Array.isArray(fromLocal)) {
+    for (let i = fromLocal.length - 1; i >= 0; i--) {
+      const o = fromLocal[i];
+      if (o && String(o.reference || "") === String(ref)) return o;
+    }
+  }
+
   return null;
 }
 
 function safeGetLocalReceiptOrder() {
-  const last = safeJSON(LAST_ORDER_KEY, null);
-  if (last && Array.isArray(last.cart)) return last;
+  // ✅ checkout.js saved LAST_ORDER_KEY in sessionStorage
+  const lastSession = safeJSONFrom(sessionStorage, LAST_ORDER_KEY, null);
+  if (lastSession && Array.isArray(lastSession.cart)) return lastSession;
+
+  const lastLocal = safeJSONFrom(localStorage, LAST_ORDER_KEY, null);
+  if (lastLocal && Array.isArray(lastLocal.cart)) return lastLocal;
 
   const ref = getRefFromURL();
   const found = findOrderByRefInBackup(ref);
@@ -86,18 +97,14 @@ function setHeroActionsVisible(showIt) {
 }
 
 function setInvoiceLocked(isLocked) {
-  // Support BOTH ids (your HTML had notConfirmedBox before)
   const lockedA = document.getElementById("invoiceLocked");
-  const lockedB = document.getElementById("notConfirmedBox");
   const actions = document.getElementById("actionsBox");
 
   if (isLocked) {
     if (lockedA) show(lockedA, "flex");
-    if (lockedB) show(lockedB, "flex");
     hide(actions);
   } else {
     hide(lockedA);
-    hide(lockedB);
     show(actions, "flex");
   }
 }
@@ -120,11 +127,10 @@ function setHeroState(state, ref) {
     if (heroNote) heroNote.textContent = "Your payment is confirmed. Your invoice is now available below.";
 
     setHeroActionsVisible(true);
-    setInvoiceLocked(false); // ✅ UNLOCK invoice + show print/download
+    setInvoiceLocked(false);
     return;
   }
 
-  // confirming
   if (confirmText) confirmText.textContent = "Confirming payment…";
   if (heroTitle) heroTitle.textContent = "Confirming payment…";
   if (progressBar) progressBar.style.width = "55%";
@@ -178,13 +184,11 @@ async function fetchReceiptFromBackend(ref) {
     const data = await res.json().catch(() => null);
     if (!data) return null;
 
-    // expected: { ok:true, order:{...safeFields} }
     const ord = data.order || data?.data?.order || null;
     if (!ord) return null;
 
     const payload = (ord.payload && typeof ord.payload === "object") ? ord.payload : ord;
     if (payload && (Array.isArray(payload.cart) || Array.isArray(ord.cart))) {
-      // ensure reference present
       payload.reference = payload.reference || ord.reference || ref;
       payload.status = payload.status || ord.status;
       return payload;
@@ -195,7 +199,7 @@ async function fetchReceiptFromBackend(ref) {
   }
 }
 
-/* ===================== RENDER RECEIPT ===================== */
+/* ===================== RENDER RECEIPT (SAFE DOM + MOBILE LABELS) ===================== */
 function renderReceipt(order) {
   const noBox = document.getElementById("noReceiptBox");
 
@@ -226,7 +230,7 @@ function renderReceipt(order) {
 
   const tbody = document.getElementById("receiptItems");
   if (tbody) {
-    tbody.innerHTML = "";
+    tbody.replaceChildren();
 
     order.cart.forEach((it) => {
       const qty = Number(it.qty || 0);
@@ -234,12 +238,31 @@ function renderReceipt(order) {
       const line = price * qty;
 
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(it.name)}</td>
-        <td class="right">${qty}</td>
-        <td class="right">${formatNaira(price)}</td>
-        <td class="right">${formatNaira(line)}</td>
-      `;
+
+      const tdItem = document.createElement("td");
+      tdItem.textContent = String(it.name || "");
+      tdItem.setAttribute("data-label", "Item");
+
+      const tdQty = document.createElement("td");
+      tdQty.className = "right";
+      tdQty.textContent = String(qty);
+      tdQty.setAttribute("data-label", "Qty");
+
+      const tdPrice = document.createElement("td");
+      tdPrice.className = "right";
+      tdPrice.textContent = formatNaira(price);
+      tdPrice.setAttribute("data-label", "Price");
+
+      const tdTotal = document.createElement("td");
+      tdTotal.className = "right";
+      tdTotal.textContent = formatNaira(line);
+      tdTotal.setAttribute("data-label", "Total");
+
+      tr.appendChild(tdItem);
+      tr.appendChild(tdQty);
+      tr.appendChild(tdPrice);
+      tr.appendChild(tdTotal);
+
       tbody.appendChild(tr);
     });
   }
@@ -258,7 +281,7 @@ function buildInvoiceHTML(order) {
 
     return `
       <tr>
-        <td style="padding:12px;border-bottom:1px solid #eee;">${escapeHtml(it.name)}</td>
+        <td style="padding:12px;border-bottom:1px solid #eee;">${String(it.name || "")}</td>
         <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${qty}</td>
         <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(price)}</td>
         <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">${formatNaira(line)}</td>
@@ -274,7 +297,7 @@ function buildInvoiceHTML(order) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Invoice - ${escapeHtml(order.reference || "KIKELARA")}</title>
+  <title>Invoice - ${String(order.reference || "KIKELARA")}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:Arial,sans-serif;color:#111;max-width:920px;margin:24px auto;padding:0 14px;">
@@ -286,9 +309,9 @@ function buildInvoiceHTML(order) {
     </div>
     <div style="text-align:right;">
       <div style="display:inline-block;padding:6px 10px;border-radius:999px;background:#f2f2f2;font-size:12px;font-weight:800;">
-        ${escapeHtml(statusLabel)}
+        ${statusLabel}
       </div>
-      <div style="opacity:.75;margin-top:6px;">Reference: <b>${escapeHtml(order.reference || "—")}</b></div>
+      <div style="opacity:.75;margin-top:6px;">Reference: <b>${String(order.reference || "—")}</b></div>
     </div>
   </div>
 
@@ -319,14 +342,14 @@ function buildInvoiceHTML(order) {
 
   <h3 style="margin:18px 0 8px;">Customer & Delivery</h3>
   <div style="line-height:1.7;opacity:.9;">
-    <div><b>Name:</b> ${escapeHtml(order.name || "")}</div>
-    <div><b>Email:</b> ${escapeHtml(order.email || "")}</div>
-    <div><b>Phone:</b> ${escapeHtml(order.phone || "")}</div>
+    <div><b>Name:</b> ${String(order.name || "")}</div>
+    <div><b>Email:</b> ${String(order.email || "")}</div>
+    <div><b>Phone:</b> ${String(order.phone || "")}</div>
     <hr style="border:none;border-top:1px solid #eee;margin:12px 0;">
-    <div><b>Shipping:</b> ${escapeHtml(order.shippingType || "")}</div>
-    <div><b>State:</b> ${escapeHtml(order.state || "")}</div>
-    <div><b>LGA/City:</b> ${escapeHtml(order.city || "")}</div>
-    <div><b>Address:</b> ${escapeHtml(order.address || "")}</div>
+    <div><b>Shipping:</b> ${String(order.shippingType || "")}</div>
+    <div><b>State:</b> ${String(order.state || "")}</div>
+    <div><b>LGA/City:</b> ${String(order.city || "")}</div>
+    <div><b>Address:</b> ${String(order.address || "")}</div>
   </div>
 </body>
 </html>
@@ -355,7 +378,9 @@ async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
     const fresh = await fetchReceiptFromBackend(ref);
 
     if (fresh && isPaidStatus(fresh.status)) {
-      try { localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(fresh)); } catch {}
+      // ✅ mirror confirmed receipt to BOTH storages for reliability
+      setJSONTo(sessionStorage, LAST_ORDER_KEY, fresh);
+      setJSONTo(localStorage, LAST_ORDER_KEY, fresh);
       return fresh;
     }
 
@@ -369,11 +394,9 @@ async function pollUntilConfirmed(ref, timeoutMs = POLL_TIMEOUT_MS) {
 document.addEventListener("DOMContentLoaded", async () => {
   const ref = getRefFromURL();
 
-  // ✅ set reference text immediately
   setText("heroRef", ref || "—");
   setText("receiptRef", ref || "—");
 
-  // ✅ Copy reference button
   document.getElementById("copyRefBtn")?.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(ref || "");
@@ -386,14 +409,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch {}
   });
 
-  // Default UI: confirming + locked
   setHeroState("confirming", ref);
 
-  // Attach actions (they will show only when confirmed)
   document.getElementById("printBtn")?.addEventListener("click", () => window.print());
 
   document.getElementById("downloadBtn")?.addEventListener("click", () => {
-    const o = safeJSON(LAST_ORDER_KEY, null);
+    const o = safeJSONFrom(sessionStorage, LAST_ORDER_KEY, null) || safeJSONFrom(localStorage, LAST_ORDER_KEY, null);
     if (!o || !isPaidStatus(o.status)) return;
 
     const html = buildInvoiceHTML(o);
@@ -401,16 +422,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     downloadTextFile(`KIKELARA-INVOICE-${refSafe}.html`, html, "text/html");
   });
 
-  // Optional local prefill (won’t unlock unless PAID)
+  // local prefill (won’t unlock unless PAID)
   const local = safeGetLocalReceiptOrder();
-  if (local && local.reference) {
-    renderReceipt(local);
-  }
+  if (local && local.reference) renderReceipt(local);
 
   // Poll backend until PAID
   if (ref) {
     const confirmed = await pollUntilConfirmed(ref);
-
     if (confirmed) {
       setHeroState("confirmed", confirmed.reference);
       renderReceipt(confirmed);
@@ -418,7 +436,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // If not confirmed after timeout
   const heroNote = document.getElementById("heroNote");
   if (heroNote) {
     heroNote.textContent =
