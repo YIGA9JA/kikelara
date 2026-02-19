@@ -466,10 +466,11 @@ textarea::placeholder{ color: rgba(95,75,0,0.55); }
 
 .kpis{
   display:grid;
-  grid-template-columns: repeat(5, 1fr); /* ✅ supports Featured too */
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   padding: 12px 16px 0;
 }
+
 .kpi{
   border: 1px solid rgba(95,75,0,0.12);
   border-radius: var(--radius-lg);

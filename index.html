@@ -8,7 +8,7 @@
   <meta name="description" content="Luxury skincare products made for radiant, healthy skin. Shop KÍKÉLÁRÁ today." />
   <meta name="theme-color" content="#ffefd5" />
 
-  <!-- Optional: preload hero poster -->
+  <!-- Fallback preload (first hero image if API is slow) -->
   <link rel="preload" as="image" href="images/about-hero.jpg">
 
   <!-- Styles -->
@@ -49,27 +49,29 @@
       <div class="pl-brand">KÍKÉLÁRÁ</div>
       <div class="pl-sub">Luxury Skincare</div>
       <div class="pl-bar"><span></span></div>
-      <div class="pl-small">Loading images…</div>
+      <div class="pl-small">Loading.....</div>
     </div>
   </div>
 
   <main id="mainContent">
 
-    <!-- ================= HERO ================= -->
+    <!-- ================= HERO (FULL WIDTH) ================= -->
     <section class="hero" aria-label="KÍKÉLÁRÁ hero">
-      <video
-        id="heroBgVideo"
-        class="hero-bg-video"
-        autoplay muted loop playsinline preload="none"
-        poster="images/about-hero.jpg"
-        data-mp4="" data-webm=""
-        aria-hidden="true"></video>
+      <!-- FULL-WIDTH HERO BACKGROUND IMAGE (SLIDER) -->
+      <img
+        id="heroBgImage"
+        class="hero-bg"
+        src="images/about-hero.jpg"
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+      />
 
-      <div id="heroBubbles" class="hero-bubbles" aria-hidden="true"></div>
       <div class="hero-overlay" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
 
-      <div class="container hero-grid">
+      <!-- ✅ Full width wrapper (NOT .container) -->
+      <div class="hero-inner hero-grid">
 
         <!-- LEFT -->
         <div class="hero-left">
@@ -98,7 +100,7 @@
           </div>
         </div>
 
-        <!-- RIGHT (small supporting cards, not “featured”) -->
+        <!-- RIGHT -->
         <div class="hero-right" aria-label="Why KÍKÉLÁRÁ">
           <div class="hero-mini">
             <div class="mini-title">Glow Tip</div>
@@ -116,7 +118,14 @@
           </div>
         </div>
 
-        <!-- ✅ FULL-WIDTH FEATURED (NOT HALF) -->
+        <!-- ✅ HERO SLIDE DESCRIPTION (from Admin Hero) -->
+        <a id="heroSlideCard" class="hero-slidecard" href="products.html" aria-label="Open hero slide link">
+          <div id="heroSlideTitle" class="hs-title"></div>
+          <div id="heroSlideDesc" class="hs-desc"></div>
+          <div class="hs-cta">Tap to view →</div>
+        </a>
+
+        <!-- ✅ FULL-WIDTH FEATURED (stays full width inside hero) -->
         <div class="featured-showcase" aria-label="Featured showcase">
           <div class="featured-shell">
 
@@ -169,7 +178,7 @@
             <div class="latest-grid" id="latestProducts" aria-live="polite"></div>
           </div>
 
-          <!-- ✅ Most Loved = 4 GRID -->
+          <!-- Most Loved -->
           <div class="panel" aria-label="Most loved">
             <div class="panel-head">
               <div class="panel-title">Most Loved</div>

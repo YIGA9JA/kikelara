@@ -145,7 +145,7 @@ button{ font: inherit; }
   100%{ transform: translateX(-20%); }
 }
 
-/* =============== HERO =============== */
+/* =============== HERO (FULL WIDTH) =============== */
 .hero{
   position: relative;
   min-height: 86vh;
@@ -153,17 +153,21 @@ button{ font: inherit; }
   display:flex;
   align-items:center;
   overflow:hidden;
+  width: 100%;
 }
 
-.hero-bg-video{
+/* FULL WIDTH BG IMAGE */
+.hero-bg{
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
   object-fit: cover;
-  opacity:.86;
+  object-position: 50% 35%;
+  opacity:.90;
   filter: saturate(1.04) contrast(1.02);
   z-index: 0;
+  transition: opacity .45s ease, transform .65s ease;
 }
 
 .hero-overlay{
@@ -185,39 +189,15 @@ button{ font: inherit; }
   z-index: 3;
 }
 
-.hero-bubbles{
-  position:absolute;
-  inset:0;
-  z-index: 2;
-  pointer-events:none;
-  overflow:hidden;
-}
-.hero-bubbles .bubble{
-  position:absolute;
-  border-radius: 999px;
-  width: var(--s, 28px);
-  height: var(--s, 28px);
-  left: var(--l, 50%);
-  bottom: var(--b, -10%);
-  opacity: var(--o, .14);
-  filter: blur(var(--blur, 2px));
-  transform: translate3d(0,0,0) scale(.95);
-
-  background:
-    radial-gradient(circle at 30% 30%,
-      rgba(255,255,255,.55),
-      rgba(212,175,55,.18) 38%,
-      rgba(255,255,255,0) 72%);
-
-  mix-blend-mode: screen;
-  animation: bubbleRise var(--dur, 10s) linear forwards;
-}
-@keyframes bubbleRise{
-  0%   { transform: translate3d(0, 0, 0) scale(.92); opacity: var(--o, .14); }
-  70%  { opacity: calc(var(--o, .14) * .9); }
-  100% { transform: translate3d(var(--x, 0px), -120vh, 0) scale(1.18); opacity: 0; }
+/* ✅ Hero inner is FULL width (no max-width container) */
+.hero-inner{
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 6vw;
 }
 
+/* grid on top of hero */
 .hero-grid{
   position: relative;
   z-index: 4;
@@ -226,8 +206,6 @@ button{ font: inherit; }
   grid-template-columns: 1.1fr .9fr;
   gap: 22px;
   align-items:start;
-
-  /* This is the magic: featured spans full width */
   grid-auto-rows: min-content;
 }
 
@@ -396,6 +374,59 @@ button{ font: inherit; }
 }
 .mini-title{ position:relative; font-weight: 1000; letter-spacing:.04em; }
 .mini-text{ position:relative; margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
+
+/* ✅ Hero slide description card (Admin Hero) */
+.hero-slidecard{
+  grid-column: 1 / -1;
+  margin-top: 14px;
+  text-decoration:none;
+  color: inherit;
+
+  border-radius: 26px;
+  padding: 16px 16px 14px;
+
+  background:
+    radial-gradient(700px 380px at 22% 18%, rgba(212,175,55,.12), rgba(212,175,55,0) 62%),
+    linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.22);
+
+  backdrop-filter: blur(20px) saturate(1.55);
+  -webkit-backdrop-filter: blur(20px) saturate(1.55);
+
+  box-shadow: 0 18px 50px rgba(0,0,0,.12);
+  position: relative;
+  overflow:hidden;
+  display:none; /* shown when hero data exists */
+}
+.hero-slidecard::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: radial-gradient(520px 240px at 30% 12%, rgba(255,255,255,.46), rgba(255,255,255,0) 70%);
+  opacity:.55;
+  pointer-events:none;
+}
+.hs-title{
+  position: relative;
+  font-weight: 1100;
+  letter-spacing: -0.02em;
+  font-size: 1.15rem;
+}
+.hs-desc{
+  position: relative;
+  margin-top: 8px;
+  color: rgba(31,22,15,.76);
+  font-weight: 650;
+  line-height: 1.65;
+}
+.hs-cta{
+  position: relative;
+  margin-top: 10px;
+  font-weight: 1000;
+  letter-spacing: .06em;
+  font-size: 12px;
+  opacity: .85;
+}
 
 /* ✅ Featured Showcase (FULL WIDTH, BIG) */
 .featured-showcase{
@@ -633,7 +664,7 @@ button{ font: inherit; }
   z-index: 2;
 }
 
-/* ✅ Most Loved 4-grid */
+/* Most Loved 4-grid */
 .loved-grid{
   position: relative;
   margin-top: 14px;
@@ -852,6 +883,7 @@ button{ font: inherit; }
   .duo{ grid-template-columns: 1fr; }
   .duo-cta{ grid-template-columns: 1fr; }
   .how-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .hero-inner{ padding: 0 5vw; }
 }
 @media (max-width: 600px){
   .hero{ min-height: 78vh; padding: 64px 0 54px; }
@@ -863,7 +895,5 @@ button{ font: inherit; }
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce){
   .hm-letter{ transition:none !important; opacity:1; transform:none; filter:none; }
-  .hero-bubbles{ display:none; }
-  .p-card, .btn, .featured-media img{ transition:none; }
+  .p-card, .btn, .featured-media img, .hero-bg{ transition:none; }
 }
-  

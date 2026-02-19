@@ -4,6 +4,7 @@
    ✅ Shows API base in header pill
    ✅ Navigates cards reliably (click + keyboard)
    ✅ ADDED: Featured KPI count via /admin/featured
+   ✅ ADDED: Hero KPI count via /admin/hero
 ================================================ */
 
 (async function () {
@@ -17,12 +18,14 @@
   const kPending = document.getElementById("kPending");
   const kProducts = document.getElementById("kProducts");
   const kMessages = document.getElementById("kMessages");
-  const kFeatured = document.getElementById("kFeatured"); // ✅ NEW
+  const kFeatured = document.getElementById("kFeatured");
+  const kHero = document.getElementById("kHero"); // ✅ NEW
 
   const chipOrders = document.getElementById("chipOrders");
   const chipProducts = document.getElementById("chipProducts");
   const chipMessages = document.getElementById("chipMessages");
-  const chipFeatured = document.getElementById("chipFeatured"); // ✅ NEW
+  const chipFeatured = document.getElementById("chipFeatured");
+  const chipHero = document.getElementById("chipHero"); // ✅ NEW
 
   const API_BASE = String(window.API_BASE || "").replace(/\/+$/, "");
   const apiFetch = window.apiFetch;
@@ -92,7 +95,6 @@
     return data;
   }
 
-  // Try multiple possible endpoints without breaking
   async function tryCount(label, paths, pickCountFn) {
     for (const p of paths) {
       try {
@@ -106,7 +108,6 @@
     return { ok: false, count: NaN, used: "" };
   }
 
-  // Compute pending orders from common structures
   function computePendingFromOrdersArray(arr) {
     const orders = Array.isArray(arr) ? arr : [];
     const pending = orders.filter((o) => {
@@ -118,14 +119,12 @@
 
   setStatus("Loading dashboard…", "info");
 
-  // Products: your backend definitely has /admin/products
   const productsPromise = tryCount(
     "products",
     ["/admin/products"],
     (d) => (Array.isArray(d?.products) ? d.products.length : NaN)
   );
 
-  // Orders: /admin/orders or /admin/orders/list
   const ordersPromise = (async () => {
     try {
       const d = await getJson("/admin/orders");
@@ -144,49 +143,56 @@
     }
   })();
 
-  // ✅ Featured: your backend returns { success:true, items:[...] }
   const featuredPromise = tryCount(
     "featured",
     ["/admin/featured"],
     (d) => (Array.isArray(d?.items) ? d.items.length : NaN)
   );
 
-  // Messages: /admin/messages returns raw array in your backend (NOT {messages:[]})
+  // ✅ NEW: Hero
+  const heroPromise = tryCount(
+    "hero",
+    ["/admin/hero"],
+    (d) => (Array.isArray(d?.items) ? d.items.length : NaN)
+  );
+
   const messagesPromise = tryCount(
     "messages",
     ["/admin/messages", "/admin/contact", "/admin/inbox"],
     (d) => (Array.isArray(d) ? d.length : (Array.isArray(d?.messages) ? d.messages.length : NaN))
   );
 
-  const [prodR, ordersR, featR, msgR] = await Promise.allSettled([
+  const [prodR, ordersR, featR, heroR, msgR] = await Promise.allSettled([
     productsPromise,
     ordersPromise,
     featuredPromise,
+    heroPromise,
     messagesPromise,
   ]);
 
   const prod = prodR.status === "fulfilled" ? prodR.value : { ok: false };
   const ord = ordersR.status === "fulfilled" ? ordersR.value : { ok: false };
   const feat = featR.status === "fulfilled" ? featR.value : { ok: false };
+  const hero = heroR.status === "fulfilled" ? heroR.value : { ok: false };
   const msg = msgR.status === "fulfilled" ? msgR.value : { ok: false };
 
-  // Set KPIs
   if (kProducts) kProducts.textContent = prod.ok ? fmt(prod.count) : "—";
   if (chipProducts) chipProducts.textContent = prod.ok ? fmt(prod.count) : "—";
 
   if (kOrders) kOrders.textContent = ord.ok ? fmt(ord.total) : "—";
   if (chipOrders) chipOrders.textContent = ord.ok ? fmt(ord.total) : "—";
-
   if (kPending) kPending.textContent = ord.ok ? fmt(ord.pending) : "—";
 
   if (kFeatured) kFeatured.textContent = feat.ok ? fmt(feat.count) : "—";
   if (chipFeatured) chipFeatured.textContent = feat.ok ? fmt(feat.count) : "—";
 
+  if (kHero) kHero.textContent = hero.ok ? fmt(hero.count) : "—";
+  if (chipHero) chipHero.textContent = hero.ok ? fmt(hero.count) : "—";
+
   if (kMessages) kMessages.textContent = msg.ok ? fmt(msg.count) : "—";
   if (chipMessages) chipMessages.textContent = msg.ok ? fmt(msg.count) : "—";
 
-  // Status line summary
-  const anyOk = !!(prod.ok || ord.ok || feat.ok || msg.ok);
+  const anyOk = !!(prod.ok || ord.ok || feat.ok || hero.ok || msg.ok);
   if (anyOk) {
     setStatus("Dashboard ready ✅", "ok");
   } else {

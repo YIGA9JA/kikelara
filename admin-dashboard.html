@@ -37,9 +37,10 @@
       <div class="hero-card">
         <div class="hero-top">
           <h1>Welcome back</h1>
-          <p>Manage orders, products, delivery pricing, and messages.</p>
+          <p>Manage orders, products, hero slider, featured banners, delivery pricing, and messages.</p>
         </div>
 
+        <!-- ✅ KPIs now 6 -->
         <div class="kpis" id="kpis" aria-label="KPIs">
           <div class="kpi">
             <div class="k">Orders</div>
@@ -53,10 +54,17 @@
             <div class="k">Products</div>
             <div class="v" id="kProducts">—</div>
           </div>
+
+          <!-- ✅ NEW -->
           <div class="kpi">
-  <div class="k">Featured</div>
-  <div class="v" id="kFeatured">—</div>
-</div>
+            <div class="k">Hero</div>
+            <div class="v" id="kHero">—</div>
+          </div>
+
+          <div class="kpi">
+            <div class="k">Featured</div>
+            <div class="v" id="kFeatured">—</div>
+          </div>
 
           <div class="kpi">
             <div class="k">Messages</div>
@@ -83,20 +91,27 @@
         <div class="chip" id="chipProducts">—</div>
       </button>
 
+      <!-- ✅ NEW -->
+      <button class="card" data-go="admin-hero.html" type="button" aria-label="Open Hero Slider">
+        <div class="ico" aria-hidden="true">🖼️</div>
+        <div class="t">Hero</div>
+        <div class="d">Homepage hero slider</div>
+        <div class="chip" id="chipHero">—</div>
+      </button>
+
+      <button class="card" data-go="admin-featured.html" type="button" aria-label="Open Featured">
+        <div class="ico" aria-hidden="true">⭐</div>
+        <div class="t">Featured</div>
+        <div class="d">Homepage banners</div>
+        <div class="chip" id="chipFeatured">—</div>
+      </button>
+
       <button class="card" data-go="admin-delivery.html" type="button" aria-label="Open Delivery Pricing">
         <div class="ico" aria-hidden="true">🚚</div>
         <div class="t">Delivery Pricing</div>
         <div class="d">State & LGA delivery fees</div>
         <div class="chip" id="chipDelivery">Open</div>
       </button>
-      
-      <button class="card" data-go="admin-featured.html" type="button" aria-label="Open Featured">
-  <div class="ico" aria-hidden="true">⭐</div>
-  <div class="t">Featured</div>
-  <div class="d">Homepage banners</div>
-  <div class="chip" id="chipFeatured">—</div>
-</button>
-
 
       <button class="card" data-go="admin-messages.html" type="button" aria-label="Open Messages">
         <div class="ico" aria-hidden="true">💬</div>

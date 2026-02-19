@@ -1,9 +1,11 @@
 /* ================= INDEX.JS (PRODUCTION + PREMIUM LAYOUT) =================
+   ✅ Hero slider pulls from /api/hero (Admin Hero) + switches every 5s
+   ✅ Hero is full width, no bubbles, no video
    ✅ Latest Drops (newest 4)
    ✅ Most Loved (top 4 by rating summary) -> 4-grid
    ✅ Most Loved shows rating badge ON IMAGE
-   ✅ FEATURED HERO pulls from /api/featured (Admin Featured)
-   ✅ Featured now uses BIG full-width showcase + clickable thumbnails
+   ✅ FEATURED pulls from /api/featured (Admin Featured)
+   ✅ Featured uses BIG full-width showcase + clickable thumbnails
    ✅ Preloader waits for critical images + DOM images
 ============================================================================ */
 
@@ -66,61 +68,6 @@ async function preloadUrls(urls){
   await Promise.all(uniq.map(preloadUrl));
 }
 
-/* ================= HERO VIDEO (LAZY + SAFE) ================= */
-(function initHeroVideo() {
-  const v = document.getElementById("heroBgVideo");
-  if (!v) return;
-
-  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  if (reduce) return;
-
-  const webm = v.dataset.webm || "";
-  const mp4 = v.dataset.mp4 || "";
-  if (!webm && !mp4) return;
-
-  function attachSources() {
-    if (v.querySelector("source")) return;
-
-    if (webm) {
-      const s = document.createElement("source");
-      s.src = webm;
-      s.type = "video/webm";
-      v.appendChild(s);
-    }
-    if (mp4) {
-      const s = document.createElement("source");
-      s.src = mp4;
-      s.type = "video/mp4";
-      v.appendChild(s);
-    }
-
-    v.load();
-    const play = () => v.play().catch(() => {});
-    if (document.visibilityState === "visible") play();
-
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") play();
-      else v.pause();
-    });
-  }
-
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver(
-      (entries) => {
-        const ent = entries[0];
-        if (ent && ent.isIntersecting) {
-          attachSources();
-          io.disconnect();
-        }
-      },
-      { threshold: 0.12, rootMargin: "200px" }
-    );
-    io.observe(v);
-  } else {
-    attachSources();
-  }
-})();
-
 /* ================= HELPERS ================= */
 function productUrl(id) {
   if (id === undefined || id === null || id === "") return "products.html";
@@ -148,7 +95,7 @@ function formatNaira(n) {
 
 function resolveImageUrl(img) {
   const val = String(img || "").trim();
-  if (!val) return "images_brown/bodyButter.png";
+  if (!val) return "images/about-hero.jpg";
   if (/^https?:\/\//i.test(val)) return val;
   if (val.startsWith("/uploads/") && API_BASE) return `${API_BASE}${val}`;
   if (val.startsWith("uploads/") && API_BASE) return `${API_BASE}/${val}`;
@@ -203,6 +150,33 @@ async function fetchFeaturedItems() {
     const items = Array.isArray(data?.items) ? data.items : [];
     return items
       .map(normalizeFeaturedItem)
+      .filter((x) => x.image_url);
+  } catch {
+    return [];
+  }
+}
+
+/* ================= FETCH HERO (Admin Hero) ================= */
+function normalizeHeroItem(it) {
+  return {
+    id: it?.id,
+    title: String(it?.title || "").trim(),
+    description: String(it?.description || "").trim(),
+    link_url: String(it?.link_url || "").trim(),
+    sort_order: Number(it?.sort_order || 0),
+    image_url: resolveImageUrl(it?.image_url || ""),
+  };
+}
+async function fetchHeroItems() {
+  if (!API_BASE) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/hero`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items
+      .map(normalizeHeroItem)
       .filter((x) => x.image_url);
   } catch {
     return [];
@@ -329,7 +303,7 @@ function makeCard(p, kind) {
   img.alt = p.name;
   img.src = resolveImageUrl(p.image_url);
   img.decoding = "async";
-  img.loading = "eager"; // because you want images loaded before preloader hides
+  img.loading = "eager";
   media.appendChild(img);
 
   if (kind === "loved") {
@@ -361,6 +335,47 @@ function renderList(container, items, kind) {
   if (!container) return;
   container.innerHTML = "";
   items.forEach((p) => container.appendChild(makeCard(p, kind)));
+}
+
+/* ================= HERO SLIDER ================= */
+let heroIndex = 0;
+let heroPool = [];
+
+const heroBg = document.getElementById("heroBgImage");
+const heroCard = document.getElementById("heroSlideCard");
+const heroSlideTitle = document.getElementById("heroSlideTitle");
+const heroSlideDesc = document.getElementById("heroSlideDesc");
+
+function setHeroNow(item){
+  if (!heroBg || !item) return;
+
+  const src = resolveImageUrl(item.image_url);
+  const title = item.title || "";
+  const desc = item.description || "";
+  const link = item.link_url || "products.html";
+
+  heroBg.style.opacity = "0";
+  preloadUrl(src).then(() => {
+    heroBg.src = src;
+    heroBg.style.transform = "scale(1.02)";
+    requestAnimationFrame(() => {
+      heroBg.style.opacity = "0.90";
+      heroBg.style.transform = "scale(1.0)";
+    });
+  });
+
+  if (heroCard){
+    heroCard.href = link;
+    heroCard.style.display = (title || desc) ? "block" : "none";
+  }
+  if (heroSlideTitle) heroSlideTitle.textContent = title;
+  if (heroSlideDesc) heroSlideDesc.textContent = desc;
+}
+
+function switchHero(){
+  if (!heroPool.length) return;
+  heroIndex = (heroIndex + 1) % heroPool.length;
+  setHeroNow(heroPool[heroIndex]);
 }
 
 /* ================= FEATURED (BIG SHOWCASE) ================= */
@@ -442,10 +457,9 @@ function switchFeatured() {
   setFeaturedNow(featuredPool[featuredIndex]);
 }
 
-/* ================= HERO BRAND ANIMATION ================= */
+/* ================= HERO BRAND ANIMATION (NO BUBBLES) ================= */
 function initHeroBrandAnimation(){
   const brandEl = document.getElementById("heroBrandmark");
-  const bubbleWrap = document.getElementById("heroBubbles");
   if (!brandEl) return;
 
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
@@ -484,52 +498,6 @@ function initHeroBrandAnimation(){
   }
 
   revealLetters();
-
-  if (!bubbleWrap || reduce) return;
-
-  function rand(min, max){ return Math.random() * (max - min) + min; }
-  let timer = null;
-
-  function spawnBubble(){
-    if (document.visibilityState !== "visible") return;
-
-    const b = document.createElement("span");
-    b.className = "bubble";
-
-    const size = rand(14, 64);
-    const left = rand(-6, 106);
-    const bottom = rand(-18, 14);
-
-    b.style.setProperty("--s", `${size}px`);
-    b.style.setProperty("--l", `${left}%`);
-    b.style.setProperty("--b", `${bottom}%`);
-    b.style.setProperty("--dur", `${rand(6.5, 13.5)}s`);
-    b.style.setProperty("--x", `${rand(-36, 36)}px`);
-    b.style.setProperty("--o", `${rand(0.08, 0.20)}`);
-    b.style.setProperty("--blur", `${rand(0, 6)}px`);
-
-    b.addEventListener("animationend", () => b.remove());
-    bubbleWrap.appendChild(b);
-
-    if (bubbleWrap.childElementCount > 26) bubbleWrap.firstElementChild?.remove();
-  }
-
-  function start(){
-    if (timer) return;
-    for (let i = 0; i < 8; i++) spawnBubble();
-    timer = setInterval(spawnBubble, 360);
-  }
-  function stop(){
-    if (!timer) return;
-    clearInterval(timer);
-    timer = null;
-  }
-
-  start();
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") start();
-    else stop();
-  });
 }
 
 /* ================= INIT ================= */
@@ -545,7 +513,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const latestGrid = document.getElementById("latestProducts");
   const lovedGrid = document.getElementById("homeProducts");
 
-  const [featuredItems, products] = await Promise.all([
+  const [heroItems, featuredItems, products] = await Promise.all([
+    fetchHeroItems(),
     fetchFeaturedItems(),
     fetchProducts(),
   ]);
@@ -554,7 +523,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const sortedLatest = [...products].sort(sortLatestDesc);
   const latest = sortedLatest.slice(0, 4);
-  const baseLoved = sortedLatest.slice(0, 4); // quick placeholder
+  const baseLoved = sortedLatest.slice(0, 4);
+
+  // ✅ hero pool
+  if (heroItems.length) {
+    heroPool = heroItems
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .slice(0, 20);
+
+    heroIndex = 0;
+    setHeroNow(heroPool[0]);
+
+    if (heroPool.length > 1) {
+      setInterval(switchHero, 5000);
+    }
+  } else {
+    // fallback: show default card hidden (no hero data)
+    if (heroCard) heroCard.style.display = "none";
+  }
 
   // featured pool
   if (featuredItems.length) {
@@ -576,9 +563,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // preload critical hero + featured + visible 8 cards
-  const heroPoster = document.getElementById("heroBgVideo")?.getAttribute("poster") || "";
+  const fallbackHeroSrc = heroBg?.getAttribute("src") || "images/about-hero.jpg";
   const criticalUrls = [
-    heroPoster,
+    heroPool[0]?.image_url ? resolveImageUrl(heroPool[0].image_url) : fallbackHeroSrc,
     featuredPool[0]?.image_url ? resolveImageUrl(featuredPool[0].image_url) : "",
     ...latest.map(p => resolveImageUrl(p.image_url)),
     ...baseLoved.map(p => resolveImageUrl(p.image_url)),
@@ -595,7 +582,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     featuredIndex = 0;
     setFeaturedNow(featuredPool[0]);
     buildFeaturedThumbs();
-    setInterval(switchFeatured, 4200);
+    if (featuredPool.length > 1) setInterval(switchFeatured, 4200);
   }
 
   // ratings hydration -> final “most loved”
@@ -623,7 +610,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderList(lovedGrid, loved, "loved");
   })().catch(() => {});
 
-  // wait for DOM images (header logo + featured img + cards)
+  // wait for DOM images (header logo + hero bg + featured img + cards)
   await Promise.race([
     (async () => {
       try { await document.fonts?.ready; } catch {}
