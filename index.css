@@ -844,14 +844,86 @@ button{ font: inherit; }
   .tips-grid{ grid-template-columns: 1fr; }
   .hero-inner{ padding: 0 5vw; }
 }
+/* ================= MOBILE LAYOUT UPGRADE ================= */
 @media (max-width: 600px){
-  .hero{ min-height: 78vh; padding: 64px 0 54px; }
-  .latest-grid{ grid-template-columns: 1fr; }
-  .loved-grid{ grid-template-columns: 1fr; }
-  .how-grid{ grid-template-columns: 1fr; }
-  .featured-full{ min-height: 420px; }
-  .featured-full img{ min-height: 420px; }
+
+  /* HERO: show FULL image (no cropping) */
+  .hero{
+    min-height: auto;
+    padding: 58px 0 48px;
+    background:
+      radial-gradient(900px 520px at 18% 12%, rgba(212,175,55,.14), transparent 62%),
+      linear-gradient(180deg, rgba(255,239,213,.96), rgba(255,239,213,.90));
+  }
+  .hero-bg{
+    object-fit: contain;          /* ✅ full image */
+    object-position: center;      /* ✅ centered */
+    opacity: .96;
+    filter: saturate(1.02) contrast(1.00);
+  }
+
+  /* On mobile, reduce overlay strength so the full image still pops */
+  .hero-overlay{
+    background:
+      radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%),
+      linear-gradient(180deg, rgba(255,239,213,.62), rgba(255,239,213,.28), rgba(255,239,213,0));
+  }
+
+  /* FEATURED: make image area larger + show FULL image (no cropping) */
+  .featured-shell{
+    min-height: unset;            /* ✅ removes forced height on mobile */
+  }
+  .featured-media{
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    aspect-ratio: 4 / 3;          /* ✅ gives the image a nice full frame */
+  }
+  .featured-media img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;          /* ✅ full image */
+    object-position: center;
+    transform: none;              /* ✅ stop zoom on mobile */
+  }
+  .featured-media:hover img{
+    transform: none;
+    filter: none;
+  }
+
+  /* PRODUCTS: 2 cards per row on mobile */
+  .latest-grid,
+  .loved-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* ✅ 2 columns */
+    gap: 10px;
+  }
+
+  /* Make cards feel neat at 2-up */
+  .p-body{ padding: 9px 10px 10px; }
+  .p-title{ font-size: .92rem; }
+  .p-price{ font-size: .95rem; }
+
+  /* Rating badge slightly smaller so it doesn’t crowd */
+  .p-rating{
+    top: 8px;
+    left: 8px;
+    padding: 7px 8px;
+    font-size: 11px;
+    gap: 5px;
+  }
+
+  /* Optional: slightly reduce hero inner padding on very small screens */
+  .hero-inner{ padding: 0 4.6vw; }
 }
+
+/* Extra safety: VERY small phones -> switch to 1 column */
+@media (max-width: 360px){
+  .latest-grid,
+  .loved-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce){
