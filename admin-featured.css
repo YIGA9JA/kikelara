@@ -69,12 +69,22 @@ input{
 }
 
 /* ✅ FULL IMAGE (no crop, no fixed 16:9) */
+/* ✅ FULL IMAGE FIT (no crop) + stays inside a fixed thumbnail area */
 .thumb{
   background:#fff;
+  height:220px;              /* change this height to what you want */
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
 }
+
 .thumb img{
-  width:100%;
-  height:auto;      /* ✅ keeps full height */
+  max-width:100%;
+  max-height:100%;
+  width:auto;
+  height:auto;
+  object-fit:contain;        /* ✅ full image always visible */
   display:block;
 }
 /* ✅ end */

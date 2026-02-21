@@ -493,7 +493,7 @@ function initHeroBrandAnimation(){
   if (!brandEl) return;
 
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const TEXT = "KIKELARA";
+  const TEXT = "KÍKÉ LÁRÁ";
 
   function buildWordmark(text){
     brandEl.replaceChildren();
