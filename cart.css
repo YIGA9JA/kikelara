@@ -1085,3 +1085,81 @@ body::before{
       linear-gradient(135deg, rgba(255,244,218,.52), rgba(255,239,213,.34));
   }
 }
+/* ===========================
+   FIXED CART PAGE MODE
+   ✅ No whole-page scroll
+   ✅ Only cart content scrolls inside
+   ✅ No moving background/orbs/shimmers
+=========================== */
+
+/* 1) Stop background motion */
+body{ background-attachment: scroll !important; } /* remove parallax feel */
+.liquid-bg .orb{ animation: none !important; }
+.cart-item::before,
+.cart-summary::before,
+.checkout-btn::before,
+.sum-head::after{
+  animation: none !important;
+}
+
+/* Optional: stop hover zoom that feels like page is moving */
+.cart-item:hover .cart-img{
+  transform: scale(1.02) !important;
+  filter: none !important;
+}
+
+/* 2) Lock the page (no body scrolling) */
+html, body{
+  height: 100%;
+  overflow: hidden;            /* ✅ page cannot scroll */
+  overscroll-behavior: none;   /* ✅ prevents bounce */
+}
+
+/* 3) Make the cart area fixed-height and scroll internally */
+.cart-page{
+  height: 100vh;               /* fixed view */
+  padding: 22px 0 22px;        /* reduce bottom padding since body won’t scroll */
+  display: flex;
+  flex-direction: column;
+}
+
+/* cart header stays in place, grid takes the rest of the screen */
+.cart-top{ flex: 0 0 auto; }
+.cart-grid{
+  flex: 1 1 auto;
+  min-height: 0;               /* ✅ required so inner overflow works */
+}
+
+/* Desktop: scroll only the left items list (summary stays visible) */
+@media (min-width: 981px){
+  .cart-items{
+    overflow: auto;            /* ✅ internal scroll */
+    min-height: 0;
+    padding-right: 6px;
+    overscroll-behavior: contain;
+  }
+
+  /* summary should NOT create a second “page scroll” feeling */
+  .cart-summary{
+    position: relative !important; /* disable sticky effect */
+    top: auto !important;
+    max-height: none !important;
+    overflow: auto;                /* scroll only if summary itself is too tall */
+  }
+}
+
+/* Mobile: scroll the whole cart grid (items + summary) */
+@media (max-width: 980px){
+  .cart-grid{
+    overflow: auto;            /* ✅ internal scroll (one scroll area) */
+    min-height: 0;
+    padding-bottom: 120px;     /* space for the fixed mobile checkout bar */
+    overscroll-behavior: contain;
+  }
+  .cart-items{ overflow: visible; }
+  .cart-summary{
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

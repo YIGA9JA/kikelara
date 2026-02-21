@@ -1,27 +1,22 @@
-/* ================= PRODUCT-DETAILS.JS (PRIVATE BUCKET OPTION A + YOUR server.js) =================
-   ✅ GET /api/products/:id
-   ✅ GET /api/products/:id/reviews
-   ✅ POST /api/products/:id/reviews  (deviceId)
-   ✅ POST /api/reviews/:id/vote      (deviceId)
-   ✅ Admin delete: DELETE /admin/reviews/:id (cookie session + CSRF)
-   ✅ Cart stored in localStorage(cart)
-   ✅ Gallery uses LAST 4 images (latest = last four)
-================================================================================================= */
+/* ================= PRODUCT-DETAILS.JS (FAST + PRIVATE BUCKET OPTION A) =================
+   ✅ Fast paint from session cache (instant UI)
+   ✅ Parallel fetch: product + reviews
+   ✅ Signed URLs expected from backend (/api/products/:id gives image_url + images)
+   ✅ Gallery uses LAST 4 images
+   ✅ Votes updated using server.js response { ok:true, votes:{up,down} }
+======================================================================================== */
 
 const API_BASE = (window.API_BASE || "").replace(/\/+$/, "") || "https://kikelara1.onrender.com";
 const CART_KEY = "cart";
 
-/* ---------- helpers ---------- */
+/* ---------- DOM helpers ---------- */
 function el(id) { return document.getElementById(id); }
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
 function safeJSON(storage, key, fallback) {
-  try {
-    const v = JSON.parse(storage.getItem(key));
-    return v ?? fallback;
-  } catch { return fallback; }
+  try { const v = JSON.parse(storage.getItem(key)); return v ?? fallback; }
+  catch { return fallback; }
 }
-
 function saveJSON(storage, key, value) {
   try { storage.setItem(key, JSON.stringify(value)); } catch {}
 }
@@ -35,18 +30,36 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function showMessage(msg) {
+  const container = document.querySelector(".pd");
+  const safe = escapeHtml(msg);
+  if (!container) {
+    document.body.innerHTML = `<h2 style="padding:50px">${safe}</h2>`;
+    return;
+  }
+  container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
+}
+
+/* ---------- fast fetch with timeout ---------- */
+async function fetchWithTimeout(url, opts = {}, ms = 12000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal, cache: "no-store" });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /* ✅ Private bucket: frontend MUST receive signed URLs from backend */
 function resolveImage(url) {
   const u = String(url || "").trim();
   if (!u) return "images_brown/bodyButter.png";
-
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
   if (u.startsWith("data:") || u.startsWith("blob:")) return u;
-
   if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-
   if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
-
   return "images_brown/bodyButter.png";
 }
 
@@ -68,16 +81,6 @@ function getProductId() {
   return raw ? String(raw).trim() : "";
 }
 
-function showMessage(msg) {
-  const container = document.querySelector(".pd");
-  const safe = escapeHtml(msg);
-  if (!container) {
-    document.body.innerHTML = `<h2 style="padding:50px">${safe}</h2>`;
-    return;
-  }
-  container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
-}
-
 /* ---------- cart ---------- */
 function loadCart() {
   let c = safeJSON(localStorage, CART_KEY, null);
@@ -91,7 +94,6 @@ function loadCart() {
   }
   return [];
 }
-
 function saveCart(cart) { saveJSON(localStorage, CART_KEY, cart); }
 function isInCart(cart, id) { return cart.some(i => String(i.id) === String(id)); }
 
@@ -103,10 +105,9 @@ function addToCartOnce(product) {
     id: product.id,
     name: product.name,
     price: product.price,
-    image: product.image,
+    image: product.image, // already signed URL
     qty: 1
   });
-
   saveCart(cart);
 }
 
@@ -139,19 +140,22 @@ function setCartButtonState(inCart) {
   }
 }
 
-/* ---------- product fetch ---------- */
+/* ---------- product normalize + cache ---------- */
+const PRODUCT_CACHE_PREFIX = "pd_product_v1_"; // sessionStorage only (fast, safe for signed URLs)
+
 function normalizeProduct(p) {
   const image = resolveImage(
-    p?.image_url || p?.image || (Array.isArray(p?.images) ? p.images[0] : "")
+    p?.detail_image_url || p?.image_url || p?.image || (Array.isArray(p?.all_images) ? p.all_images[0] : "") || ""
   );
 
+  // Prefer backend “all_images” if you return it, else p.images, else fallback to image
   let images = [];
-  if (Array.isArray(p?.images)) images = p.images;
-  else if (typeof p?.images === "string") {
-    try { images = JSON.parse(p.images); } catch { images = []; }
-  }
+  const rawArr =
+    Array.isArray(p?.all_images) ? p.all_images :
+    Array.isArray(p?.images) ? p.images :
+    [];
 
-  images = images.map(resolveImage).filter(Boolean);
+  images = rawArr.map(resolveImage).filter(Boolean);
   if (!images.length) images = [image];
 
   return {
@@ -165,8 +169,25 @@ function normalizeProduct(p) {
   };
 }
 
+function getCachedProduct(productId) {
+  const key = PRODUCT_CACHE_PREFIX + String(productId);
+  const cached = safeJSON(sessionStorage, key, null);
+  // keep it short-lived (signed urls can expire). If no ts, ignore.
+  const ts = Number(cached?.ts || 0);
+  if (!ts) return null;
+  // 30 mins cache for product details page
+  if (Date.now() - ts > 1000 * 60 * 30) return null;
+  return cached?.product || null;
+}
+
+function setCachedProduct(productId, product) {
+  const key = PRODUCT_CACHE_PREFIX + String(productId);
+  saveJSON(sessionStorage, key, { ts: Date.now(), product });
+}
+
+/* ---------- product fetch ---------- */
 async function fetchProduct(productId) {
-  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, { cache: "no-store" });
+  const r = await fetchWithTimeout(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, {}, 12000);
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.success) throw new Error(data?.message || "Product not found");
   return normalizeProduct(data.product);
@@ -205,10 +226,22 @@ function bindTilt(node) {
 /* ---------- gallery (LATEST = LAST 4) ---------- */
 function pickLastFour(images) {
   const list = (Array.isArray(images) ? images : []).filter(Boolean);
-  if (!list.length) return ["images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png"];
+  if (!list.length) {
+    return ["images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png"];
+  }
   const last = list.length >= 4 ? list.slice(-4) : list.slice(0);
   while (last.length < 4) last.push(last[last.length - 1] || list[0]);
   return last;
+}
+
+function preloadImg(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve();
+    const i = new Image();
+    i.onload = () => resolve();
+    i.onerror = () => resolve();
+    i.src = src;
+  });
 }
 
 function renderGallery(images, activeIndex = 0) {
@@ -219,17 +252,19 @@ function renderGallery(images, activeIndex = 0) {
   const src = images[activeIndex] || images[0];
   mainImg.src = src;
   mainImg.alt = "Product image";
-
+  mainImg.loading = "eager";
+  mainImg.decoding = "async";
   mainImg.onerror = () => { mainImg.src = "images_brown/bodyButter.png"; };
 
   if (!thumbsWrap) return;
   thumbsWrap.innerHTML = "";
 
+  // thumbs = lazy, async
   images.forEach((imgSrc, idx) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pd-thumb" + (idx === activeIndex ? " active" : "");
-    b.innerHTML = `<img src="${escapeHtml(imgSrc)}" alt="thumbnail ${idx + 1}" draggable="false">`;
+    b.innerHTML = `<img src="${escapeHtml(imgSrc)}" alt="thumbnail ${idx + 1}" draggable="false" loading="lazy" decoding="async">`;
     b.addEventListener("click", () => renderGallery(images, idx));
     thumbsWrap.appendChild(b);
   });
@@ -257,12 +292,10 @@ function csrfToken() { return getCookie("admin_csrf") || ""; }
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   const method = (opts.method || "GET").toUpperCase();
-
   if (method !== "GET" && method !== "HEAD") {
     const c = csrfToken();
     if (c) headers["X-CSRF-Token"] = c;
   }
-
   return fetch(`${API_BASE}${path}`, { ...opts, headers, credentials: "include" });
 }
 
@@ -270,7 +303,7 @@ async function api(path, opts = {}) {
 let isAdmin = false;
 async function detectAdminSession() {
   try {
-    const r = await api("/admin/me");
+    const r = await api("/admin/me", { method: "GET" });
     const data = await r.json().catch(() => ({}));
     isAdmin = Boolean(r.ok && data?.success);
   } catch {
@@ -278,6 +311,7 @@ async function detectAdminSession() {
   }
 }
 
+/* Reviews state */
 let rvAll = [];
 let rvFilteredStar = 0;
 let rvSortMode = "recent";
@@ -355,7 +389,7 @@ function getDisplayList() {
 }
 
 async function loadReviews(productId) {
-  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, { cache: "no-store" });
+  const r = await fetchWithTimeout(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, {}, 12000);
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok) return [];
   return Array.isArray(data.reviews) ? data.reviews : [];
@@ -363,29 +397,31 @@ async function loadReviews(productId) {
 
 async function submitReview(productId, payload) {
   const deviceId = getDeviceId();
-  const r = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, {
+  const r = await fetchWithTimeout(`${API_BASE}/api/products/${encodeURIComponent(productId)}/reviews`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...payload, deviceId }),
-  });
+  }, 12000);
+
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok) throw new Error(data?.message || "Failed to submit review");
   return data.review;
 }
 
+// ✅ server.js vote route returns { ok:true, votes:{up,down} }
 async function voteReview(reviewId, voteType) {
   const deviceId = getDeviceId();
   voteType = (voteType === "up" || voteType === "down") ? voteType : "up";
 
-  const r = await fetch(`${API_BASE}/api/reviews/${encodeURIComponent(reviewId)}/vote`, {
+  const r = await fetchWithTimeout(`${API_BASE}/api/reviews/${encodeURIComponent(reviewId)}/vote`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ voteType, deviceId }),
-  });
+  }, 12000);
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data?.ok) throw new Error(data?.message || "Vote failed");
-  return data.review;
+  if (!r.ok || !data?.ok || !data?.votes) throw new Error(data?.message || "Vote failed");
+  return data.votes; // {up,down}
 }
 
 async function adminDeleteReview(reviewId) {
@@ -448,8 +484,12 @@ function renderListUI(productId) {
     item.querySelectorAll(".rv-vote").forEach(btn => {
       btn.addEventListener("click", async () => {
         try {
-          const updated = await voteReview(r.id, btn.dataset.vote);
-          rvAll = rvAll.map(x => (x.id === updated.id ? updated : x));
+          const votes = await voteReview(r.id, btn.dataset.vote);
+          // update ONLY votes for that review
+          rvAll = rvAll.map(x => {
+            if (String(x.id) !== String(r.id)) return x;
+            return { ...x, votes: { up: Number(votes.up || 0), down: Number(votes.down || 0) } };
+          });
           renderSummary(rvAll);
           renderListUI(productId);
         } catch (e) {
@@ -481,6 +521,7 @@ function renderListUI(productId) {
 }
 
 async function initReviews(productId) {
+  // reviews should not block product view
   await detectAdminSession();
 
   rvAll = await loadReviews(productId);
@@ -591,14 +632,9 @@ async function initReviews(productId) {
   }
 }
 
-/* ---------- init page ---------- */
-async function init() {
-  const productId = getProductId();
-  if (!productId) return showMessage("Invalid product link.");
-
-  let product;
-  try { product = await fetchProduct(productId); }
-  catch { return showMessage("Product not found."); }
+/* ---------- paint product UI (fast) ---------- */
+function paintProduct(product) {
+  if (!product) return;
 
   el("productName") && (el("productName").textContent = product.name || "");
   el("productPrice") && (el("productPrice").textContent = `₦${Number(product.price || 0).toLocaleString()}`);
@@ -606,17 +642,34 @@ async function init() {
   el("productCategory") && (el("productCategory").textContent = String(product.category || "Product").toUpperCase());
 
   const gallery = pickLastFour(product.images?.length ? product.images : [product.image]);
+
+  // load main image FIRST (fast perceived performance)
+  const mainSrc = gallery[0];
+  const rest = gallery.slice(1);
+
   renderGallery(gallery, 0);
 
-  // tilt main image container
-  bindTilt(el("tiltMain"));
+  // preload rest in background (no blocking)
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(() => rest.forEach(preloadImg), { timeout: 2000 });
+  } else {
+    setTimeout(() => rest.forEach(preloadImg), 300);
+  }
+
+  // tilt deferred
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(() => bindTilt(el("tiltMain")), { timeout: 1500 });
+  } else {
+    setTimeout(() => bindTilt(el("tiltMain")), 300);
+  }
 
   const cart = loadCart();
   setCartButtonState(isInCart(cart, product.id));
   updateHeaderCartCount();
 
   const btn = el("cartBtn");
-  if (btn) {
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
       addToCartOnce(product);
       setCartButtonState(true);
@@ -624,7 +677,36 @@ async function init() {
     });
   }
 
-  await initReviews(product.id);
+  // Also update document title (nice feel)
+  try { document.title = `${product.name} — KÍKÉLÁRÁ`; } catch {}
+}
+
+/* ---------- init page ---------- */
+async function init() {
+  const productId = getProductId();
+  if (!productId) return showMessage("Invalid product link.");
+
+  // ✅ 1) Fast paint from cache
+  const cached = getCachedProduct(productId);
+  if (cached) paintProduct(cached);
+
+  // ✅ 2) Fetch product + reviews in parallel (reviews doesn’t block product)
+  const productPromise = fetchProduct(productId)
+    .then((p) => {
+      setCachedProduct(productId, p);
+      paintProduct(p);
+      return p;
+    })
+    .catch(() => null);
+
+  // Start reviews after we at least know product id (same id)
+  const reviewsPromise = initReviews(productId).catch(() => {});
+
+  const p = await productPromise;
+  if (!p && !cached) return showMessage("Product not found.");
+
+  // Don’t await reviews to show product. But if you want to ensure errors don't spam:
+  await Promise.race([reviewsPromise, new Promise(r => setTimeout(r, 10))]);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
