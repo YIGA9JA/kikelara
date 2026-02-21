@@ -18,11 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
     <header class="k-header" id="kHeader">
       <div class="k-header-inner">
 
-        <a class="k-brand" href="index.html" aria-label="KÍKÉLÁRÁ Home">
-          <img class="k-logo" src="images/logo.jpg" alt="KÍKÉLÁRÁ logo" />
+        <a class="k-brand" href="index.html" aria-label="KÍKÉLÁRÁ">
+          <img class="k-logo" src="images/logo.jpg" alt="KÍKÉLÁRÁ" />
           <div class="k-brand-text">
             <span class="k-brand-name">KÍKÉLÁRÁ</span>
-            <span class="k-brand-tag">Luxury Skincare</span>
           </div>
         </a>
 
