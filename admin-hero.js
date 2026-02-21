@@ -3,6 +3,7 @@
    ✅ Upload image: /admin/hero/upload
    ✅ Public uses: /api/hero (homepage slider)
    ✅ Safe rendering (textContent only)
+   ✅ Cloudinary/Supabase keys supported via /admin/media/sign
 ================================================ */
 
 (async function () {
@@ -111,12 +112,17 @@
     setTimeout(() => { try { t.remove(); } catch {} }, 4500);
   }
 
+  function fallbackImg() {
+    return "images_brown/bodyButter.png";
+  }
+
   function looksLikeStorageKey(val) {
     const s = String(val || "").trim();
     if (!s) return false;
     if (/^https?:\/\//i.test(s)) return false;
     if (s.startsWith("/uploads/")) return false;
-    return true; // e.g. "hero/tmp/....webp"
+    if (s.startsWith("cld:")) return true;
+    return s.includes("/") && !s.startsWith("/");
   }
 
   function resolveImageUrl(img) {
@@ -172,23 +178,72 @@
     return data;
   }
 
+  // --- signer cache (Cloudinary/Supabase key -> final url)
+  const signedCache = new Map();
+  const inflightSigns = new Map();
+  const SIGN_CONCURRENCY = 6;
+
+  async function signStorageKey(key) {
+    const k = String(key || "").trim();
+    if (!k) return "";
+    if (signedCache.has(k)) return signedCache.get(k);
+    if (inflightSigns.has(k)) return inflightSigns.get(k);
+
+    const p = (async () => {
+      const r = await apiFetch(`/admin/media/sign?key=${encodeURIComponent(k)}`, { method: "GET" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data?.success || !data?.url) throw new Error(data?.message || "Could not resolve image");
+      signedCache.set(k, data.url);
+      return data.url;
+    })();
+
+    inflightSigns.set(k, p);
+    try { return await p; }
+    finally { inflightSigns.delete(k); }
+  }
+
+  async function hydrateSignedImages() {
+    if (!listEl) return;
+    const imgs = Array.from(listEl.querySelectorAll("img[data-sbkey]"));
+    if (!imgs.length) return;
+
+    let idx = 0;
+    async function worker() {
+      while (idx < imgs.length) {
+        const el = imgs[idx++];
+        const key = el.getAttribute("data-sbkey");
+        if (!key) continue;
+        if (el.getAttribute("data-signed") === "1") continue;
+
+        try {
+          const url = await signStorageKey(key);
+          el.src = url || fallbackImg();
+        } catch {
+          el.src = fallbackImg();
+        } finally {
+          el.setAttribute("data-signed", "1");
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: SIGN_CONCURRENCY }, worker));
+  }
+
   function normalizeItem(it) {
     const key = String(it?.image_url_key || it?.image_key || it?.image_url || "").trim();
     const signed = String(it?.image_url_signed || it?.signedUrl || "").trim();
 
-    // For previews: signedUrl preferred. If not, use key if it's already a URL or /uploads.
     const displaySrc = signed
       ? signed
-      : (!looksLikeStorageKey(key) ? resolveImageUrl(key) : "");
+      : (!looksLikeStorageKey(key) ? resolveImageUrl(key) : ""); // if key needs signing, hydrate later
 
     return {
       id: it?.id,
       title: String(it?.title || "").trim(),
       description: String(it?.description || "").trim(),
       link_url: String(it?.link_url || "").trim(),
-      image_key: key,            // persisted value
-      image_signed: signed,      // preview url if any
-      image_display: displaySrc, // final preview src
+      image_key: key,
+      image_signed: signed,
+      image_display: displaySrc,
       sort_order: Number(it?.sort_order || 0),
       is_active: it?.is_active === undefined ? true : Boolean(it.is_active),
       created_at: it?.created_at || null,
@@ -210,8 +265,7 @@
     if (mLink) mLink.value = item.link_url || "";
     if (mSort) mSort.value = String(item.sort_order ?? 0);
 
-    // ✅ store KEY (not signed)
-    if (mImage) mImage.value = item.image_key || "";
+    if (mImage) mImage.value = item.image_key || ""; // ✅ store KEY
     if (mActive) mActive.checked = !!item.is_active;
     if (mFile) mFile.value = "";
 
@@ -264,7 +318,6 @@
   async function swapSort(a, b) {
     const aOrder = Number(a.sort_order || 0);
     const bOrder = Number(b.sort_order || 0);
-
     await putJson(`/admin/hero/${encodeURIComponent(a.id)}`, { sort_order: bOrder });
     await putJson(`/admin/hero/${encodeURIComponent(b.id)}`, { sort_order: aOrder });
   }
@@ -305,11 +358,20 @@
 
       const img = document.createElement("img");
       img.alt = it.title || "Hero slide";
-      img.src = it.image_display || ""; // ✅ uses signed url when available
+      img.src = it.image_display || fallbackImg();
       img.style.width = "100%";
       img.style.height = "100%";
       img.style.objectFit = "cover";
       img.style.display = "block";
+      img.loading = "lazy";
+      img.decoding = "async";
+
+      // ✅ if key needs signing, hydrate
+      if (it.image_key && looksLikeStorageKey(it.image_key)) {
+        img.setAttribute("data-sbkey", it.image_key);
+      }
+
+      img.addEventListener("error", () => (img.src = fallbackImg()));
       thumb.appendChild(img);
 
       const meta = el("div", "hero-meta");
@@ -428,6 +490,9 @@
 
       listEl.appendChild(row);
     });
+
+    // ✅ resolve any keys after render
+    hydrateSignedImages();
   }
 
   async function load() {
@@ -465,7 +530,7 @@
       if (!f) return;
       setStatus("Uploading image…", "info");
       const up = await uploadFile(f);
-      if (imageUrlEl) imageUrlEl.value = up.key; // ✅ save KEY (not signed URL)
+      if (imageUrlEl) imageUrlEl.value = up.key; // ✅ save KEY
       toast("ok", "Uploaded", "Image uploaded successfully.");
       setStatus("Ready ✅", "ok");
     } catch (e) {
@@ -549,11 +614,4 @@
   });
 
   await load();
-
-  function setStatus(text, type) {
-    if (!statusLine) return;
-    statusLine.textContent = text || "";
-    if (type) statusLine.setAttribute("data-type", type);
-    else statusLine.removeAttribute("data-type");
-  }
 })();

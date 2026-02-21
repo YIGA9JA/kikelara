@@ -1,25 +1,41 @@
-/* ================= PRODUCT-DETAILS.JS (FAST + PRIVATE BUCKET OPTION A) =================
-   ✅ Fast paint from session cache (instant UI)
-   ✅ Parallel fetch: product + reviews
-   ✅ Signed URLs expected from backend (/api/products/:id gives image_url + images)
-   ✅ Gallery uses LAST 4 images
-   ✅ Votes updated using server.js response { ok:true, votes:{up,down} }
-======================================================================================== */
+/* ================= PRODUCT-DETAILS.JS (FAST LIKE PRODUCTS PAGE) =================
+   ✅ Instant paint from session cache (fast LCP)
+   ✅ Stale-while-revalidate product fetch
+   ✅ Images:
+      - URL => use immediately
+      - key (products/... or cld:...) => resolve async + cached (session)
+      - on error => re-fetch product once for fresh signed URLs
+   ✅ Reviews do NOT block product render (idle/background)
+   ✅ Concurrency limited media signing requests
+   ✅ KStore cart supported
+================================================================================= */
 
-const API_BASE = (window.API_BASE || "").replace(/\/+$/, "") || "https://kikelara1.onrender.com";
+const API_BASE = (window.API_BASE || "https://kikelara1.onrender.com").replace(/\/+$/, "");
 const CART_KEY = "cart";
 
-/* ---------- DOM helpers ---------- */
+/* ---- session caches ---- */
+const PRODUCT_CACHE_PREFIX = "pd_product_v2_";      // sessionStorage only
+const PRODUCT_TTL_MS = 1000 * 60 * 30;              // 30 mins (signed urls can expire)
+
+const IMG_URL_CACHE_KEY = "kkl_img_url_cache_v1";   // shared with products page
+const IMG_URL_TTL_MS = 1000 * 60 * 60 * 6;          // 6 hours (tune to your signed TTL)
+const MAX_IMAGE_REQUESTS = 4;
+
+/* ================= SMALL SPEED WIN: PRECONNECT ================= */
+(function preconnectApi() {
+  try {
+    if (!API_BASE) return;
+    const u = new URL(API_BASE);
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = u.origin;
+    document.head.appendChild(link);
+  } catch {}
+})();
+
+/* ================= DOM helpers ================= */
 function el(id) { return document.getElementById(id); }
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-
-function safeJSON(storage, key, fallback) {
-  try { const v = JSON.parse(storage.getItem(key)); return v ?? fallback; }
-  catch { return fallback; }
-}
-function saveJSON(storage, key, value) {
-  try { storage.setItem(key, JSON.stringify(value)); } catch {}
-}
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -40,7 +56,16 @@ function showMessage(msg) {
   container.innerHTML = `<h2 style="padding:30px">${safe}</h2>`;
 }
 
-/* ---------- fast fetch with timeout ---------- */
+/* ================= SAFE JSON ================= */
+function safeJSON(storage, key, fallback) {
+  try { const v = JSON.parse(storage.getItem(key)); return v ?? fallback; }
+  catch { return fallback; }
+}
+function saveJSON(storage, key, value) {
+  try { storage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+/* ================= fast fetch with timeout ================= */
 async function fetchWithTimeout(url, opts = {}, ms = 12000) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), ms);
@@ -52,27 +77,241 @@ async function fetchWithTimeout(url, opts = {}, ms = 12000) {
   }
 }
 
-/* ✅ Private bucket: frontend MUST receive signed URLs from backend */
-function resolveImage(url) {
+/* ================= IMAGE HELPERS (same concept as products.js) ================= */
+function isHttpUrl(u) { return /^https?:\/\//i.test(String(u || "")); }
+function isBlobOrData(u) { return /^(blob:|data:)/i.test(String(u || "")); }
+
+function looksLikeMediaKey(u) {
+  const s = String(u || "").trim();
+  if (!s) return false;
+  if (isHttpUrl(s) || isBlobOrData(s)) return false;
+  if (s.startsWith("/uploads/")) return false;
+  if (s.startsWith("images/") || s.startsWith("images_brown/")) return false;
+  if (s.startsWith("cld:")) return true;
+  if (s.startsWith("products/")) return true;
+  if (s.startsWith("featured/")) return true;
+  if (s.startsWith("hero/")) return true;
+  return false;
+}
+
+function resolveImageImmediate(url) {
   const u = String(url || "").trim();
-  if (!u) return "images_brown/bodyButter.png";
-  if (u.startsWith("http://") || u.startsWith("https://")) return u;
-  if (u.startsWith("data:") || u.startsWith("blob:")) return u;
-  if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
+  if (!u) return "";
+  if (isHttpUrl(u) || isBlobOrData(u)) return u;
+  if (u.startsWith("/uploads/")) return API_BASE ? `${API_BASE}${u}` : u;
   if (u.startsWith("images/") || u.startsWith("images_brown/")) return u;
-  return "images_brown/bodyButter.png";
+  if (looksLikeMediaKey(u)) return ""; // async resolve later
+  return u;
 }
 
-function formatDate(iso) {
+/* ================= IMAGE URL CACHE (SESSION) ================= */
+function loadImgCache() {
+  const obj = safeJSON(sessionStorage, IMG_URL_CACHE_KEY, {});
+  return obj && typeof obj === "object" ? obj : {};
+}
+function getImgCached(key) {
+  const cache = loadImgCache();
+  const item = cache[String(key)];
+  if (!item || typeof item !== "object") return null;
+  const ts = Number(item.ts || 0);
+  if (!ts || Date.now() - ts > IMG_URL_TTL_MS) return null;
+  const url = String(item.url || "");
+  return url ? url : null;
+}
+function setImgCached(key, url) {
+  const cache = loadImgCache();
+  cache[String(key)] = { url: String(url || ""), ts: Date.now() };
+  saveJSON(sessionStorage, IMG_URL_CACHE_KEY, cache);
+}
+
+/* ================= MEDIA KEY -> URL ================= */
+function cloudinaryUrlFromKey(key) {
+  const k = String(key || "");
+  if (!k.startsWith("cld:")) return "";
+  const cloud = String(window.CLOUDINARY_CLOUD_NAME || "").trim();
+  if (!cloud) return "";
+  const publicId = k.slice(4);
+  if (!publicId) return "";
+  return `https://res.cloudinary.com/${encodeURIComponent(cloud)}/image/upload/f_auto,q_auto/${publicId}`;
+}
+
+async function resolveMediaKeyToUrl(key) {
+  const k = String(key || "").trim();
+  if (!k) return "";
+
+  const cached = getImgCached(k);
+  if (cached) return cached;
+
+  const cld = cloudinaryUrlFromKey(k);
+  if (cld) {
+    setImgCached(k, cld);
+    return cld;
+  }
+
+  if (!API_BASE) return "";
   try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  } catch { return ""; }
+    const res = await fetchWithTimeout(`${API_BASE}/api/media/sign?key=${encodeURIComponent(k)}`, {}, 12000);
+    if (!res.ok) return "";
+    const data = await res.json().catch(() => null);
+    const url = String(data?.url || data?.signedUrl || "");
+    if (url) {
+      setImgCached(k, url);
+      return url;
+    }
+    return "";
+  } catch {
+    return "";
+  }
 }
 
-function starsText(rating) {
-  const r = clamp(Number(rating) || 0, 0, 5);
-  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+/* ================= CONCURRENCY LIMITED IMAGE RESOLVE ================= */
+let imgInFlight = 0;
+const imgQueue = [];
+
+function runImgQueue() {
+  while (imgInFlight < MAX_IMAGE_REQUESTS && imgQueue.length) {
+    const job = imgQueue.shift();
+    if (!job) break;
+    imgInFlight++;
+    job().finally(() => {
+      imgInFlight--;
+      runImgQueue();
+    });
+  }
+}
+function enqueueImg(job) {
+  imgQueue.push(job);
+  runImgQueue();
+}
+
+async function resolveImgEl(imgEl) {
+  if (!imgEl) return;
+  const key = imgEl.getAttribute("data-key") || "";
+  if (!key) return;
+
+  // quick cached swap
+  const cached = getImgCached(key);
+  if (cached) {
+    imgEl.src = cached;
+    imgEl.removeAttribute("data-key");
+    return;
+  }
+
+  enqueueImg(async () => {
+    const url = await resolveMediaKeyToUrl(key);
+    if (url) {
+      imgEl.src = url;
+      imgEl.removeAttribute("data-key");
+    }
+  });
+}
+
+/* Resolve thumbs only when near viewport */
+let imgObserver = null;
+function ensureImgObserver() {
+  if (imgObserver) return;
+  if (!("IntersectionObserver" in window)) return;
+
+  imgObserver = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const img = e.target;
+      imgObserver.unobserve(img);
+      resolveImgEl(img);
+    });
+  }, { rootMargin: "260px 0px" });
+}
+function observeThumbs() {
+  ensureImgObserver();
+  if (!imgObserver) return;
+
+  document.querySelectorAll("#productThumbs img[data-key]").forEach((img) => {
+    imgObserver.observe(img);
+  });
+}
+
+/* ================= PRODUCT NORMALIZE ================= */
+function normalizeImages(imagesField) {
+  if (!imagesField) return [];
+  if (Array.isArray(imagesField)) return imagesField.map(String).map(s => s.trim()).filter(Boolean);
+
+  if (typeof imagesField === "string") {
+    const s = imagesField.trim();
+    if (!s) return [];
+    if (!s.startsWith("[") && !s.startsWith("{")) return [s];
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed.map(String).map(x => x.trim()).filter(Boolean);
+    } catch {}
+  }
+  return [];
+}
+
+function normalizeProduct(p) {
+  const rawPrimary =
+    p?.detail_image_url ||
+    p?.image_url ||
+    p?.image ||
+    (Array.isArray(p?.all_images) ? p.all_images[0] : "") ||
+    (Array.isArray(p?.images) ? p.images[0] : "") ||
+    "";
+
+  const rawKey =
+    p?.detail_image_key ||
+    p?.image_key ||
+    p?.payload?.__image_key ||
+    "";
+
+  const primaryImmediate = resolveImageImmediate(rawPrimary);
+  const image_key = looksLikeMediaKey(rawPrimary) ? String(rawPrimary) : String(rawKey || "");
+
+  const rawArr =
+    Array.isArray(p?.all_images) ? p.all_images :
+    Array.isArray(p?.images) ? p.images :
+    normalizeImages(p?.images);
+
+  const imagesRaw = normalizeImages(rawArr);
+  const fallback = "images_brown/bodyButter.png";
+  const finalImages = imagesRaw.length ? imagesRaw : [primaryImmediate || image_key || fallback];
+
+  return {
+    id: p?.id,
+    name: String(p?.name || "").trim(),
+    price: Number(p?.price || 0),
+    category: String(p?.category || p?.payload?.category || "Product"),
+    description: String(p?.description || p?.payload?.description || ""),
+
+    // render-first url (may be "")
+    image_url: primaryImmediate || "",
+    // stable resolver key (may be "")
+    image_key: image_key || "",
+    // raw gallery list (urls or keys)
+    images: finalImages
+  };
+}
+
+/* ================= PRODUCT CACHE ================= */
+function getCachedProduct(productId) {
+  const key = PRODUCT_CACHE_PREFIX + String(productId);
+  const cached = safeJSON(sessionStorage, key, null);
+  const ts = Number(cached?.ts || 0);
+  if (!ts) return null;
+  if (Date.now() - ts > PRODUCT_TTL_MS) return cached?.product || null; // still paint stale
+  return cached?.product || null;
+}
+function setCachedProduct(productId, product) {
+  const key = PRODUCT_CACHE_PREFIX + String(productId);
+  saveJSON(sessionStorage, key, { ts: Date.now(), product });
+}
+
+/* ================= PRODUCT FETCH ================= */
+async function fetchProduct(productId) {
+  const r = await fetchWithTimeout(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, {}, 12000);
+  const data = await r.json().catch(() => ({}));
+  // support both {success:true, product} and {ok:true, product}
+  const ok = Boolean(data?.success || data?.ok);
+  if (!r.ok || !ok || !data?.product) throw new Error(data?.message || "Product not found");
+  return normalizeProduct(data.product);
 }
 
 function getProductId() {
@@ -81,44 +320,65 @@ function getProductId() {
   return raw ? String(raw).trim() : "";
 }
 
-/* ---------- cart ---------- */
-function loadCart() {
-  let c = safeJSON(localStorage, CART_KEY, null);
-  if (Array.isArray(c)) return c;
-
-  const old = safeJSON(sessionStorage, CART_KEY, null);
-  if (Array.isArray(old)) {
-    saveJSON(localStorage, CART_KEY, old);
-    try { sessionStorage.removeItem(CART_KEY); } catch {}
-    return old;
-  }
-  return [];
+/* ================= CART (KStore preferred) ================= */
+function getStore() {
+  return window.KStore && typeof window.KStore.getCart === "function" ? window.KStore : null;
 }
-function saveCart(cart) { saveJSON(localStorage, CART_KEY, cart); }
+function loadCart() {
+  const ks = getStore();
+  if (ks) {
+    const v = ks.getCart();
+    return Array.isArray(v) ? v : [];
+  }
+  const c = safeJSON(localStorage, CART_KEY, []);
+  return Array.isArray(c) ? c : [];
+}
+function saveCartFallback(cart) {
+  saveJSON(localStorage, CART_KEY, Array.isArray(cart) ? cart : []);
+  document.dispatchEvent(new CustomEvent("cart:updated", { detail: { cart } }));
+}
 function isInCart(cart, id) { return cart.some(i => String(i.id) === String(id)); }
 
 function addToCartOnce(product) {
+  const ks = getStore();
+  if (ks && typeof ks.addToCartOnce === "function") {
+    ks.addToCartOnce({
+      id: String(product.id),
+      name: String(product.name || ""),
+      price: Number(product.price || 0),
+      image: product.image_url || product.image_key || "",
+      qty: 1
+    });
+    return true;
+  }
+
   const cart = loadCart();
-  if (isInCart(cart, product.id)) return;
+  if (isInCart(cart, product.id)) return false;
 
   cart.push({
-    id: product.id,
-    name: product.name,
-    price: product.price,
-    image: product.image, // already signed URL
+    id: String(product.id),
+    name: String(product.name || ""),
+    price: Number(product.price || 0),
+    image: product.image_url || product.image_key || "",
     qty: 1
   });
-  saveCart(cart);
+
+  saveCartFallback(cart);
+  return true;
 }
 
 function updateHeaderCartCount() {
   const cartCount = el("cartCount");
   if (!cartCount) return;
-  const cart = loadCart();
-  cartCount.textContent = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 
-  const wishlistCount = el("wishlistCount");
-  if (wishlistCount) wishlistCount.textContent = "0";
+  const ks = getStore();
+  if (ks && typeof ks.cartQty === "function") {
+    cartCount.textContent = String(ks.cartQty(ks.getCart()));
+    return;
+  }
+
+  const cart = loadCart();
+  cartCount.textContent = String(cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0));
 }
 
 function setCartButtonState(inCart) {
@@ -140,62 +400,8 @@ function setCartButtonState(inCart) {
   }
 }
 
-/* ---------- product normalize + cache ---------- */
-const PRODUCT_CACHE_PREFIX = "pd_product_v1_"; // sessionStorage only (fast, safe for signed URLs)
-
-function normalizeProduct(p) {
-  const image = resolveImage(
-    p?.detail_image_url || p?.image_url || p?.image || (Array.isArray(p?.all_images) ? p.all_images[0] : "") || ""
-  );
-
-  // Prefer backend “all_images” if you return it, else p.images, else fallback to image
-  let images = [];
-  const rawArr =
-    Array.isArray(p?.all_images) ? p.all_images :
-    Array.isArray(p?.images) ? p.images :
-    [];
-
-  images = rawArr.map(resolveImage).filter(Boolean);
-  if (!images.length) images = [image];
-
-  return {
-    id: p?.id,
-    name: String(p?.name || "").trim(),
-    price: Number(p?.price || 0),
-    category: String(p?.category || p?.payload?.category || "Product"),
-    description: String(p?.description || p?.payload?.description || ""),
-    image,
-    images
-  };
-}
-
-function getCachedProduct(productId) {
-  const key = PRODUCT_CACHE_PREFIX + String(productId);
-  const cached = safeJSON(sessionStorage, key, null);
-  // keep it short-lived (signed urls can expire). If no ts, ignore.
-  const ts = Number(cached?.ts || 0);
-  if (!ts) return null;
-  // 30 mins cache for product details page
-  if (Date.now() - ts > 1000 * 60 * 30) return null;
-  return cached?.product || null;
-}
-
-function setCachedProduct(productId, product) {
-  const key = PRODUCT_CACHE_PREFIX + String(productId);
-  saveJSON(sessionStorage, key, { ts: Date.now(), product });
-}
-
-/* ---------- product fetch ---------- */
-async function fetchProduct(productId) {
-  const r = await fetchWithTimeout(`${API_BASE}/api/products/${encodeURIComponent(productId)}`, {}, 12000);
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data?.success) throw new Error(data?.message || "Product not found");
-  return normalizeProduct(data.product);
-}
-
-/* ---------- 5D tilt (desktop only) ---------- */
+/* ================= 5D tilt (desktop only) ================= */
 const CAN_TILT = window.matchMedia?.("(hover:hover) and (pointer:fine)")?.matches;
-
 function bindTilt(node) {
   if (!CAN_TILT || !node) return;
 
@@ -223,54 +429,162 @@ function bindTilt(node) {
   });
 }
 
-/* ---------- gallery (LATEST = LAST 4) ---------- */
-function pickLastFour(images) {
-  const list = (Array.isArray(images) ? images : []).filter(Boolean);
-  if (!list.length) {
-    return ["images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png","images_brown/bodyButter.png"];
-  }
-  const last = list.length >= 4 ? list.slice(-4) : list.slice(0);
-  while (last.length < 4) last.push(last[last.length - 1] || list[0]);
+/* ================= GALLERY (LAST 4) ================= */
+function pickLastFour(list) {
+  const arr = (Array.isArray(list) ? list : []).map(String).map(s => s.trim()).filter(Boolean);
+  const fallback = "images_brown/bodyButter.png";
+  if (!arr.length) return [fallback, fallback, fallback, fallback];
+  const last = arr.length >= 4 ? arr.slice(-4) : arr.slice(0);
+  while (last.length < 4) last.push(last[last.length - 1] || arr[0] || fallback);
   return last;
 }
 
-function preloadImg(src) {
-  return new Promise((resolve) => {
-    if (!src) return resolve();
-    const i = new Image();
-    i.onload = () => resolve();
-    i.onerror = () => resolve();
-    i.src = src;
-  });
+function toGalleryItem(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { src: "images_brown/bodyButter.png", key: "" };
+
+  const immediate = resolveImageImmediate(s);
+  if (immediate) return { src: immediate, key: "" };
+
+  // key path
+  if (looksLikeMediaKey(s)) {
+    const cached = getImgCached(s);
+    if (cached) return { src: cached, key: "" };
+    return { src: "images_brown/bodyButter.png", key: s };
+  }
+
+  return { src: "images_brown/bodyButter.png", key: "" };
 }
 
-function renderGallery(images, activeIndex = 0) {
+function renderGallery(items, activeIndex = 0) {
   const mainImg = el("productImage");
   const thumbsWrap = el("productThumbs");
-  if (!mainImg || !Array.isArray(images) || !images.length) return;
+  if (!mainImg || !Array.isArray(items) || !items.length) return;
 
-  const src = images[activeIndex] || images[0];
-  mainImg.src = src;
+  const main = items[activeIndex] || items[0];
+  mainImg.src = main.src || "images_brown/bodyButter.png";
   mainImg.alt = "Product image";
   mainImg.loading = "eager";
   mainImg.decoding = "async";
-  mainImg.onerror = () => { mainImg.src = "images_brown/bodyButter.png"; };
+
+  if (main.key) mainImg.setAttribute("data-key", main.key);
+  else mainImg.removeAttribute("data-key");
+
+  // main resolve ASAP (no observer)
+  resolveImgEl(mainImg);
+
+  // main error => attempt refresh once
+  mainImg.onerror = () => handleImgError(mainImg);
 
   if (!thumbsWrap) return;
   thumbsWrap.innerHTML = "";
 
-  // thumbs = lazy, async
-  images.forEach((imgSrc, idx) => {
+  items.forEach((it, idx) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pd-thumb" + (idx === activeIndex ? " active" : "");
-    b.innerHTML = `<img src="${escapeHtml(imgSrc)}" alt="thumbnail ${idx + 1}" draggable="false" loading="lazy" decoding="async">`;
-    b.addEventListener("click", () => renderGallery(images, idx));
+
+    const kAttr = it.key ? ` data-key="${escapeHtml(it.key)}"` : "";
+    b.innerHTML = `<img src="${escapeHtml(it.src)}"${kAttr} alt="thumbnail ${idx + 1}" draggable="false" loading="lazy" decoding="async">`;
+
+    b.addEventListener("click", () => renderGallery(items, idx));
     thumbsWrap.appendChild(b);
+  });
+
+  // thumbs resolve near viewport
+  observeThumbs();
+
+  // attach error handler to thumbs too
+  thumbsWrap.querySelectorAll("img").forEach(img => {
+    img.addEventListener("error", () => handleImgError(img));
   });
 }
 
-/* ---------- reviews backend ---------- */
+/* ================= IMAGE ERROR RECOVERY (REFRESH PRODUCT ONCE) ================= */
+let productRefreshedForImages = false;
+
+async function handleImgError(imgEl) {
+  if (!imgEl) return;
+
+  // stop infinite loop
+  if (imgEl.getAttribute("data-retried") === "1") return;
+  imgEl.setAttribute("data-retried", "1");
+
+  // if it has a key, retry resolving key first
+  const key = imgEl.getAttribute("data-key") || "";
+  if (key) {
+    const url = await resolveMediaKeyToUrl(key);
+    if (url) {
+      imgEl.src = url;
+      imgEl.removeAttribute("data-key");
+      return;
+    }
+  }
+
+  // else: re-fetch product once for fresh signed URLs and repaint gallery
+  if (productRefreshedForImages) {
+    imgEl.src = "images_brown/bodyButter.png";
+    return;
+  }
+  productRefreshedForImages = true;
+
+  try {
+    const productId = getProductId();
+    if (!productId) throw new Error("no id");
+    const fresh = await fetchProduct(productId);
+    setCachedProduct(productId, fresh);
+    paintProduct(fresh, { skipTilt: true }); // repaint quickly
+  } catch {
+    imgEl.src = "images_brown/bodyButter.png";
+  }
+}
+
+/* ================= PRODUCT PAINT (FAST) ================= */
+function paintProduct(product, opts = {}) {
+  if (!product) return;
+
+  el("productName") && (el("productName").textContent = product.name || "");
+  el("productPrice") && (el("productPrice").textContent = `₦${Number(product.price || 0).toLocaleString()}`);
+  el("productDescription") && (el("productDescription").textContent = product.description || "");
+  el("productCategory") && (el("productCategory").textContent = String(product.category || "Product").toUpperCase());
+
+  // build gallery from LAST 4 raw items (urls or keys)
+  const raw = pickLastFour(product.images?.length ? product.images : [product.image_url || product.image_key]);
+  const items = raw.map(toGalleryItem);
+
+  renderGallery(items, 0);
+
+  // tilt deferred (never block paint)
+  if (!opts.skipTilt) {
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(() => bindTilt(el("tiltMain")), { timeout: 1200 });
+    } else {
+      setTimeout(() => bindTilt(el("tiltMain")), 250);
+    }
+  }
+
+  // cart state
+  const cart = loadCart();
+  setCartButtonState(isInCart(cart, product.id));
+  updateHeaderCartCount();
+
+  const btn = el("cartBtn");
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      addToCartOnce(product);
+      setCartButtonState(true);
+      updateHeaderCartCount();
+      window.KStore?.syncBadges?.();
+    });
+  }
+
+  try { document.title = `${product.name} — KÍKÉLÁRÁ`; } catch {}
+}
+
+/* ================= REVIEWS (UNCHANGED LOGIC, BUT DEFERRED) ================= */
+/* NOTE: This section keeps your review code behavior, just scheduled to not block product paint. */
+
 const DEVICE_ID_KEY = "reviewDeviceId_v2";
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
@@ -299,7 +613,6 @@ async function api(path, opts = {}) {
   return fetch(`${API_BASE}${path}`, { ...opts, headers, credentials: "include" });
 }
 
-/* admin detection */
 let isAdmin = false;
 async function detectAdminSession() {
   try {
@@ -311,7 +624,6 @@ async function detectAdminSession() {
   }
 }
 
-/* Reviews state */
 let rvAll = [];
 let rvFilteredStar = 0;
 let rvSortMode = "recent";
@@ -331,6 +643,16 @@ function breakdownCounts(list) {
   const counts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
   list.forEach(r => { counts[clamp(Number(r.rating)||1,1,5)] += 1; });
   return counts;
+}
+function starsText(rating) {
+  const r = clamp(Number(rating) || 0, 0, 5);
+  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+}
+function formatDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { return ""; }
 }
 
 function setStarUI(value) {
@@ -408,7 +730,6 @@ async function submitReview(productId, payload) {
   return data.review;
 }
 
-// ✅ server.js vote route returns { ok:true, votes:{up,down} }
 async function voteReview(reviewId, voteType) {
   const deviceId = getDeviceId();
   voteType = (voteType === "up" || voteType === "down") ? voteType : "up";
@@ -421,7 +742,7 @@ async function voteReview(reviewId, voteType) {
 
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok || !data?.votes) throw new Error(data?.message || "Vote failed");
-  return data.votes; // {up,down}
+  return data.votes;
 }
 
 async function adminDeleteReview(reviewId) {
@@ -485,7 +806,6 @@ function renderListUI(productId) {
       btn.addEventListener("click", async () => {
         try {
           const votes = await voteReview(r.id, btn.dataset.vote);
-          // update ONLY votes for that review
           rvAll = rvAll.map(x => {
             if (String(x.id) !== String(r.id)) return x;
             return { ...x, votes: { up: Number(votes.up || 0), down: Number(votes.down || 0) } };
@@ -521,12 +841,15 @@ function renderListUI(productId) {
 }
 
 async function initReviews(productId) {
-  // reviews should not block product view
-  await detectAdminSession();
+  // Do admin detection + reviews fetch in parallel (faster than sequential)
+  const [_, reviews] = await Promise.all([
+    detectAdminSession().catch(() => {}),
+    loadReviews(productId).catch(() => [])
+  ]);
 
-  rvAll = await loadReviews(productId);
-
+  rvAll = Array.isArray(reviews) ? reviews : [];
   renderSummary(rvAll);
+
   rvShown = RV_PAGE_SIZE;
   renderListUI(productId);
 
@@ -632,65 +955,16 @@ async function initReviews(productId) {
   }
 }
 
-/* ---------- paint product UI (fast) ---------- */
-function paintProduct(product) {
-  if (!product) return;
-
-  el("productName") && (el("productName").textContent = product.name || "");
-  el("productPrice") && (el("productPrice").textContent = `₦${Number(product.price || 0).toLocaleString()}`);
-  el("productDescription") && (el("productDescription").textContent = product.description || "");
-  el("productCategory") && (el("productCategory").textContent = String(product.category || "Product").toUpperCase());
-
-  const gallery = pickLastFour(product.images?.length ? product.images : [product.image]);
-
-  // load main image FIRST (fast perceived performance)
-  const mainSrc = gallery[0];
-  const rest = gallery.slice(1);
-
-  renderGallery(gallery, 0);
-
-  // preload rest in background (no blocking)
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(() => rest.forEach(preloadImg), { timeout: 2000 });
-  } else {
-    setTimeout(() => rest.forEach(preloadImg), 300);
-  }
-
-  // tilt deferred
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(() => bindTilt(el("tiltMain")), { timeout: 1500 });
-  } else {
-    setTimeout(() => bindTilt(el("tiltMain")), 300);
-  }
-
-  const cart = loadCart();
-  setCartButtonState(isInCart(cart, product.id));
-  updateHeaderCartCount();
-
-  const btn = el("cartBtn");
-  if (btn && !btn.dataset.bound) {
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", () => {
-      addToCartOnce(product);
-      setCartButtonState(true);
-      updateHeaderCartCount();
-    });
-  }
-
-  // Also update document title (nice feel)
-  try { document.title = `${product.name} — KÍKÉLÁRÁ`; } catch {}
-}
-
-/* ---------- init page ---------- */
+/* ================= INIT (STALE-WHILE-REVALIDATE) ================= */
 async function init() {
   const productId = getProductId();
   if (!productId) return showMessage("Invalid product link.");
 
-  // ✅ 1) Fast paint from cache
+  // 1) instant paint from session cache
   const cached = getCachedProduct(productId);
   if (cached) paintProduct(cached);
 
-  // ✅ 2) Fetch product + reviews in parallel (reviews doesn’t block product)
+  // 2) revalidate product in background
   const productPromise = fetchProduct(productId)
     .then((p) => {
       setCachedProduct(productId, p);
@@ -699,24 +973,26 @@ async function init() {
     })
     .catch(() => null);
 
-  // Start reviews after we at least know product id (same id)
-  const reviewsPromise = initReviews(productId).catch(() => {});
+  // 3) reviews in idle/background (never block product)
+  const startReviews = () => initReviews(productId).catch(() => {});
+  if ("requestIdleCallback" in window) requestIdleCallback(startReviews, { timeout: 2000 });
+  else setTimeout(startReviews, 250);
 
-  const p = await productPromise;
-  if (!p && !cached) return showMessage("Product not found.");
+  const fresh = await productPromise;
+  if (!fresh && !cached) return showMessage("Product not found.");
 
-  // Don’t await reviews to show product. But if you want to ensure errors don't spam:
-  await Promise.race([reviewsPromise, new Promise(r => setTimeout(r, 10))]);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  init();
-
-  // header cart count sync (header injected)
+  // header cart sync
   let tries = 0;
   const t = setInterval(() => {
     tries++;
     updateHeaderCartCount();
     if (tries >= 12) clearInterval(t);
   }, 150);
-});
+
+  document.addEventListener("cart:updated", () => updateHeaderCartCount());
+  window.KStore?.subscribe?.((evt) => {
+    if (evt?.type === "CART_CHANGED" || evt?.type === "INIT") updateHeaderCartCount();
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);

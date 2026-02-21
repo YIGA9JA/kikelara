@@ -11,6 +11,7 @@
    ✅ Cloudinary support:
       - keys like "cld:...." are treated as storage keys
       - /admin/media/list can return Cloudinary items (see backend patch)
+   ✅ Visual: object-fit: cover everywhere so images always fill (no outer space look)
 =============================================================================== */
 
 (async function () {
@@ -102,6 +103,14 @@
 
   if (apiPill) apiPill.textContent = `API: ${API_BASE || "—"}`;
 
+  // ✅ force preview image to fill (no padding look)
+  if (previewImg) {
+    previewImg.style.width = "100%";
+    previewImg.style.height = "100%";
+    previewImg.style.objectFit = "cover";
+    previewImg.style.display = "block";
+  }
+
   let products = [];
   let activeFilter = "all";
   let lastFocus = null;
@@ -191,7 +200,6 @@
   }
 
   function setPickedLabel() {
-    // DISPLAY label
     if (imgPicked) {
       const k = String(imageKeyIpt?.value || "");
       if (k) {
@@ -202,7 +210,6 @@
         imgPicked.style.display = "none";
       }
     }
-    // DETAIL label
     if (detailPicked) {
       const dk = String(detailKeyIpt?.value || "");
       if (dk) {
@@ -261,7 +268,6 @@
     });
   }
 
-  // ✅ Treat Cloudinary refs as storage keys too
   function looksLikeStorageKey(u) {
     const s = String(u || "").trim();
     if (!s) return false;
@@ -276,7 +282,7 @@
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u; // could be "cld:..." or "products/.."
+    return u;
   }
 
   function fallbackImg() {
@@ -381,7 +387,6 @@
       return;
     }
 
-    // file overrides DISPLAY library key
     if (imageKeyIpt) imageKeyIpt.value = "";
     setPickedLabel();
 
@@ -479,7 +484,6 @@
     return Array.isArray(data.products) ? data.products : [];
   }
 
-  // signing / resolving keys (works for cloudinary + supabase via backend)
   async function signStorageKey(key) {
     const k = String(key || "").trim();
     if (!k) return "";
@@ -537,7 +541,6 @@
     await Promise.all(workers);
   }
 
-  // image manager API calls
   async function setDisplayImage(productId, key) {
     const r = await apiFetch(`/admin/products/${encodeURIComponent(productId)}/display-image`, {
       method: "POST",
@@ -641,7 +644,8 @@
 
       card.innerHTML = `
         <div class="imgThumbWrap">
-          <img class="imgThumb" src="${escapeHtml(url)}" alt="Product image" loading="lazy" decoding="async" fetchpriority="low">
+          <img class="imgThumb" src="${escapeHtml(url)}" alt="Product image" loading="lazy" decoding="async" fetchpriority="low"
+               style="width:100%;height:100%;object-fit:cover;display:block;">
           <div class="imgBadges">
             ${isDisplay ? `<span class="imgBadge bDisplay">DISPLAY</span>` : ``}
             ${isDetail ? `<span class="imgBadge bDetail">DETAIL</span>` : ``}
@@ -726,7 +730,6 @@
 
     if (isUpdate) fd.append("remove_image", String(removeImage?.value || "false"));
 
-    // DISPLAY file or DISPLAY key
     const file = pickedFile || (imageIpt?.files?.[0] || null);
     const key = String(imageKeyIpt?.value || "").trim();
 
@@ -734,14 +737,12 @@
       fd.append("image", file);
       if (key && imageKeyIpt) imageKeyIpt.value = "";
     } else if (key) {
-      fd.append("image_key", key); // ✅ requires backend patch below to apply
+      fd.append("image_key", key);
     }
 
-    // DETAIL key (optional)
     const dkey = String(detailKeyIpt?.value || "").trim();
-    if (dkey) fd.append("detail_image_key", dkey); // ✅ requires backend patch below to apply
+    if (dkey) fd.append("detail_image_key", dkey);
 
-    // gallery images
     if (pickedGalleryFiles.length) {
       for (const gf of pickedGalleryFiles) fd.append("images", gf);
     }
@@ -816,12 +817,10 @@
     setActiveUI(Boolean(p.is_active));
     if (removeImage) removeImage.value = "false";
 
-    // set keys
     if (imageKeyIpt) imageKeyIpt.value = String(p.image_key || "");
     if (detailKeyIpt) detailKeyIpt.value = String(p.detail_image_key || "");
     setPickedLabel();
 
-    // preview uses resolved url returned by backend (or sign route)
     const displayUrl = await resolveToDisplayUrl(p.image_url);
     showPreview(displayUrl || "");
 
@@ -918,6 +917,7 @@
             loading="${index < 6 ? "eager" : "lazy"}"
             decoding="async"
             ${index < 2 ? `fetchpriority="high"` : `fetchpriority="low"`}
+            style="width:100%;height:100%;object-fit:cover;display:block;"
             ${isKey ? `data-sbkey="${escapeHtml(raw)}"` : ""}>
           <span class="ad-pill-mini ${isOn ? "on" : "off"}">${isOn ? "ACTIVE" : "HIDDEN"}</span>
         </div>
@@ -1017,7 +1017,6 @@
     if (libLoadMore) libLoadMore.disabled = true;
 
     try {
-      // ✅ supports both offset and cursor (backend decides)
       const url =
         `/admin/media/list?prefix=${encodeURIComponent(prefix)}&search=${encodeURIComponent(term)}&offset=${encodeURIComponent(
           String(libOffset)
@@ -1053,7 +1052,9 @@
         card.setAttribute("aria-label", `Select ${name}`);
         card.innerHTML = `
           <div class="libThumbWrap">
-            <img class="libThumbImg" src="${escapeHtml(signedUrl || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy" decoding="async" fetchpriority="low">
+            <img class="libThumbImg" src="${escapeHtml(signedUrl || fallbackImg())}"
+                 alt="${escapeHtml(name)}" loading="lazy" decoding="async" fetchpriority="low"
+                 style="width:100%;height:100%;object-fit:cover;display:block;">
           </div>
           <div class="libMeta">
             <div class="libName" title="${escapeHtml(key)}">${escapeHtml(name)}</div>
@@ -1082,7 +1083,6 @@
         libGrid.appendChild(card);
       });
 
-      // ✅ pagination: cursor wins if provided by backend
       const nextCursor = String(data.nextCursor || data.next_cursor || "");
       const hasMore = Boolean(data.hasMore ?? data.has_more ?? !!nextCursor);
 

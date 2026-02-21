@@ -1,12 +1,13 @@
-/* ================= cart.js (WORLD-CLASS CART UX)
+/* ================= cart.js (WORLD-CLASS CART UX + MEDIA KEY SUPPORT)
    ✅ Premium layout + better mobile hierarchy
    ✅ Reads cart from KStore (preferred) OR localStorage(cart)
    ✅ If KStore exists but empty, imports localStorage cart into KStore
    ✅ Qty +/- remove works with KStore OR fallback localStorage
-   ✅ Undo remove toast (best practice)
+   ✅ Undo remove toast
    ✅ Clear cart
    ✅ Sticky summary desktop + mobile sticky bar
-   ✅ Safe DOM rendering (no unsafe innerHTML)
+   ✅ Safe DOM rendering
+   ✅ NEW: supports image keys like "cld:..." and "products/..." via /api/media/sign
 ====================================================================== */
 
 (() => {
@@ -21,6 +22,147 @@
   const bc2 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V2) : null;
   const bc1 = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_V1) : null;
 
+  /* ================= MEDIA KEY SUPPORT ================= */
+  const IMG_URL_CACHE_KEY = "kkl_img_url_cache_v1";
+  const IMG_URL_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+  const MAX_IMAGE_REQUESTS = 6;
+
+  function safeJSONSession(key, fallback) {
+    try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  }
+  function saveJSONSession(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {} }
+
+  function loadImgCache() {
+    const obj = safeJSONSession(IMG_URL_CACHE_KEY, {});
+    return obj && typeof obj === "object" ? obj : {};
+  }
+  function getImgCached(key) {
+    const cache = loadImgCache();
+    const item = cache[String(key)];
+    if (!item || typeof item !== "object") return null;
+    const ts = Number(item.ts || 0);
+    if (!ts || Date.now() - ts > IMG_URL_TTL_MS) return null;
+    const url = String(item.url || "");
+    return url ? url : null;
+  }
+  function setImgCached(key, url) {
+    const cache = loadImgCache();
+    cache[String(key)] = { url: String(url || ""), ts: Date.now() };
+    saveJSONSession(IMG_URL_CACHE_KEY, cache);
+  }
+
+  function isHttpUrl(u) { return /^https?:\/\//i.test(String(u || "")); }
+  function isBlobOrData(u) { return /^(blob:|data:)/i.test(String(u || "")); }
+
+  function looksLikeMediaKey(u) {
+    const s = String(u || "").trim();
+    if (!s) return false;
+    if (isHttpUrl(s) || isBlobOrData(s)) return false;
+    if (s.startsWith("/uploads/")) return false;
+    if (s.startsWith("uploads/")) return false;
+    if (s.startsWith("images/") || s.startsWith("images_brown/")) return false;
+
+    if (s.startsWith("cld:")) return true;
+    if (s.startsWith("products/")) return true;
+    if (s.startsWith("featured/")) return true;
+    if (s.startsWith("hero/")) return true;
+    return false;
+  }
+
+  function cloudinaryUrlFromKey(key) {
+    const k = String(key || "").trim();
+    if (!k.startsWith("cld:")) return "";
+    const cloud = String(window.CLOUDINARY_CLOUD_NAME || "").trim();
+    if (!cloud) return "";
+    const publicId = k.slice(4).trim();
+    if (!publicId) return "";
+    const encodedPublicId = publicId.split("/").map(encodeURIComponent).join("/");
+    return `https://res.cloudinary.com/${encodeURIComponent(cloud)}/image/upload/f_auto,q_auto/${encodedPublicId}`;
+  }
+
+  async function fetchWithTimeout(url, ms = 12000) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), ms);
+    try { return await fetch(url, { cache: "no-store", signal: controller.signal }); }
+    finally { clearTimeout(t); }
+  }
+
+  async function resolveMediaKeyToUrl(key) {
+    const k = String(key || "").trim();
+    if (!k) return "";
+
+    const cached = getImgCached(k);
+    if (cached) return cached;
+
+    const cld = cloudinaryUrlFromKey(k);
+    if (cld) { setImgCached(k, cld); return cld; }
+
+    if (!API_BASE) return "";
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/media/sign?key=${encodeURIComponent(k)}`, 12000);
+      if (!res.ok) return "";
+      const data = await res.json().catch(() => null);
+      const url = String(data?.url || data?.signedUrl || "");
+      if (url) { setImgCached(k, url); return url; }
+      return "";
+    } catch {
+      return "";
+    }
+  }
+
+  let imgInFlight = 0;
+  const imgQueue = [];
+  function runImgQueue() {
+    while (imgInFlight < MAX_IMAGE_REQUESTS && imgQueue.length) {
+      const job = imgQueue.shift();
+      if (!job) break;
+      imgInFlight++;
+      job().finally(() => { imgInFlight--; runImgQueue(); });
+    }
+  }
+  function enqueueImg(job) { imgQueue.push(job); runImgQueue(); }
+
+  function resolveImageImmediate(val) {
+    const s = String(val || "").trim();
+    if (!s) return FALLBACK_IMG;
+
+    if (isHttpUrl(s) || isBlobOrData(s)) return s;
+
+    if (s.startsWith("/uploads/") && API_BASE) return `${API_BASE}${s}`;
+    if (s.startsWith("uploads/") && API_BASE) return `${API_BASE}/${s}`;
+
+    if (s.startsWith("images/") || s.startsWith("images_brown/")) return s;
+
+    return FALLBACK_IMG; // keys resolve async
+  }
+
+  function setImgEl(img, raw) {
+    const v = String(raw || "").trim();
+    img.src = resolveImageImmediate(v);
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.draggable = false;
+
+    // ✅ no padding look
+    img.style.objectFit = "cover";
+    img.style.display = "block";
+
+    img.addEventListener("error", () => {
+      if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
+    });
+
+    if (!looksLikeMediaKey(v)) return;
+
+    const cached = getImgCached(v);
+    if (cached) { img.src = cached; return; }
+
+    enqueueImg(async () => {
+      const url = await resolveMediaKeyToUrl(v);
+      if (url) img.src = url;
+    });
+  }
+
+  /* ================= EXISTING HELPERS ================= */
   function formatNaira(n) {
     const num = Number(n || 0);
     try { return `₦${num.toLocaleString()}`; } catch { return `₦${num}`; }
@@ -29,16 +171,6 @@
   function productUrl(id) {
     if (id === undefined || id === null || id === "") return "products.html";
     return `product-details.html?id=${encodeURIComponent(String(id))}`;
-  }
-
-  function resolveImageUrl(val) {
-    const s = String(val || "").trim();
-    if (!s) return FALLBACK_IMG;
-
-    if (/^https?:\/\//i.test(s)) return s;
-    if (s.startsWith("/uploads/") && API_BASE) return `${API_BASE}${s}`;
-    if (s.startsWith("uploads/") && API_BASE) return `${API_BASE}/${s}`;
-    return s; // relative local path
   }
 
   function safeReadCart(storage) {
@@ -78,7 +210,6 @@
       .filter(Boolean);
   }
 
-  /* ---------- KStore helpers ---------- */
   function getKStore() {
     return window.KStore && typeof window.KStore.getCart === "function" ? window.KStore : null;
   }
@@ -98,7 +229,6 @@
       try { ks.setCart(clean); return true; } catch {}
     }
 
-    // fallback (canonical localStorage)
     safeWriteCart(localStorage, clean);
     safeWriteCart(sessionStorage, clean);
     try { document.dispatchEvent(new Event("cart:updated")); } catch {}
@@ -120,9 +250,7 @@
 
     const local = readLocalPreferred();
     if (local.length) {
-      if (Array.isArray(ksCart) && ksCart.length === 0) {
-        setCartUnified(local); // import once
-      }
+      if (Array.isArray(ksCart) && ksCart.length === 0) setCartUnified(local);
       return local;
     }
     return [];
@@ -239,7 +367,6 @@
       setDisabled(mobileCheckoutBtn, empty);
       setDisabled(clearCartBtn, empty);
 
-      // sticky class control
       const isMobile = isMobileMQ.matches;
       if (cartSummary) {
         if (!isMobile) cartSummary.classList.add("is-sticky");
@@ -277,13 +404,11 @@
       const name = String(item?.name || "Product").trim() || "Product";
 
       const imgVal = item?.image_url || item?.image || item?.img || "";
-      const imgSrc = resolveImageUrl(imgVal);
 
       const row = document.createElement("div");
       row.className = "cart-item";
       row.dataset.id = id;
 
-      // media link
       const mediaLink = document.createElement("a");
       mediaLink.className = "cart-media";
       mediaLink.href = productUrl(id);
@@ -291,17 +416,13 @@
 
       const img = document.createElement("img");
       img.className = "cart-img";
-      img.src = imgSrc;
       img.alt = name;
-      img.loading = "lazy";
-      img.decoding = "async";
-      img.draggable = false;
-      img.addEventListener("error", () => {
-        if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
-      });
+
+      // ✅ key-aware setter
+      setImgEl(img, imgVal);
+
       mediaLink.appendChild(img);
 
-      // info
       const info = document.createElement("div");
       info.className = "cart-info";
 
@@ -432,7 +553,6 @@
 
       const ks = getKStore();
 
-      // For undo-remove we want a snapshot BEFORE removing
       if (action === "remove") {
         const before = getCart();
         const idx = before.findIndex(x => String(x.id) === String(id));
@@ -440,7 +560,6 @@
 
         const removed = before[idx];
 
-        // remove via KStore if possible
         if (ks && typeof ks.removeFromCart === "function") {
           try { ks.removeFromCart(id); } catch {}
         } else {
@@ -449,7 +568,6 @@
           render(before);
         }
 
-        // Undo (reinsert only the removed item)
         makeToast(toastHost, `Removed “${removed.name}”.`, {
           actionText: "UNDO",
           onAction: () => {
@@ -471,13 +589,11 @@
         return;
       }
 
-      // Qty changes
       if (ks) {
         if (action === "increase" && typeof ks.incQty === "function") { try { ks.incQty(id); } catch {} return; }
         if (action === "decrease" && typeof ks.decQty === "function") { try { ks.decQty(id); } catch {} return; }
       }
 
-      // fallback: manipulate localStorage cart directly
       const cart = getCart();
       const idx = cart.findIndex(x => String(x.id) === String(id));
       if (idx === -1) return;
@@ -494,7 +610,6 @@
       const cart = getCart();
       if (!cart.length) return;
 
-      // snapshot for undo
       const before = cart.slice();
 
       setCartUnified([]);
@@ -523,7 +638,6 @@
     mobileCheckoutBtn?.addEventListener("click", goCheckout);
     clearCartBtn?.addEventListener("click", clearCart);
 
-    // responsive UI
     updateMobileBar();
     isMobileMQ.addEventListener?.("change", () => {
       updateMobileBar();
@@ -534,14 +648,10 @@
       updateSummary(getCart());
     });
 
-    // initial render
     const first = getCart();
     render(first);
     window.KStore?.syncBadges?.();
 
-    /* ---------- live sync listeners ---------- */
-
-    // KStore subscription (best)
     if (window.KStore?.subscribe) {
       window.KStore.subscribe((evt) => {
         if (evt?.type === "CART_CHANGED" || evt?.type === "INIT") {
@@ -551,20 +661,15 @@
       });
     }
 
-    // cart:updated event
     document.addEventListener("cart:updated", () => render(getCart()));
 
-    // localStorage cross-tab fallback
     window.addEventListener("storage", (e) => {
       if (e.key === CART_KEY) render(getCart());
     });
 
-    // BroadcastChannels (v2 + v1)
     function onBCMessage(msg) {
       const data = msg?.data || {};
-      if (data.type === "CART_UPDATED" || data.type === "SYNC") {
-        render(getCart());
-      }
+      if (data.type === "CART_UPDATED" || data.type === "SYNC") render(getCart());
       if (data.type === "REQUEST_SYNC") {
         try {
           const payload = { type: "SYNC", cart: safeReadCart(localStorage) };

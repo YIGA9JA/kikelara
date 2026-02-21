@@ -1,4 +1,4 @@
-/* ===================== CHECKOUT.JS (UPDATED + MOBILE PAY BAR + SAFE RENDER) ===================== */
+/* ===================== CHECKOUT.JS (UPDATED + MEDIA KEY SUPPORT) ===================== */
 
 const API_BASE2 = (window.API_BASE || "").replace(/\/+$/, "");
 
@@ -43,6 +43,164 @@ const segIndicator = shipSegment ? shipSegment.querySelector(".seg-indicator") :
 const PAYSTACK_PUBLIC_KEY =
   window.PAYSTACK_PUBLIC_KEY ||
   "pk_test_0e491cfbb7461a0ba9a0d58419cdfd6722ad5dee";
+
+/* ================= MEDIA KEY SUPPORT (Cloudinary + Supabase keys in cart) ================= */
+const IMG_URL_CACHE_KEY = "kkl_img_url_cache_v1";
+const IMG_URL_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+const MAX_IMAGE_REQUESTS = 6;
+
+function safeJSONSession(key, fallback) {
+  try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function saveJSONSession(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {} }
+
+function loadImgCache() {
+  const obj = safeJSONSession(IMG_URL_CACHE_KEY, {});
+  return obj && typeof obj === "object" ? obj : {};
+}
+function getImgCached(key) {
+  const cache = loadImgCache();
+  const item = cache[String(key)];
+  if (!item || typeof item !== "object") return null;
+  const ts = Number(item.ts || 0);
+  if (!ts || Date.now() - ts > IMG_URL_TTL_MS) return null;
+  const url = String(item.url || "");
+  return url ? url : null;
+}
+function setImgCached(key, url) {
+  const cache = loadImgCache();
+  cache[String(key)] = { url: String(url || ""), ts: Date.now() };
+  saveJSONSession(IMG_URL_CACHE_KEY, cache);
+}
+
+function isHttpUrl(u) { return /^https?:\/\//i.test(String(u || "")); }
+function isBlobOrData(u) { return /^(blob:|data:)/i.test(String(u || "")); }
+
+function looksLikeMediaKey(u) {
+  const s = String(u || "").trim();
+  if (!s) return false;
+  if (isHttpUrl(s) || isBlobOrData(s)) return false;
+  if (s.startsWith("/uploads/")) return false;
+  if (s.startsWith("uploads/")) return false;
+  if (s.startsWith("images/") || s.startsWith("images_brown/")) return false;
+
+  if (s.startsWith("cld:")) return true;
+  if (s.startsWith("products/")) return true;
+  if (s.startsWith("featured/")) return true;
+  if (s.startsWith("hero/")) return true;
+  return false;
+}
+
+function cloudinaryUrlFromKey(key) {
+  const k = String(key || "").trim();
+  if (!k.startsWith("cld:")) return "";
+  const cloud = String(window.CLOUDINARY_CLOUD_NAME || "").trim();
+  if (!cloud) return "";
+  const publicId = k.slice(4).trim();
+  if (!publicId) return "";
+  const encodedPublicId = publicId.split("/").map(encodeURIComponent).join("/");
+  return `https://res.cloudinary.com/${encodeURIComponent(cloud)}/image/upload/f_auto,q_auto/${encodedPublicId}`;
+}
+
+async function fetchWithTimeout(url, ms = 12000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try { return await fetch(url, { cache: "no-store", signal: controller.signal }); }
+  finally { clearTimeout(t); }
+}
+
+async function resolveMediaKeyToUrl(key) {
+  const k = String(key || "").trim();
+  if (!k) return "";
+
+  const cached = getImgCached(k);
+  if (cached) return cached;
+
+  const cld = cloudinaryUrlFromKey(k);
+  if (cld) { setImgCached(k, cld); return cld; }
+
+  if (!API_BASE2) return "";
+  try {
+    const res = await fetchWithTimeout(`${API_BASE2}/api/media/sign?key=${encodeURIComponent(k)}`, 12000);
+    if (!res.ok) return "";
+    const data = await res.json().catch(() => null);
+    const url = String(data?.url || data?.signedUrl || "");
+    if (url) { setImgCached(k, url); return url; }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+let imgInFlight = 0;
+const imgQueue = [];
+function runImgQueue() {
+  while (imgInFlight < MAX_IMAGE_REQUESTS && imgQueue.length) {
+    const job = imgQueue.shift();
+    if (!job) break;
+    imgInFlight++;
+    job().finally(() => { imgInFlight--; runImgQueue(); });
+  }
+}
+function enqueueImg(job) { imgQueue.push(job); runImgQueue(); }
+
+function resolveImageUrlImmediate(val) {
+  const s = String(val || "").trim();
+  if (!s) return FALLBACK_IMG;
+
+  if (isHttpUrl(s) || isBlobOrData(s)) return s;
+
+  if (s.startsWith("/uploads/") && API_BASE2) return `${API_BASE2}${s}`;
+  if (s.startsWith("uploads/") && API_BASE2) return `${API_BASE2}/${s}`;
+
+  if (s.startsWith("images/") || s.startsWith("images_brown/")) return s;
+
+  // keys: return fallback immediately, resolve async
+  return FALLBACK_IMG;
+}
+
+function setImgEl(img, raw) {
+  const v = String(raw || "").trim();
+  img.src = resolveImageUrlImmediate(v);
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.draggable = false;
+  img.style.objectFit = "cover";
+  img.style.display = "block";
+
+  img.addEventListener("error", () => {
+    if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
+  });
+
+  if (!looksLikeMediaKey(v)) return;
+
+  const cached = getImgCached(v);
+  if (cached) { img.src = cached; return; }
+
+  enqueueImg(async () => {
+    const url = await resolveMediaKeyToUrl(v);
+    if (url) img.src = url;
+  });
+}
+
+// used when saving orders: try best effort to store a usable URL, else keep original key
+function resolveCartImageForStorage(val) {
+  const s = String(val || "").trim();
+  if (!s) return FALLBACK_IMG;
+
+  const immediate = resolveImageUrlImmediate(s);
+  if (immediate && immediate !== FALLBACK_IMG) return immediate;
+
+  if (looksLikeMediaKey(s)) {
+    const cached = getImgCached(s);
+    if (cached) return cached;
+    const cld = cloudinaryUrlFromKey(s);
+    if (cld) return cld;
+    return s; // supabase key stays as key
+  }
+
+  return immediate || FALLBACK_IMG;
+}
 
 /* ================= CART: prefer localStorage (canonical), fallback sessionStorage ================= */
 function safeReadCart(storage) {
@@ -89,18 +247,6 @@ function clearCartEverywhere() {
   try { localStorage.removeItem(CART_KEY2); } catch {}
   try { window.KStore?.setCart?.([]); } catch {}
   try { window.KStore?.syncBadges?.(); } catch {}
-}
-
-function resolveImageUrl(val) {
-  const s = String(val || "").trim();
-  if (!s) return FALLBACK_IMG;
-
-  if (/^https?:\/\//i.test(s)) return s;
-
-  if (s.startsWith("/uploads/") && API_BASE2) return `${API_BASE2}${s}`;
-  if (s.startsWith("uploads/") && API_BASE2) return `${API_BASE2}/${s}`;
-
-  return s;
 }
 
 let cart2 = loadCart();
@@ -247,7 +393,6 @@ function setBtnLoading(isLoading, label) {
     mobilePayBtn.textContent = isLoading ? (label || "PROCESSING…") : "Pay";
   }
 
-  // restore proper button labels after loading
   if (!isLoading) {
     const cart = loadCart();
     const total = getGrandTotal(cart);
@@ -319,7 +464,7 @@ function updateTotals() {
 /* ================= DROPDOWNS ================= */
 function populateStates() {
   if (!stateEl) return;
-  const states = (pricing.states || []).map(s => s.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const states = (pricing.states || []).map(s => s.name).filter(Boolean).sort((a, b) => a.localeCompare(b.name));
   const current = stateEl.value || "";
 
   stateEl.innerHTML =
@@ -337,7 +482,7 @@ function populateStates() {
 function populateCitiesForState(stateName) {
   if (!cityEl) return;
   const st = findState(stateName);
-  const cities = (st?.cities || []).map(c => c.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const cities = (st?.cities || []).map(c => c.name).filter(Boolean).sort((a, b) => a.localeCompare(b.name));
   const current = cityEl.value || "";
 
   cityEl.innerHTML =
@@ -348,7 +493,7 @@ function populateCitiesForState(stateName) {
   cityEl.disabled = cities.length === 0;
 }
 
-/* ================= SAFE SUMMARY RENDER ================= */
+/* ================= SAFE SUMMARY RENDER (NOW RESOLVES cld:/products/ keys) ================= */
 function renderSummaryItems() {
   if (!summaryItemsEl) return;
 
@@ -372,14 +517,8 @@ function renderSummaryItems() {
     row.className = "summary-item";
 
     const img = document.createElement("img");
-    img.src = resolveImageUrl(item.image);
     img.alt = item.name || "Product";
-    img.draggable = false;
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.addEventListener("error", () => {
-      if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
-    });
+    setImgEl(img, item.image);
 
     const mid = document.createElement("div");
 
@@ -458,7 +597,9 @@ function buildBackendOrderDraft(reference) {
     name: i.name,
     price: Number(i.price || 0),
     qty: Number(i.qty || 0),
-    image: resolveImageUrl(i.image),
+    // ✅ store best usable URL if we have it, else keep original key
+    image: resolveCartImageForStorage(i.image),
+    image_raw: String(i.image || ""),
     total: Number(i.price || 0) * Number(i.qty || 0)
   }));
 
@@ -482,7 +623,6 @@ function buildBackendOrderDraft(reference) {
 }
 
 function saveOrderFallbackEverywhere(order) {
-  // order-success.js reads localStorage, so write there too
   try {
     const arr1 = JSON.parse(sessionStorage.getItem(LOCAL_ORDERS_KEY)) || [];
     arr1.push(order);
@@ -599,13 +739,11 @@ stateEl?.addEventListener("change", () => {
 
 cityEl?.addEventListener("change", updateTotals);
 
-// Desktop pay
 payNowBtn?.addEventListener("click", (e) => {
   e.preventDefault();
   payWithPaystack();
 });
 
-// Mobile pay bar mirrors desktop
 mobilePayBtn?.addEventListener("click", (e) => {
   e.preventDefault();
   payWithPaystack();
@@ -641,7 +779,6 @@ mobilePayBtn?.addEventListener("click", (e) => {
 
   updateTotals();
 
-  // If cart changes (another tab), keep checkout synced
   window.addEventListener("storage", (e) => {
     if (e.key === CART_KEY2) {
       renderSummaryItems();
