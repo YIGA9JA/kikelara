@@ -633,7 +633,8 @@ button{ font: inherit; }
 .mini-title{ position:relative; font-weight: 1000; letter-spacing:.04em; }
 .mini-text{ position:relative; margin-top: 6px; color: rgba(31,22,15,.78); line-height: 1.65; font-weight: 650; }
 
-/* Featured (single full image card) */
+/* ===================== FEATURED (FIXED) ===================== */
+/* ✅ This makes the image FILL the card (wides out) on desktop + mobile */
 .featured-card{
   display:block;
   position: relative;
@@ -649,20 +650,21 @@ button{ font: inherit; }
   text-decoration:none;
   color: inherit;
 
-  aspect-ratio: 16 / 9; /* ✅ cinematic */
-  min-height: 420px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: clamp(300px, 34vw, 560px); /* ✅ responsive height */
 }
 .featured-card img{
   width:100%;
   height:100%;
-  object-fit: contain; /* ✅ full image */
-  object-position: center;
+  object-fit: cover;         /* ✅ fills width/height (no empty sides) */
+  object-position: 50% 35%;
   display:block;
   background: rgba(255,255,255,.06);
   transition: transform .55s ease, opacity .35s ease;
 }
 .featured-card:hover img{
-  transform: scale(1.01);
+  transform: scale(1.02);
 }
 
 .featured-card-overlay{
@@ -830,31 +832,33 @@ button{ font: inherit; }
   .how-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
   .tips-grid{ grid-template-columns: 1fr; }
   .hero-inner{ padding: 0 5vw; }
-  .featured-card{ min-height: 340px; }
+  .featured-card{ min-height: clamp(260px, 44vw, 460px); }
 }
 
 /* ✅ Mobile upgrades */
 @media (max-width: 600px){
-  /* HERO FULL IMAGE */
   .hero{
     min-height: auto;
     padding: 58px 0 48px;
   }
+
+  /* ✅ Fill screen on mobile too */
   .hero-bg{
-    object-fit: contain;      /* ✅ full image */
-    object-position: center;
+    object-fit: cover;   /* changed from contain -> cover */
+    object-position: 50% 35%;
     opacity: .96;
   }
+
   .hero-overlay{
     background:
       radial-gradient(900px 520px at 50% 28%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%),
       linear-gradient(180deg, rgba(255,239,213,.62), rgba(255,239,213,.28), rgba(255,239,213,0));
   }
 
-  /* Featured FULL image (already contain) + slightly taller */
+  /* ✅ Featured fills width nicely on mobile */
   .featured-card{
-    aspect-ratio: 4 / 3;
-    min-height: 280px;
+    aspect-ratio: 16 / 10;
+    min-height: clamp(220px, 58vw, 340px);
   }
 
   /* ✅ Products 2 columns on mobile */
