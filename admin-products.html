@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>KÍKÉLÁRÁ — Products Admin</title>
 
-  <script src="config.js?v=9"></script>
-  <script src="auth.js?v=9"></script>
-  <link rel="stylesheet" href="admin-products.css?v=9" />
+  <script src="config.js?v=10"></script>
+  <script src="auth.js?v=10"></script>
+  <link rel="stylesheet" href="admin-products.css?v=10" />
 </head>
 
 <body>
@@ -189,9 +189,9 @@
 
   <!-- Library Modal -->
   <div class="modal" id="libModal" aria-hidden="true" inert>
-    <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Supabase Media Library">
+    <div class="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Media Library">
       <div class="modal-head">
-        <div class="modal-title" id="libTitle">Supabase Media Library</div>
+        <div class="modal-title" id="libTitle">Media Library</div>
         <button class="modal-x" id="libClose" type="button" aria-label="Close">✕</button>
       </div>
 
@@ -205,6 +205,8 @@
             <label class="lbl" style="margin:0 0 6px;">Folder</label>
             <select id="libPrefix" class="ad-select" aria-label="Folder">
               <option value="products/" selected>products/</option>
+              <option value="featured/">featured/</option>
+              <option value="hero/">hero/</option>
               <option value="">(root)</option>
             </select>
           </div>
@@ -220,6 +222,6 @@
     </div>
   </div>
 
-  <script src="admin-products.js?v=9"></script>
+  <script src="admin-products.js?v=10"></script>
 </body>
 </html>

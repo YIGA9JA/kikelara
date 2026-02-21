@@ -14,7 +14,6 @@
   --r16:16px;
   --r20:20px;
 
-  /* Frame system */
   --frame-bg: rgba(255,255,255,.55);
   --frame-line: rgba(43,29,18,.16);
   --frame-inner: rgba(255,255,255,.85);
@@ -216,12 +215,15 @@ body{
   box-shadow: 0 14px 34px rgba(0,0,0,.07);
   pointer-events:none;
 }
+
+/* ✅ FULL IMAGE (no crop) */
 .ad-item-img img{
   position:relative;
   z-index:1;
   width:100%;
   aspect-ratio: 1 / 1;
-  object-fit:cover;
+  object-fit: contain;                 /* ✅ was cover */
+  background: rgba(255,255,255,.78);   /* ✅ shows padded areas clean */
   border-radius:18px;
   display:block;
   box-shadow: 0 12px 30px rgba(0,0,0,.08);
@@ -433,7 +435,7 @@ body{
 
 body.modal-open{overflow:hidden}
 
-/* ================= FRAME SYSTEM (reusable) ================= */
+/* ================= FRAME SYSTEM ================= */
 .frame{
   position:relative;
   border-radius:22px;
@@ -456,7 +458,8 @@ body.modal-open{overflow:hidden}
   z-index:1;
   width:100%;
   height:100%;
-  object-fit:cover;
+  object-fit:contain;
+  background: rgba(255,255,255,.78);
   border-radius:16px;
   display:block;
   box-shadow: 0 12px 30px rgba(0,0,0,.08);
@@ -526,12 +529,14 @@ body.modal-open{overflow:hidden}
 .dropTitle{font-weight:950; font-size:14px}
 .dropSub{margin-top:0; color:var(--muted); font-weight:650; font-size:13px}
 
+/* ✅ FULL IMAGE preview */
 #previewImg{
   position:relative;
   z-index:2;
   width:100%;
   height:100%;
-  object-fit:cover;
+  object-fit: contain;               /* ✅ was cover */
+  background: rgba(255,255,255,.78);
   display:none;
   border-radius:18px;
   box-shadow: 0 12px 30px rgba(0,0,0,.10);
@@ -583,14 +588,13 @@ body.modal-open{overflow:hidden}
   .imgGrid{grid-template-columns:1fr}
   .dropBox{min-height:230px}
 }
+
 /* =================== Library modal extras =================== */
 .modal-card--wide{
   width:min(980px,100%);
 }
 
-.libBody{
-  gap:12px;
-}
+.libBody{ gap:12px; }
 
 .libTop{
   display:grid;
@@ -619,23 +623,22 @@ body.modal-open{overflow:hidden}
 
 .libThumbWrap{
   border:1px solid rgba(43,29,18,.12);
-  background:rgba(255,255,255,.55);
+  background:rgba(255,255,255,.78);
   border-radius:14px;
   overflow:hidden;
   aspect-ratio: 1 / 1;
 }
 
+/* ✅ FULL IMAGE thumb */
 .libThumbImg{
   width:100%;
   height:100%;
-  object-fit:cover;
+  object-fit: contain;     /* ✅ was cover */
+  background: rgba(255,255,255,.78);
   display:block;
 }
 
-.libMeta{
-  display:grid;
-  gap:4px;
-}
+.libMeta{ display:grid; gap:4px; }
 
 .libName{
   font-weight:950;
@@ -644,7 +647,6 @@ body.modal-open{overflow:hidden}
   white-space:nowrap;
   text-overflow:ellipsis;
 }
-
 .libKey{
   font-size:11px;
   color:rgba(43,29,18,.65);
@@ -659,7 +661,6 @@ body.modal-open{overflow:hidden}
   padding-top:6px;
 }
 
-/* picked label */
 .imgPicked{
   font-size:12px;
   font-weight:800;
@@ -672,9 +673,7 @@ body.modal-open{overflow:hidden}
 }
 
 /* Skeleton */
-.libCard.sk{
-  cursor:default;
-}
+.libCard.sk{ cursor:default; }
 .libThumb.sk{
   width:100%;
   aspect-ratio: 1 / 1;
@@ -699,15 +698,11 @@ body.modal-open{overflow:hidden}
   .modal-body{padding:12px}
   .modal-actions{padding:10px 12px}
 
-  .libTop{
-    grid-template-columns: 1fr;
-  }
-  .libGrid{
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  }
+  .libTop{ grid-template-columns: 1fr; }
+  .libGrid{ grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
-/* =================== additions: gallery upload + image manager =================== */
 
+/* =================== gallery upload + image manager =================== */
 .hiddenFile{
   position:absolute;
   width:1px;
@@ -716,7 +711,6 @@ body.modal-open{overflow:hidden}
   pointer-events:none;
 }
 
-/* Image manager container */
 .imgManager{
   margin-top:12px;
   background:rgba(255,255,255,.70);
@@ -745,14 +739,12 @@ body.modal-open{overflow:hidden}
   line-height:1.35;
 }
 
-/* Image gallery grid */
 .imgGallery{
   display:grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap:10px;
 }
 
-/* Each image card */
 .imgCard{
   border:1px solid rgba(43,29,18,.14);
   background:rgba(255,255,255,.86);
@@ -766,14 +758,17 @@ body.modal-open{overflow:hidden}
 .imgThumbWrap{
   position:relative;
   border-bottom:1px solid rgba(43,29,18,.10);
-  background:rgba(255,255,255,.55);
+  background:rgba(255,255,255,.78);
   aspect-ratio: 1 / 1;
   overflow:hidden;
 }
+
+/* ✅ FULL IMAGE manager thumb */
 .imgThumb{
   width:100%;
   height:100%;
-  object-fit:cover;
+  object-fit: contain;     /* ✅ was cover */
+  background: rgba(255,255,255,.78);
   display:block;
 }
 
@@ -832,13 +827,11 @@ body.modal-open{overflow:hidden}
   opacity:.55;
   cursor:not-allowed;
 }
-
 .imgMiniBtn.danger{
   border-color:rgba(179,38,30,.35);
   color:var(--danger);
 }
 
-/* mobile tweak */
 @media (max-width: 680px){
   .imgGallery{ grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .imgCardBtns{ grid-template-columns: 1fr; }

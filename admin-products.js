@@ -1,14 +1,16 @@
-/* ================= admin-products.js (FULL - UPDATED)
+/* ================= admin-products.js (FULL - UPDATED for Cloudinary + Full Images)
    ✅ Cookie session auth (credentials include) via apiFetch/auth.js
    ✅ Upload DISPLAY + Gallery
-   ✅ Media Library picker (lists bucket files via backend)
-   ✅ Signed URLs via backend (/admin/media/sign)
+   ✅ Media Library picker (backend handles Supabase OR Cloudinary)
+   ✅ Signed/Resolved URLs via backend (/admin/media/sign)
    ✅ Image Manager:
       - Set DISPLAY
       - Set DETAIL
       - Remove gallery image
-   ✅ NEW:
-      - Choose DETAIL from Library on save (detail_image_key)
+   ✅ Choose DETAIL from Library on save (detail_image_key)
+   ✅ Cloudinary support:
+      - keys like "cld:...." are treated as storage keys
+      - /admin/media/list can return Cloudinary items (see backend patch)
 =============================================================================== */
 
 (async function () {
@@ -109,13 +111,14 @@
 
   let pickedGalleryFiles = [];        // gallery files queued for upload
 
-  // storage signing cache (key -> signed url)
+  // storage signing cache (key -> resolved url)
   const signedCache = new Map();
   const inflightSigns = new Map();
   const SIGN_CONCURRENCY = 6;
 
-  // library pagination
-  let libOffset = 0;
+  // library pagination (supports cursor + offset)
+  let libOffset = 0;          // for supabase style
+  let libCursor = "";         // for cloudinary style
   let libHasMore = false;
   let libLoading = false;
 
@@ -258,20 +261,22 @@
     });
   }
 
+  // ✅ Treat Cloudinary refs as storage keys too
   function looksLikeStorageKey(u) {
-    const s = String(u || "");
+    const s = String(u || "").trim();
     if (!s) return false;
     if (s.startsWith("http://") || s.startsWith("https://")) return false;
     if (s.startsWith("/uploads/")) return false;
+    if (s.startsWith("cld:")) return true;
     return s.includes("/") && !s.startsWith("/");
   }
 
   function resolveImage(url) {
-    const u = String(url || "");
+    const u = String(url || "").trim();
     if (!u) return "";
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
     if (u.startsWith("/uploads/")) return `${API_BASE}${u}`;
-    return u;
+    return u; // could be "cld:..." or "products/.."
   }
 
   function fallbackImg() {
@@ -474,7 +479,7 @@
     return Array.isArray(data.products) ? data.products : [];
   }
 
-  // signing (optional for legacy keys)
+  // signing / resolving keys (works for cloudinary + supabase via backend)
   async function signStorageKey(key) {
     const k = String(key || "").trim();
     if (!k) return "";
@@ -486,17 +491,14 @@
       const r = await apiFetch(`/admin/media/sign?key=${encodeURIComponent(k)}`, { method: "GET" });
       if (r.status === 404) throw new Error("sign route missing");
       const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data?.success || !data?.url) throw new Error(data?.message || "Could not sign image");
+      if (!r.ok || !data?.success || !data?.url) throw new Error(data?.message || "Could not resolve image");
       signedCache.set(k, data.url);
       return data.url;
     })();
 
     inflightSigns.set(k, p);
-    try {
-      return await p;
-    } finally {
-      inflightSigns.delete(k);
-    }
+    try { return await p; }
+    finally { inflightSigns.delete(k); }
   }
 
   async function resolveToDisplayUrl(raw) {
@@ -608,12 +610,7 @@
     if (item.url && (item.url.startsWith("http://") || item.url.startsWith("https://"))) return item.url;
     const maybeKey = looksLikeStorageKey(item.url) ? item.url : item.key;
     if (looksLikeStorageKey(maybeKey)) {
-      try {
-        const signed = await signStorageKey(maybeKey);
-        return signed || "";
-      } catch {
-        return "";
-      }
+      try { return await signStorageKey(maybeKey); } catch { return ""; }
     }
     return "";
   }
@@ -644,7 +641,7 @@
 
       card.innerHTML = `
         <div class="imgThumbWrap">
-          <img class="imgThumb" src="${escapeHtml(url)}" alt="Product image" loading="lazy">
+          <img class="imgThumb" src="${escapeHtml(url)}" alt="Product image" loading="lazy" decoding="async" fetchpriority="low">
           <div class="imgBadges">
             ${isDisplay ? `<span class="imgBadge bDisplay">DISPLAY</span>` : ``}
             ${isDetail ? `<span class="imgBadge bDetail">DETAIL</span>` : ``}
@@ -737,12 +734,12 @@
       fd.append("image", file);
       if (key && imageKeyIpt) imageKeyIpt.value = "";
     } else if (key) {
-      fd.append("image_key", key);
+      fd.append("image_key", key); // ✅ requires backend patch below to apply
     }
 
     // DETAIL key (optional)
     const dkey = String(detailKeyIpt?.value || "").trim();
-    if (dkey) fd.append("detail_image_key", dkey);
+    if (dkey) fd.append("detail_image_key", dkey); // ✅ requires backend patch below to apply
 
     // gallery images
     if (pickedGalleryFiles.length) {
@@ -824,7 +821,7 @@
     if (detailKeyIpt) detailKeyIpt.value = String(p.detail_image_key || "");
     setPickedLabel();
 
-    // preview uses signed url returned by backend
+    // preview uses resolved url returned by backend (or sign route)
     const displayUrl = await resolveToDisplayUrl(p.image_url);
     showPreview(displayUrl || "");
 
@@ -898,8 +895,7 @@
     }
     if (empty) empty.style.display = "none";
 
-    list.forEach((p) => {
-      // backend returns signed image_url, so this is normally https already
+    list.forEach((p, index) => {
       const raw = resolveImage(p.image_url);
       const isKey = looksLikeStorageKey(raw);
       const img = isKey ? fallbackImg() : (raw || fallbackImg());
@@ -919,9 +915,10 @@
             src="${escapeHtml(img)}"
             alt="${escapeHtml(p.name || "")}"
             draggable="false"
-            loading="lazy"
-            ${isKey ? `data-sbkey="${escapeHtml(raw)}"` : ""}
-          >
+            loading="${index < 6 ? "eager" : "lazy"}"
+            decoding="async"
+            ${index < 2 ? `fetchpriority="high"` : `fetchpriority="low"`}
+            ${isKey ? `data-sbkey="${escapeHtml(raw)}"` : ""}>
           <span class="ad-pill-mini ${isOn ? "on" : "off"}">${isOn ? "ACTIVE" : "HIDDEN"}</span>
         </div>
 
@@ -1010,6 +1007,7 @@
 
     if (reset) {
       libOffset = 0;
+      libCursor = "";
       libHasMore = false;
       clearLibGrid();
       libSkeleton(12);
@@ -1019,10 +1017,11 @@
     if (libLoadMore) libLoadMore.disabled = true;
 
     try {
+      // ✅ supports both offset and cursor (backend decides)
       const url =
         `/admin/media/list?prefix=${encodeURIComponent(prefix)}&search=${encodeURIComponent(term)}&offset=${encodeURIComponent(
-          libOffset
-        )}&limit=${encodeURIComponent(limit)}`;
+          String(libOffset)
+        )}&cursor=${encodeURIComponent(String(libCursor || ""))}&limit=${encodeURIComponent(limit)}`;
 
       const r = await apiFetch(url, { method: "GET" });
       const data = await r.json().catch(() => ({}));
@@ -1035,16 +1034,16 @@
       const items = Array.isArray(data.items) ? data.items : [];
       if (reset) clearLibGrid();
 
-      if (!items.length && libOffset === 0) {
+      if (!items.length && libOffset === 0 && !libCursor) {
         setLibStatus("No media found in this folder.", "warn");
       } else {
-        setLibStatus(`Loaded ${libOffset + items.length} file(s).`, "ok");
+        setLibStatus(`Loaded ${items.length} file(s).`, "ok");
       }
 
       items.forEach((it) => {
         const key = String(it.key || "");
         const name = String(it.name || key.split("/").pop() || "");
-        const signedUrl = String(it.signedUrl || "");
+        const signedUrl = String(it.signedUrl || it.url || "");
 
         if (key && signedUrl) signedCache.set(key, signedUrl);
 
@@ -1054,7 +1053,7 @@
         card.setAttribute("aria-label", `Select ${name}`);
         card.innerHTML = `
           <div class="libThumbWrap">
-            <img class="libThumbImg" src="${escapeHtml(signedUrl || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy">
+            <img class="libThumbImg" src="${escapeHtml(signedUrl || fallbackImg())}" alt="${escapeHtml(name)}" loading="lazy" decoding="async" fetchpriority="low">
           </div>
           <div class="libMeta">
             <div class="libName" title="${escapeHtml(key)}">${escapeHtml(name)}</div>
@@ -1063,14 +1062,12 @@
         `;
 
         card.addEventListener("click", async () => {
-          // selecting for DISPLAY or DETAIL (on save)
           if (libTarget === "display") {
             pickedFile = null;
             try { if (imageIpt) imageIpt.value = ""; } catch {}
             if (removeImage) removeImage.value = "false";
             if (imageKeyIpt) imageKeyIpt.value = key;
 
-            // show preview (DISPLAY)
             showPreview(signedUrl || (await resolveToDisplayUrl(key)) || "");
             toast("ok", "Selected", "Library image selected as DISPLAY (save to apply).");
           } else {
@@ -1085,8 +1082,14 @@
         libGrid.appendChild(card);
       });
 
-      libOffset = libOffset + items.length;
-      libHasMore = items.length === limit;
+      // ✅ pagination: cursor wins if provided by backend
+      const nextCursor = String(data.nextCursor || data.next_cursor || "");
+      const hasMore = Boolean(data.hasMore ?? data.has_more ?? !!nextCursor);
+
+      if (nextCursor) libCursor = nextCursor;
+      else libOffset = libOffset + items.length;
+
+      libHasMore = hasMore || (items.length === limit);
 
       if (libLoadMore) {
         libLoadMore.style.display = libHasMore ? "inline-flex" : "none";
@@ -1105,8 +1108,8 @@
   function openLibrary(target) {
     libTarget = target === "detail" ? "detail" : "display";
     if (libTitle) libTitle.textContent = libTarget === "detail"
-      ? "Supabase Media Library (Pick DETAIL)"
-      : "Supabase Media Library (Pick DISPLAY)";
+      ? "Media Library (Pick DETAIL)"
+      : "Media Library (Pick DISPLAY)";
 
     openModal(libModal, libSearch || libClose);
     fetchLibraryPage({ reset: true });
