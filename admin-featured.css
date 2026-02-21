@@ -68,20 +68,16 @@ input{
   overflow:hidden;
 }
 
-/* ✅ Render images FULL inside a consistent 16:9 frame (no cropping) */
+/* ✅ FULL IMAGE (no crop, no fixed 16:9) */
 .thumb{
-  aspect-ratio:16/9;
   background:#fff;
-  display:flex;
-  align-items:center;
-  justify-content:center;
 }
 .thumb img{
   width:100%;
-  height:100%;
-  object-fit:contain; /* ✅ full image shows */
+  height:auto;      /* ✅ keeps full height */
   display:block;
 }
+/* ✅ end */
 
 .meta{padding:10px}
 .meta .t{font-weight:950}

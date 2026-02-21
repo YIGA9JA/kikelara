@@ -568,7 +568,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     heroPool = heroItems
       .slice()
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-      .slice(0, 20);
+      .slice(0, 2);
 
     heroIndex = 0;
     setHeroNow(heroPool[0]);
