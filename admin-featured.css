@@ -17,7 +17,16 @@ body{margin:0;background:var(--butter);color:var(--text)}
 .sub{opacity:.75;font-weight:700;margin-top:2px}
 
 .actions{display:flex;gap:10px;flex-wrap:wrap}
-.btn{border:1px solid var(--line);background:rgba(255,255,255,.7);padding:10px 12px;border-radius:12px;font-weight:900;cursor:pointer;text-decoration:none;color:inherit}
+.btn{
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.7);
+  padding:10px 12px;
+  border-radius:12px;
+  font-weight:900;
+  cursor:pointer;
+  text-decoration:none;
+  color:inherit
+}
 .btn.primary{background:linear-gradient(180deg,var(--gold1),var(--gold2));}
 .btn.ghost{background:transparent}
 
@@ -59,12 +68,37 @@ input{
   overflow:hidden;
 }
 
-.thumb{aspect-ratio:16/9;background:#fff}
-.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* ✅ Render images FULL inside a consistent 16:9 frame (no cropping) */
+.thumb{
+  aspect-ratio:16/9;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.thumb img{
+  width:100%;
+  height:100%;
+  object-fit:contain; /* ✅ full image shows */
+  display:block;
+}
 
 .meta{padding:10px}
 .meta .t{font-weight:950}
-.meta .l{opacity:.75;font-weight:750;font-size:12px;margin-top:4px;word-break:break-word}
+.meta .l{
+  opacity:.75;
+  font-weight:750;
+  font-size:12px;
+  margin-top:4px;
+  word-break:break-word
+}
 .meta .b{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-.small{padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.7);font-weight:900;cursor:pointer}
+.small{
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.7);
+  font-weight:900;
+  cursor:pointer
+}
 .small.danger{background:rgba(255,230,230,.85)}
