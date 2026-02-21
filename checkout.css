@@ -3,6 +3,7 @@
    ✅ Butter palette + premium transparent glass
    ✅ Sticky summary on desktop
    ✅ Mobile sticky Pay bar (best conversion UX)
+   ✅ UPDATED: Better small-screen display (<=560px + <=420px + <=360px)
 =========================== */
 
 :root{
@@ -37,6 +38,10 @@
 
   /* Sticky top under header */
   --stickyTop: 96px;
+
+  /* ✅ small-screen spacing helpers */
+  --pageX: 10px;
+  --gap: 18px;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -159,7 +164,7 @@ button{ font:inherit; }
   position: relative;
   z-index: 1;
   margin-bottom: 18px;
-  padding: 8px 10px 0;
+  padding: 8px var(--pageX) 0;
 }
 .checkout-page h1{
   font-size: 28px;
@@ -179,9 +184,9 @@ button{ font:inherit; }
   z-index: 1;
   display:grid;
   grid-template-columns: 1.12fr .88fr;
-  gap: 18px;
+  gap: var(--gap);
   align-items:start;
-  padding: 0 10px;
+  padding: 0 var(--pageX);
 }
 
 /* ================= GLASS BOX ================= */
@@ -400,6 +405,7 @@ button{ font:inherit; }
   align-items:center;
   gap: 10px;
   margin-bottom: 12px;
+  flex-wrap: wrap;                 /* ✅ prevents overflow */
 }
 .ship-badge{
   font-size: 11px;
@@ -434,7 +440,6 @@ button{ font:inherit; }
 
   box-shadow: var(--shadow3);
 }
-
 .pickup-city{
   font-weight: 1000;
   letter-spacing:.10em;
@@ -598,6 +603,8 @@ button{ font:inherit; }
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   box-shadow: 0 -18px 40px rgba(59,47,28,.14);
+
+  padding-bottom: calc(12px + env(safe-area-inset-bottom)); /* ✅ iPhone safe area */
 }
 
 .mobile-pay-btn{
@@ -629,7 +636,10 @@ button{ font:inherit; }
   :root{ --stickyTop: 84px; }
 }
 
+/* ✅ Tablet / small laptop */
 @media (max-width: 980px){
+  :root{ --pageX: 8px; --gap: 14px; }
+
   .checkout-grid{ grid-template-columns:1fr; }
 
   /* Best mobile UX: disable sticky summary (avoid trapped scrolling) */
@@ -641,13 +651,107 @@ button{ font:inherit; }
   .mobile-pay{ display:block; }
 
   /* room for bottom bar */
-  .checkout-page{ padding-bottom: 150px; }
+  .checkout-page{ padding-bottom: 170px; }
+
+  /* make page glass inset less aggressive on small screens */
+  .checkout-page::before,
+  .checkout-page::after{
+    inset: -10px -10px -14px -10px;
+  }
 }
 
+/* ✅ Phones */
 @media (max-width: 560px){
-  .checkout-page{ padding: 22px 0 150px; }
+  :root{ --pageX: 6px; --gap: 12px; }
+
+  .checkout-page{
+    width: min(1200px, 94vw);
+    padding: 18px 0 175px;
+  }
+
+  .checkout-page::before,
+  .checkout-page::after{
+    inset: -8px -8px -12px -8px;
+    border-radius: 28px;
+  }
+
+  .co-top{ margin-bottom: 12px; }
+  .checkout-page h1{
+    font-size: 22px;
+    line-height: 1.12;
+  }
+  .co-sub{
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .checkout-box{
+    padding: 14px;
+    border-radius: 22px;
+  }
+  .checkout-box::after{
+    inset: 9px;
+    border-radius: calc(22px - 9px);
+  }
+
+  .box-head{
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .checkout-box h2{ font-size: 12px; }
+  .box-hint{ font-size: 11px; }
+
+  .divider{ margin: 14px 0 10px; }
+
+  /* Inputs: bigger tap targets + no zoom iOS */
+  .field label{ font-size: 10px; letter-spacing: .14em; }
+  .field input,
+  .field select,
+  .field textarea{
+    padding: 13px 12px;
+    border-radius: 14px;
+    font-size: 16px; /* ✅ prevents iOS auto-zoom */
+  }
+  .field textarea{ min-height: 92px; }
+
+  /* Shipping segment: stack nicer */
+  .ship-segment{
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+  .seg{
+    padding: 11px 10px;
+    border-radius: 14px;
+  }
+  .seg-ico{ font-size: 17px; }
+  .seg-title{ font-size: 11px; }
+  .seg-sub{ font-size: 10.5px; }
+
+  .seg-indicator{
+    inset: 8px auto 8px 8px;
+    width: calc(50% - 12px);
+    border-radius: 14px;
+  }
+
+  /* Pickup rows: stack the call button under text if tight */
+  .pickup-item{
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .pickup-call{
+    width: 100%;
+    text-align: center;
+    padding: 12px 12px;
+  }
+
+  /* Delivery grid single column */
   .delivery-grid{ grid-template-columns:1fr; }
 
+  /* Summary item becomes 2-row layout */
   .summary-item{
     grid-template-columns: 52px 1fr;
     grid-template-areas:
@@ -655,20 +759,79 @@ button{ font:inherit; }
       "img meta"
       "line line";
     align-items: start;
+    gap: 10px;
+    padding: 10px;
   }
-  .summary-item img{ grid-area: img; }
+  .summary-item img{
+    grid-area: img;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+  }
   .summary-name{
     grid-area: name;
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    font-size: 13px;
   }
-  .summary-meta{ grid-area: meta; }
+  .summary-meta{ grid-area: meta; font-size: 12px; }
   .summary-line{
     grid-area: line;
     justify-self: end;
     margin-top: 6px;
+    font-size: 12px;
+  }
+
+  .summary-row{
+    padding: 10px 4px;
+    font-size: 13px;
+  }
+
+  /* Buttons: bigger + cleaner */
+  .pay-btn,
+  .mobile-pay-btn{
+    padding: 15px 16px;
+    font-size: 12px;
+    letter-spacing: .15em;
+  }
+
+  .mobile-pay{
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ✅ Very small phones */
+@media (max-width: 420px){
+  .checkout-page{ width: min(1200px, 96vw); }
+
+  .checkout-box{ padding: 12px; }
+  .checkout-page::before,
+  .checkout-page::after{
+    inset: -6px -6px -10px -6px;
+    border-radius: 24px;
+  }
+
+  .summary-items{ gap: 10px; }
+  .summary-item{ border-radius: 14px; }
+  .summary-name{ font-size: 12.8px; }
+
+  .ship-card{ padding: 12px; border-radius: 16px; }
+}
+
+/* ✅ Tiny phones */
+@media (max-width: 360px){
+  .checkout-page h1{ font-size: 20px; }
+  .co-sub{ font-size: 11.5px; }
+
+  .seg-title{ font-size: 10.5px; }
+  .seg-sub{ font-size: 10px; }
+
+  .pay-btn,
+  .mobile-pay-btn{
+    letter-spacing: .13em;
   }
 }
 

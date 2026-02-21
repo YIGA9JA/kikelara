@@ -28,13 +28,32 @@
 </head>
 
 <body class="liquid-glass">
+  <!-- Liquid background -->
+  <div class="liquid-bg" aria-hidden="true">
+    <span class="orb o1"></span>
+    <span class="orb o2"></span>
+    <span class="orb o3"></span>
+    <span class="grain"></span>
+  </div>
+
   <!-- Header mount -->
   <div id="siteHeader"></div>
 
   <main id="mainContent" class="cart-page">
     <header class="cart-top">
-      <h1>Your Cart</h1>
-      <p class="cart-sub">Review your items and proceed to checkout.</p>
+      <div class="cart-top-row">
+        <div>
+          <h1>Your Cart</h1>
+          <p class="cart-sub">
+            <span id="cartCountText">0 items</span> • Review your items and proceed to checkout.
+          </p>
+        </div>
+
+        <div class="cart-top-actions">
+          <a class="top-link" href="products.html">Continue shopping</a>
+          <button id="clearCartBtn" class="top-btn" type="button">Clear cart</button>
+        </div>
+      </div>
     </header>
 
     <section class="cart-grid" aria-label="Cart content">
@@ -42,10 +61,15 @@
       <div class="cart-items" id="cartItems" aria-live="polite"></div>
 
       <!-- Summary -->
-      <aside class="cart-summary" aria-label="Order summary">
+      <aside class="cart-summary" id="cartSummary" aria-label="Order summary">
         <div class="sum-head">
           <h3>Summary</h3>
           <span class="sum-hint">Delivery at checkout</span>
+        </div>
+
+        <div class="summary-row">
+          <span>Items</span>
+          <span id="itemsCount">0</span>
         </div>
 
         <div class="summary-row">
@@ -68,7 +92,9 @@
           <span class="btn-total" id="checkoutBtnTotal">₦0</span>
         </button>
 
-        <div class="sum-note">You’ll confirm delivery details on the next step.</div>
+        <div class="sum-note">
+          Secure checkout • You’ll confirm delivery details on the next step.
+        </div>
       </aside>
     </section>
   </main>
@@ -76,10 +102,16 @@
   <!-- Sticky Mobile Checkout -->
   <div id="mobileCheckout" class="mobile-checkout" aria-hidden="true">
     <button id="mobileCheckoutBtn" class="mobile-checkout-btn" type="button" disabled>
-      <span>Checkout</span>
+      <span class="mcb-left">
+        <span class="mcb-title">Checkout</span>
+        <span class="mcb-sub" id="mobileItemsText">0 items</span>
+      </span>
       <span id="mobileCheckoutTotal">₦0</span>
     </button>
   </div>
+
+  <!-- Toast host -->
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Footer mount -->
   <div id="siteFooter"></div>
